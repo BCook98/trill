@@ -31,11 +31,13 @@ type Config struct {
 	Name            string `json:"name"`
 	Network         string `json:"network"`
 	IP              string `json:"ip"`
+	BindIP          string `json:"bindIP,omitempty"`
 	Address         string `json:"address"`
 	Fingerprint     string `json:"fingerprint"`
 	Certificate     string `json:"certificate"`
 	PrivateKey      string `json:"privateKey"`
 	TailscaleCLI    string `json:"tailscaleCLI,omitempty"`
+	TailscaleSocket string `json:"tailscaleSocket,omitempty"`
 	AllowControl    bool   `json:"allowControl"`
 	TmuxSocket      string `json:"tmuxSocket,omitempty"`
 	Daemon          string `json:"daemon"`
@@ -198,8 +200,15 @@ func (c Config) Validate(dir string) error {
 		if hostErr != nil || host != u.Hostname() || isTailscale(ip) || len(c.Fingerprint) != 64 || strings.Trim(c.Fingerprint, "0123456789abcdef") != "" {
 			return errors.New("invalid LAN pin or address")
 		}
+		if c.BindIP != "" || c.TailscaleSocket != "" {
+			return errors.New("bind address and Tailscale socket are Tailscale-only")
+		}
 	} else if !isTailscale(ip) || !strings.HasSuffix(u.Hostname(), ".ts.net") || c.Fingerprint != "" || !filepath.IsAbs(c.TailscaleCLI) {
 		return errors.New("invalid Tailscale HTTPS configuration")
+	} else if c.BindIP != "" && c.BindIP != LoopbackFor(ip) {
+		return errors.New("Tailscale bind address must be the loopback address of the tailnet IP's family")
+	} else if c.TailscaleSocket != "" && (!filepath.IsAbs(c.TailscaleSocket) || filepath.Clean(c.TailscaleSocket) != c.TailscaleSocket) {
+		return errors.New("Tailscale socket must be an absolute clean path")
 	}
 	if c.Certificate != filepath.Join(dir, "tls.pem") || c.PrivateKey != c.Certificate {
 		return errors.New("certificate must be the managed PEM bundle")
@@ -241,8 +250,19 @@ func LoadConfig(dir string) (Config, error) {
 	return c, c.Validate(dir)
 }
 
+// ListenIP is the local address the companion binds.
+func (c Config) ListenIP() string {
+	if c.BindIP != "" {
+		return c.BindIP
+	}
+	return c.IP
+}
+
 func DaemonArgs(c Config, dir string) []string {
-	args := []string{"--listen", net.JoinHostPort(c.IP, Port), "--cert", c.Certificate, "--key", c.PrivateKey, "--pairing-store", filepath.Join(dir, "devices.json"), "--mosh-host", c.IP}
+	args := []string{"--listen", net.JoinHostPort(c.ListenIP(), Port), "--cert", c.Certificate, "--key", c.PrivateKey, "--pairing-store", filepath.Join(dir, "devices.json"), "--mosh-host", c.IP}
+	if c.BindIP != "" {
+		args = append(args, "--mosh-bind", c.BindIP)
+	}
 	if c.AllowControl {
 		args = append(args, "--allow-control")
 	}

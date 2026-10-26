@@ -99,11 +99,11 @@ type Certificates struct {
 }
 
 func NewCertificates() Certificates { return Certificates{Runner: ExecRunner{}, Now: time.Now} }
-func (m Certificates) tailscaleBundle(ctx context.Context, cli, host string) ([]byte, error) {
+func (m Certificates) tailscaleBundle(ctx context.Context, cli, socket, host string) ([]byte, error) {
 	// The sandboxed macOS app cannot write arbitrary caller paths. Both dash
 	// destinations export the combined PEM to stdout; Runner captures it with a
 	// hard limit and discards stderr. Never print this output or command errors.
-	bundle, err := m.Runner.Run(ctx, cli, "cert", "--cert-file=-", "--key-file=-", host)
+	bundle, err := m.Runner.Run(ctx, cli, TailscaleArgs(socket, "cert", "--cert-file=-", "--key-file=-", host)...)
 	if err != nil {
 		return nil, errors.New("Tailscale certificate export failed; connect Tailscale on this Mac and enable MagicDNS/HTTPS certificates in the tailnet DNS settings, then verify this CLI is allowed to export a certificate and retry setup (or trill renew for saved state). Before config is saved, --network lan is an explicit alternative; saved configurations require a new state directory. No fallback certificate was installed")
 	}
@@ -124,7 +124,7 @@ func (m Certificates) Provision(ctx context.Context, dir string, n Network, name
 	var pin string
 	var err error
 	if n.Kind == "tailscale" {
-		bundle, err = m.tailscaleBundle(ctx, n.TailscaleCLI, n.Host)
+		bundle, err = m.tailscaleBundle(ctx, n.TailscaleCLI, n.TailscaleSocket, n.Host)
 	} else {
 		bundle, pin, err = SelfSigned(n.IP, n.Host, name, m.Now())
 	}
@@ -169,7 +169,7 @@ func (m Certificates) Renew(ctx context.Context, dir string, c Config) (bool, er
 		return false, nil
 	}
 	u, _ := url.Parse(c.Address)
-	bundle, err := m.tailscaleBundle(ctx, c.TailscaleCLI, u.Hostname())
+	bundle, err := m.tailscaleBundle(ctx, c.TailscaleCLI, c.TailscaleSocket, u.Hostname())
 	if err != nil {
 		return false, err
 	}

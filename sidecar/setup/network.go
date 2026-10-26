@@ -58,17 +58,25 @@ type Candidate struct {
 	Interface string
 	IP        net.IP
 }
+
+// BindIP is set when IP is not assigned to a local interface, as with a
+// userspace-networking tailscaled: listeners bind loopback, where tailscaled
+// delivers inbound tailnet traffic, while IP remains the advertised address.
 type Network struct {
-	Kind, IP, Host, TailscaleCLI string
-	Choices                      []Candidate
-	Notice                       string
+	Kind, IP, BindIP, Host, TailscaleCLI, TailscaleSocket string
+	Choices                                               []Candidate
+	Notice                                                string
 }
 type Discovery struct {
 	Runner           Runner
 	LookPath         func(string) (string, error)
 	Interfaces       func() ([]Candidate, error)
+	Assigned         func(net.IP) bool
 	DefaultInterface func(context.Context) string
 	LocalHostname    func(context.Context) (string, error)
+	// TailscaleCLI replaces CLI discovery; TailscaleSocket selects a tailscaled
+	// other than the CLI's default, such as a second userspace node.
+	TailscaleCLI, TailscaleSocket string
 }
 
 func NewDiscovery() Discovery {
@@ -79,7 +87,7 @@ func NewDiscovery() Discovery {
 			return "", errors.New("cannot detect a Bonjour hostname; set the Mac LocalHostName or pass --hostname my-mac.local")
 		}
 		return NormalizeLANHostname(strings.TrimSpace(string(b)))
-	}, LookPath: exec.LookPath, Interfaces: LocalAddresses, DefaultInterface: func(ctx context.Context) string {
+	}, LookPath: exec.LookPath, Interfaces: LocalAddresses, Assigned: Assigned, DefaultInterface: func(ctx context.Context) string {
 		b, err := r.Run(ctx, "/sbin/route", "-n", "get", "default")
 		if err != nil {
 			return ""
@@ -103,6 +111,36 @@ func isTailscale(ip net.IP) bool {
 	_, v4, _ := net.ParseCIDR("100.64.0.0/10")
 	_, v6, _ := net.ParseCIDR("fd7a:115c:a1e0::/48")
 	return v4.Contains(ip) || v6.Contains(ip)
+}
+
+// TailscaleArgs prefixes a CLI invocation with the selected daemon socket.
+func TailscaleArgs(socket string, args ...string) []string {
+	if socket == "" {
+		return args
+	}
+	return append([]string{"--socket=" + socket}, args...)
+}
+
+// LoopbackFor returns the loopback address of ip's family.
+func LoopbackFor(ip net.IP) string {
+	if ip.To4() != nil {
+		return "127.0.0.1"
+	}
+	return "::1"
+}
+
+// Assigned reports whether ip belongs to an interface on this Mac.
+func Assigned(ip net.IP) bool {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return false
+	}
+	for _, addr := range addrs {
+		if local, _, err := net.ParseCIDR(addr.String()); err == nil && local.Equal(ip) {
+			return true
+		}
+	}
+	return false
 }
 func LocalAddresses() ([]Candidate, error) {
 	ifaces, err := net.Interfaces()
@@ -165,13 +203,16 @@ func SelectLAN(candidates []Candidate, defaultInterface, override string) (Candi
 	return valid[0], nil
 }
 func (d Discovery) tailscale(ctx context.Context, override string) (Network, error) {
-	paths := []string{}
-	if path, err := d.LookPath("tailscale"); err == nil {
-		paths = append(paths, path)
+	paths := []string{d.TailscaleCLI}
+	if d.TailscaleCLI == "" {
+		paths = nil
+		if path, err := d.LookPath("tailscale"); err == nil {
+			paths = append(paths, path)
+		}
+		paths = append(paths, "/Applications/Tailscale.app/Contents/MacOS/Tailscale")
 	}
-	paths = append(paths, "/Applications/Tailscale.app/Contents/MacOS/Tailscale")
 	for _, path := range paths {
-		b, err := d.Runner.Run(ctx, path, "status", "--json")
+		b, err := d.Runner.Run(ctx, path, TailscaleArgs(d.TailscaleSocket, "status", "--json")...)
 		if err != nil {
 			continue
 		}
@@ -202,7 +243,11 @@ func (d Discovery) tailscale(ctx context.Context, override string) (Network, err
 		for _, s := range addresses {
 			ip := net.ParseIP(s)
 			if usableIP(ip) && isTailscale(ip) {
-				return Network{Kind: "tailscale", IP: ip.String(), Host: host, TailscaleCLI: path}, nil
+				n := Network{Kind: "tailscale", IP: ip.String(), Host: host, TailscaleCLI: path, TailscaleSocket: d.TailscaleSocket}
+				if d.Assigned != nil && !d.Assigned(ip) {
+					n.BindIP = LoopbackFor(ip)
+				}
+				return n, nil
 			}
 		}
 	}

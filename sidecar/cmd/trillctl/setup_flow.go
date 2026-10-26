@@ -68,6 +68,7 @@ func compatibleSetupFlags(flags *flag.FlagSet, c setup.Config, dir string) error
 		"tmux-socket": c.TmuxSocket, "backends": selection.Backends,
 		"herdr-path": selection.HerdrPath, "herdr-sessions": selection.HerdrSessions,
 		"herdr-config-home": c.HerdrConfigHome,
+		"tailscale-cli":     c.TailscaleCLI, "tailscale-socket": c.TailscaleSocket,
 	}
 	var conflicts []string
 	var hints []string

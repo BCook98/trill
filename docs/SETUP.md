@@ -98,6 +98,18 @@ Setup defaults to `--network auto`: it prefers an **already connected** Tailscal
 
 For Tailscale, follow the official [HTTPS certificate prerequisites](https://tailscale.com/docs/how-to/set-up-https-certificates). The local CLI must be allowed to export a certificate. Publicly issued machine hostnames appear in certificate transparency logs. Setup verifies the certificate chain, hostname, and validity before omitting a pin. Export or trust failure stops setup rather than substituting a self-signed certificate.
 
+### Use a second tailnet
+
+Setup uses the `tailscale` CLI on PATH, then the Tailscale app. To use a different tailnet, such as a second `tailscaled` with its own socket, name its CLI and socket:
+
+```sh
+./scripts/setup-companion.sh --tailscale-cli /path/to/tailscale --tailscale-socket /path/to/tailscaled.sock
+```
+
+Either flag selects Tailscale. Renewal uses the same CLI and socket. Certificate export requires that `tailscaled` to run with `--statedir`.
+
+If the node's tailnet IP is not assigned to a Mac interface, as with `--tun=userspace-networking`, the companion and `mosh-server` listen on loopback. The phone still connects to the tailnet hostname and IP, and `tailscaled` forwards that traffic to loopback.
+
 For LAN, setup reads the Mac's Bonjour name and creates a certificate for its `.local` hostname and selected IP. Use the generated hostname: self-signed numeric-IP HTTPS can be rejected by iOS before pinning. The hostname must actually resolve from the phone. Guest Wi-Fi isolation and VPN DNS can prevent that.
 
 Allow TCP **7443** and UDP **60000 to 60010** through applicable Mac firewall, LAN, and tailnet rules. HTTPS reachability alone does not prove that the Mosh UDP path works. Trill does not edit firewall rules.

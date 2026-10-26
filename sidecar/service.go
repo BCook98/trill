@@ -39,6 +39,7 @@ type Config struct {
 	TmuxSocket      string
 	LabFilesRoot    string // Explicit opt-in for browsing in terminal lab mode.
 	MoshHost        string
+	MoshBind        string // Local mosh-server bind address when it differs from the advertised MoshHost.
 	UDPPorts        string
 	TmuxPath        string
 	MoshPath        string
@@ -772,6 +773,9 @@ func (s *Service) bootstrapDevice(ctx context.Context, id string, cols, rows int
 		return MoshInfo{}, errClosed
 	}
 	bindHost := s.config.MoshHost
+	if s.config.MoshBind != "" {
+		bindHost = s.config.MoshBind
+	}
 	if s.demo != nil {
 		bindHost = s.demo.bindHost
 	}

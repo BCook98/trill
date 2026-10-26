@@ -217,3 +217,15 @@ func TestInitialTailscaleExportFailureExplainsRetryWithoutPublishingOrLeaking(t 
 		t.Fatal("failed export retried or fell back without explicit choice")
 	}
 }
+
+func TestTailscaleExportUsesSelectedSocket(t *testing.T) {
+	r := &fakeRunner{run: func(string, []string) ([]byte, error) { return nil, errors.New("export unavailable") }}
+	n := Network{Kind: "tailscale", IP: "100.73.54.69", Host: "mac.example.ts.net", TailscaleCLI: "/opt/tailscale", TailscaleSocket: "/run/ts.sock"}
+	if _, err := (Certificates{Runner: r, Now: time.Now}).Provision(context.Background(), testDir(t), n, "Mac"); err == nil {
+		t.Fatal("accepted failed export")
+	}
+	want := []call{{"/opt/tailscale", []string{"--socket=/run/ts.sock", "cert", "--cert-file=-", "--key-file=-", "mac.example.ts.net"}}}
+	if !reflect.DeepEqual(r.calls, want) {
+		t.Fatalf("%+v", r.calls)
+	}
+}
