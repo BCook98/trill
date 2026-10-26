@@ -1,0 +1,462 @@
+import SwiftUI
+
+struct ComputerView: View {
+    @Environment(AppStore.self) private var store
+    @State private var showForget = false
+    @State private var editPairing = false
+    @State private var showComputers = false
+    @AppStorage("terminalFontSize") private var fontSize = 14.0
+    @AppStorage(TerminalConsentPreference.storageKey) private var terminalConsent = ""
+    @AppStorage(PhotoConsentPreference.storageKey) private var photoConsent = ""
+    var body: some View {
+        List {
+            if let computer = store.computer {
+                Section {
+                    HStack(spacing: 16) {
+                        Image(systemName: "laptopcomputer").font(.largeTitle).foregroundStyle(Color.accentColor)
+                        VStack(alignment: .leading, spacing: 5) {
+                            Text(computer.name).font(.headline)
+                            Text(computer.address).font(.subheadline).foregroundStyle(.secondary).textSelection(.enabled)
+                        }
+                    }.padding(.vertical, 12)
+                    LabeledContent("Access", value: store.readOnly ? "Read-only" : "Session control")
+                    if let date = store.refreshedAt { LabeledContent("Last connected") { Text(date, style: .relative) } }
+                    if let health = store.health { LabeledContent("Sidecar", value: health.version) }
+                    if let error = store.error { Label(error, systemImage: "wifi.exclamationmark").font(.subheadline).foregroundStyle(.secondary) }
+                    Button("Check connection", systemImage: "arrow.clockwise") { Task { await store.refresh() } }.disabled(store.loading)
+                } header: { Text("Your computer") }
+                Section {
+                    Button("Saved computers", systemImage: "laptopcomputer") { showComputers = true }
+                    Button("Edit pairing", systemImage: "pencil") { editPairing = true }
+                    Button("Forget computer", systemImage: "link.badge.plus", role: .destructive) { showForget = true }
+                } footer: { Text("This device keeps your pairing details in Keychain. Your sessions run on your Mac.") }
+                Section {
+                    LabeledContent("Terminal permission", value: TerminalConsentPreference.contains(computer, in: terminalConsent) ? "Remembered" : "Ask each time")
+                    if TerminalConsentPreference.contains(computer, in: terminalConsent) {
+                        Button("Ask before opening terminals") {
+                            terminalConsent = TerminalConsentPreference.forgetting(computer, in: terminalConsent)
+                        }.accessibilityIdentifier("reset-terminal-permission")
+                    }
+                    LabeledContent("Photo permission", value: PhotoConsentPreference.contains(computer, in: photoConsent) ? "Remembered" : "Not granted")
+                    if PhotoConsentPreference.contains(computer, in: photoConsent) {
+                        Button("Ask before uploading photos") {
+                            photoConsent = PhotoConsentPreference.forgetting(computer, in: photoConsent)
+                        }.accessibilityIdentifier("reset-photo-permission")
+                    }
+                } header: { Text("Permissions") } footer: {
+                    Text("These choices apply only to this pairing. You still choose each photo, and new coding sessions ask separately. Resetting a permission does not disconnect terminals or delete photos already uploaded.")
+                }
+            } else {
+                Section {
+                    FeatureRow(symbol: "laptopcomputer", title: "Connect your Mac", text: "Run Trill's setup on your Mac, then scan its pairing code here.").padding(.vertical, 12)
+                    Button("Pair a computer", systemImage: "link") { store.pairingPresented = true }
+                }
+            }
+            Section("Terminal") {
+                Stepper(value: $fontSize, in: 10...28, step: 1) {
+                    LabeledContent("Text size", value: "\(Int(fontSize)) pt")
+                }
+                Text("Aa Bb 0123 →").font(.system(size: fontSize, design: .monospaced)).padding(.vertical, 6).accessibilityLabel("Terminal font preview")
+            }
+            Section("About Trill") {
+                Label { Text("A terminal for your Xirp and Herdr sessions.") } icon: {
+                    Image("TrillWave").resizable().scaledToFit().frame(width: 22, height: 16).foregroundStyle(Color.accentColor)
+                }
+                Text("Trill is an independent companion for Xirp and Herdr. It uses SwiftTerm and swift-mosh and is not affiliated with Spotify.").font(.footnote).foregroundStyle(.secondary)
+                NavigationLink("Privacy policy") { PrivacyPolicyView() }
+                NavigationLink("Support") { SupportView() }
+                NavigationLink("Acknowledgements") { BundledDocumentView(title: "Acknowledgements", resource: "Acknowledgements") }
+            }
+        }
+        .navigationTitle("Connection details")
+        .sheet(isPresented: $editPairing) { PairComputerView() }
+        .sheet(isPresented: $showComputers) { ComputersView() }
+        .alert("Forget this computer?", isPresented: $showForget) {
+            Button("Cancel", role: .cancel) {}
+            Button("Forget computer", role: .destructive) { Task { await store.forget(); if store.computer == nil { store.connectionDetailsPresented = false } } }
+        } message: { Text("Trill will remove the pairing details from this device and disconnect. Your sessions will keep running on your Mac.") }
+    }
+}
+
+struct PairComputerView: View {
+    var prefillCurrent = true
+    @Environment(AppStore.self) private var store
+    @Environment(\.dismiss) private var dismiss
+    @State private var name = "My Mac"
+    @State private var address = ""
+    @State private var token = ""
+    @State private var fingerprint = ""
+    @State private var pairing = false
+    @State private var error: String?
+    @State private var didInitialize = false
+    @State private var manual = false
+    @State private var scanner = false
+    @State private var discardPending = false
+    @State private var invitation: PairingInvitation?
+    @State private var deviceName = "My iPhone"
+    @AccessibilityFocusState private var errorFocused: Bool
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                if let pending = store.pendingEnrollment {
+                    Section {
+                        Label(pending.name, systemImage: "laptopcomputer").font(.headline)
+                        Text(pending.address).font(.subheadline).textSelection(.enabled)
+                        Label(store.pendingEnrollmentSaved ? "Device credential saved" : "Device credential needs saving", systemImage: "key")
+                        Text("Your Mac approved this device. Tap Pair to check the connection and finish pairing. Trill will keep your current computer paired until then.").font(.subheadline).foregroundStyle(.secondary)
+                        Button("Discard unfinished pairing", role: .destructive) { discardPending = true }
+                    } header: { Text("Finish pairing") }
+                } else if let invitation {
+                    Section {
+                        Label(invitation.name, systemImage: "laptopcomputer").font(.headline)
+                        Text(invitation.address).font(.subheadline).textSelection(.enabled)
+                        Label(invitation.fingerprint.isEmpty ? "Trusted HTTPS certificate" : "Certificate included in pairing code", systemImage: "lock.shield")
+                            .font(.subheadline).foregroundStyle(.secondary)
+                        TextField("This device's name", text: $deviceName).accessibilityIdentifier("device-name")
+                        LabeledContent("Code expires") { Text(invitation.expiresAt, style: .time) }
+                        Button("Use a different code", systemImage: "qrcode") { self.invitation = nil; error = nil }.disabled(pairing)
+                    } header: { Text("Review this computer") }
+                    footer: { Text("Use a code you created on your own Mac. Pairing lets this device connect to the companion. You enable terminal access separately on the Mac.") }
+                } else {
+                    Section {
+                        FeatureRow(symbol: "qrcode.viewfinder", title: "Pair with your Mac", text: "Run Trill's setup on your Mac, then scan its pairing code. Keep both devices on the same Wi-Fi or Tailscale network.").padding(.vertical, 8)
+                        Button("Scan pairing code", systemImage: "qrcode.viewfinder") { scanner = true }.accessibilityIdentifier("scan-pairing")
+                        PasteButton(payloadType: String.self) { values in if let text = values.first { importCode(text) } }
+                            .accessibilityLabel("Paste pairing link")
+                    } footer: { Text("Each code works once and expires after ten minutes.") }
+                    Section {
+                        DisclosureGroup("Enter details manually", isExpanded: $manual) {
+                            TextField("Name", text: $name).textContentType(.nickname).accessibilityIdentifier("computer-name")
+                            TextField("https://mac.example:7443", text: $address).keyboardType(.URL).textInputAutocapitalization(.never).autocorrectionDisabled().accessibilityLabel("Sidecar address").accessibilityIdentifier("sidecar-address")
+                            SecureField("Pairing token", text: $token).textInputAutocapitalization(.never).autocorrectionDisabled().accessibilityIdentifier("pairing-token")
+                            TextField("Certificate fingerprint (self-signed)", text: $fingerprint, axis: .vertical)
+                                .font(.system(.footnote, design: .monospaced)).textInputAutocapitalization(.never).autocorrectionDisabled()
+                        }
+                    } footer: {
+                        if manual { Text("A self-signed certificate requires its SHA-256 fingerprint. For a trusted Tailscale certificate, use the full .ts.net hostname and leave the fingerprint blank.") }
+                    }
+                }
+                if let error {
+                    Section { Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.red).font(.subheadline).accessibilityFocused($errorFocused).accessibilityIdentifier("pairing-error") }
+                }
+                if pairing { Section { HStack { ProgressView(); Text("Connecting securely…") } } }
+            }
+            .disabled(pairing)
+            .navigationTitle("Pair a computer").navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel", systemImage: "xmark") { dismiss() }.disabled(pairing) }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Pair", systemImage: "link", action: pair)
+                        .disabled(pairing || !canPair).accessibilityLabel("Pair computer").accessibilityIdentifier("confirm-pairing")
+                }
+            }
+            .interactiveDismissDisabled(pairing)
+            .alert("Discard unfinished pairing?", isPresented: $discardPending) {
+                Button("Cancel", role: .cancel) {}
+                Button("Discard", role: .destructive) {
+                    do { try store.discardPendingEnrollment(); error = nil }
+                    catch { self.error = error.localizedDescription; errorFocused = true }
+                }
+            } message: { Text("Trill will remove the unfinished pairing from this phone. Revoke its device entry on the Mac if you no longer want it registered. Your current computer will stay paired.") }
+            .sheet(isPresented: $scanner) {
+                NavigationStack {
+                    PairingScanner(onCode: { scanner = false; importCode($0) }, onFailure: { scanner = false; error = $0; errorFocused = true })
+                        .overlay(alignment: .bottom) { Text("Point the camera at the code on your Mac").font(.callout).padding().background(.regularMaterial, in: Capsule()).padding() }
+                        .navigationTitle("Scan pairing code").navigationBarTitleDisplayMode(.inline)
+                        .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel", systemImage: "xmark") { scanner = false } } }
+                }
+            }
+            .onAppear {
+                guard !didInitialize else { return }
+                didInitialize = true
+                if prefillCurrent, let computer = store.computer { name = computer.name; address = computer.address; token = computer.token; fingerprint = computer.fingerprint; manual = true }
+                consumeLink()
+            }
+            .onChange(of: store.pairingLink) { _, _ in consumeLink() }
+        }
+    }
+    private var canPair: Bool {
+        if store.pendingEnrollment != nil { return true }
+        if invitation != nil { return !deviceName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        return manual && !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !address.isEmpty && !token.isEmpty
+    }
+    private func consumeLink() {
+        guard !pairing, let link = store.pairingLink else { return }
+        store.pairingLink = nil
+        importCode(link)
+    }
+    private func importCode(_ text: String) {
+        do { invitation = try PairingInvitation.parse(text); error = nil; errorFocused = false }
+        catch { self.error = error.localizedDescription; errorFocused = true }
+    }
+    private func pair() {
+        pairing = true; error = nil; errorFocused = false
+        Task {
+            do {
+                if let pending = store.pendingEnrollment {
+                    try await store.pairEnrollment(pending)
+                } else if let invitation {
+                    let computer = try await APIClient.redeem(invitation, deviceName: deviceName.trimmingCharacters(in: .whitespacesAndNewlines))
+                    self.invitation = nil
+                    try await store.pairEnrollment(computer)
+                } else {
+                    try await store.pair(Computer(name: name.trimmingCharacters(in: .whitespacesAndNewlines), address: address.trimmingCharacters(in: .whitespacesAndNewlines), token: token.trimmingCharacters(in: .whitespacesAndNewlines), fingerprint: CertificateFingerprint.normalized(fingerprint)))
+                }
+                dismiss()
+            } catch { self.error = error.localizedDescription; errorFocused = true }
+            pairing = false
+        }
+    }
+}
+
+struct SessionCreationFailure {
+    let outcomeUncertain: Bool
+    let message: String
+
+    init(_ error: Error) {
+        if error is SessionCreationPreflightError {
+            outcomeUncertain = false
+        } else if let response = error as? APIRequestError {
+            outcomeUncertain = response.status == 409 && response.message.contains("unconfirmed")
+        } else {
+            // Transport errors are wrapped in TrillError, and decoding can fail
+            // after the server has accepted a request. Neither is safe to retry.
+            outcomeUncertain = true
+        }
+        message = outcomeUncertain
+            ? "Trill could not confirm whether your computer created the session. Check Sessions before trying again."
+            : error.localizedDescription
+    }
+}
+
+struct NewSessionView: View {
+    @Environment(AppStore.self) private var store
+    @Environment(\.dismiss) private var dismiss
+    @State private var projectID = ""
+    @State private var name = ""
+    @State private var goal = ""
+    @State private var terminalOnly = false
+    @State private var useWorktree = true
+    @State private var creating = false
+    @State private var creationUncertain = false
+    @State private var showAgentConsent = false
+    @State private var error: String?
+    @State private var didInitialize = false
+    private var selectedProject: Project? { store.creatableProjects.first { $0.id == projectID } }
+    private var allowsAgent: Bool { selectedProject.map { $0.capabilities?.createAgent ?? true } ?? false }
+    private var allowsTerminal: Bool { selectedProject.map { $0.capabilities?.createTerminal ?? true } ?? false }
+    private var providerName: String { selectedProject?.providerName ?? "Xirp" }
+    @AccessibilityFocusState private var errorFocused: Bool
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Project") {
+                    Picker("Project", selection: $projectID) {
+                        Text("Select a project").tag("")
+                        ForEach(store.creatableProjects) { Text($0.name + ($0.providerName.map { " · " + $0 } ?? "")).tag($0.id) }
+                    }
+                }
+                Section("Session type") {
+                    if allowsAgent && allowsTerminal {
+                        Picker("Session type", selection: $terminalOnly) {
+                            Text("Coding agent").tag(false)
+                            Text("Terminal").tag(true)
+                        }.pickerStyle(.segmented).accessibilityIdentifier("new-session-type")
+                    } else if selectedProject != nil {
+                        LabeledContent("Session type", value: allowsAgent ? "Coding agent" : "Terminal")
+                    } else { Text("Choose a project first.").foregroundStyle(.secondary) }
+                }
+                if !terminalOnly {
+                    Section {
+                        Picker("Location", selection: $useWorktree) {
+                            Text("New worktree").tag(true).disabled(!(selectedProject?.capabilities?.worktree ?? true))
+                            Text("Project folder").tag(false)
+                        }.accessibilityIdentifier("new-session-location")
+                    } footer: {
+                        Text(useWorktree ? "Xirp creates a separate worktree and branch for this session." : "The session uses the project folder and shares its current branch and files.")
+                    }
+                } else {
+                    Section {
+                        LabeledContent("Location", value: "Project folder")
+                    } footer: {
+                        Text(selectedProject?.provider == "herdr" ? "Open a shell in this Herdr workspace’s default directory. You can start your coding agent in its terminal." : "Open a shell in your project folder without starting an agent. You can rename it later.")
+                    }
+                }
+                Section {
+                    Label("Starts in \(providerName) on your computer", systemImage: "laptopcomputer")
+                    if !terminalOnly {
+                        Text("Xirp starts the coding agent configured for this project. You can then open its terminal.").font(.subheadline).foregroundStyle(.secondary)
+                    }
+                }
+                if !terminalOnly {
+                    Section("Session") {
+                        TextField("Name (optional)", text: $name)
+                            .accessibilityIdentifier("new-session-name")
+                        TextField("What would you like to work on?", text: $goal, axis: .vertical)
+                            .lineLimit(5...10).accessibilityLabel("Session goal")
+                            .accessibilityIdentifier("new-session-goal")
+                    }
+                }
+                if let error {
+                    Section {
+                        Text(error).foregroundStyle(.red).accessibilityFocused($errorFocused)
+                        if creationUncertain {
+                            Button("Check Sessions", systemImage: "list.bullet") {
+                                Task { await store.refresh(); store.selectedTab = .sessions; dismiss() }
+                            }
+                        }
+                    }
+                }
+            }
+            .disabled(creating)
+            .navigationTitle("New session").navigationBarTitleDisplayMode(.inline)
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                Button {
+                    if terminalOnly { createSession() } else { showAgentConsent = true }
+                } label: {
+                    HStack {
+                        if creating {
+                            ProgressView().controlSize(.small)
+                        } else {
+                            Image(systemName: terminalOnly ? "plus" : "play.fill")
+                        }
+                        Text(creating ? "Starting…" : (terminalOnly ? "Create terminal" : "Start session"))
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 24)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .disabled(creating || store.busy || creationUncertain || (!terminalOnly && goal.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) || !store.canCreate(projectID: projectID, terminalOnly: terminalOnly, useWorktree: useWorktree) || store.readOnly)
+                .accessibilityIdentifier("new-session-submit")
+                .padding()
+                .background(.bar)
+            }
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel", systemImage: "xmark") { dismiss() }.disabled(creating) }
+            }
+            .sheet(isPresented: $showAgentConsent) {
+                SharingConsentView(title: "Start a coding session", destination: store.computer?.name ?? "Your computer", message: SharingDisclosure.agent, actionTitle: "Allow and start session", allow: createSession)
+            }
+            .interactiveDismissDisabled(creating)
+            .onChange(of: selectedProject) { _, _ in revalidateProject() }
+            .onAppear {
+                guard !didInitialize else { return }
+                didInitialize = true
+                projectID = store.creatableProjects.first?.id ?? ""
+                revalidateProject()
+            }
+        }
+    }
+    private func revalidateProject() {
+        showAgentConsent = false
+        guard selectedProject != nil else { projectID = ""; return }
+        if !allowsAgent { terminalOnly = true }
+        else if !allowsTerminal { terminalOnly = false }
+        if terminalOnly || !(selectedProject?.capabilities?.worktree ?? true) { useWorktree = false }
+    }
+    private func createSession() {
+        guard !creating, !creationUncertain else { return }
+        creating = true; error = nil; errorFocused = false
+        Task {
+            do { try await store.create(projectID: projectID, name: name, goal: goal, terminalOnly: terminalOnly, useWorktree: useWorktree); dismiss() }
+            catch {
+                let failure = SessionCreationFailure(error)
+                creationUncertain = failure.outcomeUncertain
+                self.error = failure.message
+                errorFocused = true
+            }
+            creating = false
+        }
+    }
+
+}
+
+struct NewHerdrItemView: View {
+    @Environment(AppStore.self) private var store
+    @Environment(\.dismiss) private var dismiss
+    let isWorktree: Bool
+    @State private var targetID = ""
+    @State private var name = ""
+    @State private var directoryOrBranch = ""
+    @State private var creating = false
+    @State private var creationUncertain = false
+    @State private var error: String?
+    private var trimmedName: String { name.trimmingCharacters(in: .whitespacesAndNewlines) }
+    private var trimmedLocation: String { directoryOrBranch.trimmingCharacters(in: .whitespacesAndNewlines) }
+    private var targetAvailable: Bool {
+        isWorktree ? store.worktreeProjects.contains { $0.id == targetID } : store.spaceProviders.contains { $0.id == targetID }
+    }
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section(isWorktree ? "Repository space" : "Herdr server") {
+                    Picker(isWorktree ? "Space" : "Server", selection: $targetID) {
+                        Text("Select…").tag("")
+                        if isWorktree {
+                            ForEach(store.worktreeProjects) { project in
+                                Text(project.displayName + (store.spaceProviders.count > 1 ? " · " + (project.providerName ?? "Herdr") : "")).tag(project.id)
+                            }
+                        } else {
+                            ForEach(store.spaceProviders, id: \.id) { provider in Text(provider.name).tag(provider.id) }
+                        }
+                    }
+                }
+                Section {
+                    TextField(isWorktree ? "Name (optional)" : "Space name", text: $name)
+                        .accessibilityIdentifier("new-herdr-name")
+                    TextField(isWorktree ? "New branch, e.g. feature/search" : "Folder path on your Mac", text: $directoryOrBranch)
+                        .textInputAutocapitalization(.never).autocorrectionDisabled()
+                        .accessibilityIdentifier("new-herdr-location")
+                } footer: {
+                    Text(isWorktree
+                         ? "Herdr creates a branch and worktree from the selected primary repository space and opens a shell there. It appears beneath its repository space."
+                         : "Use the full path to an existing folder, for example /Users/you/code/app. Herdr opens a space with a shell in that folder.")
+                }
+                Section {
+                    Label("Creates in Herdr on your computer", systemImage: "laptopcomputer")
+                    Text("You can open the terminal in Trill and start your coding agent there.")
+                        .font(.subheadline).foregroundStyle(.secondary)
+                }
+                if let error {
+                    Section {
+                        Text(error).foregroundStyle(.red)
+                        if creationUncertain {
+                            Button("Check Spaces") { Task { await store.refresh(); dismiss() } }
+                        }
+                    }
+                }
+            }
+            .disabled(creating)
+            .navigationTitle(isWorktree ? "New worktree" : "New space")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.disabled(creating) }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(creating ? "Creating…" : "Create") { create() }
+                        .disabled(creating || creationUncertain || store.busy || store.readOnly || !targetAvailable || trimmedLocation.isEmpty || (!isWorktree && (trimmedName.isEmpty || !trimmedLocation.hasPrefix("/"))))
+                        .accessibilityIdentifier("new-herdr-submit")
+                }
+            }
+            .interactiveDismissDisabled(creating)
+            .onAppear { targetID = isWorktree ? (store.worktreeProjects.first?.id ?? "") : (store.spaceProviders.first?.id ?? "") }
+        }
+    }
+    private func create() {
+        guard !creating, !creationUncertain else { return }
+        creating = true; error = nil
+        Task {
+            do {
+                try await store.createHerdrItem(isWorktree: isWorktree, targetID: targetID, name: trimmedName, directoryOrBranch: trimmedLocation)
+                dismiss()
+            } catch {
+                let failure = SessionCreationFailure(error)
+                creationUncertain = failure.outcomeUncertain
+                self.error = failure.outcomeUncertain
+                    ? "Trill could not confirm creation. Refresh Spaces and check Herdr before trying again."
+                    : failure.message
+            }
+            creating = false
+        }
+    }
+}

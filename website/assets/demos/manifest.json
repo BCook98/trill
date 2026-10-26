@@ -1,0 +1,221 @@
+{
+  "duo": {
+    "light": {
+      "cover": {
+        "src": "/assets/demos/duo-light-cover.mp4",
+        "poster": "/assets/demos/duo-light-cover.webp",
+        "duration": 18.866667,
+        "width": 742,
+        "height": 1080,
+        "aspectRatio": 0.687037037037037,
+        "bytes": 630712,
+        "posterBytes": 44576,
+        "source": {
+          "runId": "20261024T200953Z-a861aff1",
+          "video": ".local/demo-capture/artifacts/20261024T200953Z-a861aff1/iphone-duo/light/light-iphone-duo.mp4",
+          "in": 1.5,
+          "out": 20.366667,
+          "timebase": "MP4 presentation seconds",
+          "playbackRate": 1,
+          "crop": null
+        },
+        "posterFrame": 0
+      },
+      "open": {
+        "src": "/assets/demos/duo-light-open.mp4",
+        "poster": "/assets/demos/duo-light-open.webp",
+        "duration": 20.333333,
+        "width": 1280,
+        "height": 900,
+        "aspectRatio": 1.4222222222222223,
+        "bytes": 905964,
+        "posterBytes": 142352,
+        "source": {
+          "runId": "20261024T200953Z-a861aff1",
+          "video": ".local/demo-capture/artifacts/20261024T200953Z-a861aff1/iphone-duo/light/light-iphone-duo.mp4",
+          "in": 21.5,
+          "out": 41.833333,
+          "timebase": "MP4 presentation seconds",
+          "playbackRate": 1,
+          "crop": {
+            "x": 0,
+            "y": 525,
+            "width": 1398,
+            "height": 984
+          }
+        },
+        "posterFrame": 0,
+        "previewPoster": "/assets/demos/duo-light-preview.webp",
+        "previewPosterBytes": 175780,
+        "previewPosterSource": ".local/demo-capture/artifacts/20261024T200953Z-a861aff1/iphone-duo/light/light-02-unfolded-preview.png"
+      }
+    },
+    "dark": {
+      "cover": {
+        "src": "/assets/demos/duo-dark-cover.mp4",
+        "poster": "/assets/demos/duo-dark-cover.webp",
+        "duration": 18.8,
+        "width": 742,
+        "height": 1080,
+        "aspectRatio": 0.687037037037037,
+        "bytes": 584777,
+        "posterBytes": 35494,
+        "source": {
+          "runId": "20261024T201106Z-7b1c8eaf",
+          "video": ".local/demo-capture/artifacts/20261024T201106Z-7b1c8eaf/iphone-duo/dark/dark-iphone-duo.mp4",
+          "in": 1.5,
+          "out": 20.3,
+          "timebase": "MP4 presentation seconds",
+          "playbackRate": 1,
+          "crop": null
+        },
+        "posterFrame": 0
+      },
+      "open": {
+        "src": "/assets/demos/duo-dark-open.mp4",
+        "poster": "/assets/demos/duo-dark-open.webp",
+        "duration": 20.166667,
+        "width": 1280,
+        "height": 900,
+        "aspectRatio": 1.4222222222222223,
+        "bytes": 899876,
+        "posterBytes": 145762,
+        "source": {
+          "runId": "20261024T201106Z-7b1c8eaf",
+          "video": ".local/demo-capture/artifacts/20261024T201106Z-7b1c8eaf/iphone-duo/dark/dark-iphone-duo.mp4",
+          "in": 21.5,
+          "out": 41.666667,
+          "timebase": "MP4 presentation seconds",
+          "playbackRate": 1,
+          "crop": {
+            "x": 0,
+            "y": 525,
+            "width": 1398,
+            "height": 984
+          }
+        },
+        "posterFrame": 0,
+        "previewPoster": "/assets/demos/duo-dark-preview.webp",
+        "previewPosterBytes": 162276,
+        "previewPosterSource": ".local/demo-capture/artifacts/20261024T201106Z-7b1c8eaf/iphone-duo/dark/dark-02-unfolded-preview.png"
+      }
+    }
+  },
+  "schema": 1,
+  "basePath": "/assets/demos/",
+  "encoding": {
+    "codec": "H.264",
+    "pixelFormat": "yuv420p",
+    "fps": 30,
+    "audio": false,
+    "faststart": true,
+    "crf": 23,
+    "preset": "slow"
+  },
+  "playback": {
+    "sequence": [
+      "cover",
+      "hinge",
+      "open"
+    ],
+    "hingeDuration": 1.4,
+    "hingePoster": "open.poster",
+    "holdCoverAtEnd": true,
+    "holdOpenAtEnd": true,
+    "notes": "Play cover once, hold its last frame, use open.poster during the illustrative CSS hinge, then play open from 0. Hold the final preview until Replay."
+  },
+  "notes": [
+    "Only recorded pixels: trimmed, cropped and scaled; no synthetic sessions or overlays.",
+    "Native Duo camera and right OS rail retained.",
+    "Open videos derive from a 1398x984 display inside the portrait recording; native screenshots are 2853x2007. Small text in video is softer than the separate previewPoster.",
+    "Posters are lossless WebP made from the decoded first frame of each final MP4. previewPoster is a separate full-resolution capture screenshot scaled to 1280px wide.",
+    "The recordings contain demo-local paths and localhost preview URLs. No unexpected personal content or credentials were found during visual inspection.",
+    "Manifests use wall-clock event timestamps, not exact video PTS. Source cuts use measured MP4 presentation timestamps."
+  ],
+  "totalBytes": 3727569,
+  "transitions": {
+    "light": {
+      "coverOut": 20.366667,
+      "openIn": 21.5,
+      "omittedHingeSeconds": 1.133333,
+      "firstBlackFramePts": 20.393333,
+      "firstUnfoldedFadeFramePts": 20.766667
+    },
+    "dark": {
+      "coverOut": 20.3,
+      "openIn": 21.5,
+      "omittedHingeSeconds": 1.2,
+      "firstBlackFramePts": 20.358333,
+      "firstUnfoldedFadeFramePts": 20.766667
+    }
+  },
+  "qualityNotes": [
+    "Duo open video retains original recorder detail (1398x984 active pixels), not native screenshot detail; small terminal/source text is softer at large sizes.",
+    "Open crop is x=0,y=525,w=1398,h=984 from the 1398x2034 recording, scaled to 1280x900. Final even dimensions differ by less than 0.1% from native display aspect.",
+    "Cover keeps the entire display, including black camera and right OS rail, at 742x1080.",
+    "Open clips end with the actual changed Field Notes browser preview. Source/preview pane transitions and native UI translucency remain as recorded.",
+    "Recorded Codex UI includes a 1 warning indicator; the export does not hide or alter it.",
+    "October 25 refresh: current Projects entry, stable draft layout, and simplified browser chrome. Real Codex edits and checks; no speed changes or fabricated output. Light/dark native captures are 41.83/41.67 seconds before trimming."
+  ],
+  "verification": {
+    "allVideosFullyDecoded": true,
+    "allPostersMatchDecodedFrameZeroExactly": true,
+    "allVideosFaststart": true,
+    "audioStreams": 0,
+    "visibleContentReview": "Real isolated Field Notes project, full sequence contact sheets and native stills reviewed; full-frame OCR and browser playback validation recorded separately.",
+    "fullFrameOCR": {
+      "frames": 2345,
+      "recognizedCredentialOrPairingMatches": 0,
+      "scope": "All four refreshed Duo MP4 exports; recognized patterns only, supplemented by visual review."
+    },
+    "unseekedBrowserPlayback": {
+      "light": true,
+      "dark": true
+    },
+    "browserSuite": {
+      "engines": [
+        "Chrome",
+        "WebKit"
+      ],
+      "result": "passed",
+      "checks": [
+        "autoplay",
+        "unfold",
+        "theme continuity",
+        "pause and replay",
+        "reduced motion",
+        "responsive layout",
+        "no JavaScript",
+        "media retry",
+        "support and privacy"
+      ]
+    }
+  },
+  "captureBuild": {
+    "light": {
+      "runId": "20261024T200953Z-a861aff1",
+      "appHash": "1c1bd1e23ea0ad6cb4059e28ee00d5e03c74cba20d41bfc99184c814fe2f8f4d",
+      "sourceCommit": "4f3cdd01ba2c33bb87ed220af43bd33f574e2594",
+      "sourceDirty": true,
+      "runnerHash": "158d0b44b5df0d015758947ca56980396fcf3b99b2033ab411a9a8dac5ac98ff",
+      "mapHash": "c9d6bf55954d89662bae2f9a377cee170de624c663afde6cbf1dfc304f60f7ab",
+      "manifest": ".local/demo-capture/artifacts/20261024T200953Z-a861aff1/iphone-duo/light/manifest.json",
+      "deviceProfile": "iphone-duo",
+      "runtime": "com.apple.CoreSimulator.SimRuntime.iOS-27-1",
+      "appBuildSourceCommit": "4f3cdd01ba2c33bb87ed220af43bd33f574e2594"
+    },
+    "dark": {
+      "runId": "20261024T201106Z-7b1c8eaf",
+      "appHash": "1c1bd1e23ea0ad6cb4059e28ee00d5e03c74cba20d41bfc99184c814fe2f8f4d",
+      "sourceCommit": "4f3cdd01ba2c33bb87ed220af43bd33f574e2594",
+      "sourceDirty": true,
+      "runnerHash": "158d0b44b5df0d015758947ca56980396fcf3b99b2033ab411a9a8dac5ac98ff",
+      "mapHash": "c9d6bf55954d89662bae2f9a377cee170de624c663afde6cbf1dfc304f60f7ab",
+      "manifest": ".local/demo-capture/artifacts/20261024T201106Z-7b1c8eaf/iphone-duo/dark/manifest.json",
+      "deviceProfile": "iphone-duo",
+      "runtime": "com.apple.CoreSimulator.SimRuntime.iOS-27-1",
+      "appBuildSourceCommit": "4f3cdd01ba2c33bb87ed220af43bd33f574e2594"
+    }
+  },
+  "refreshedAt": "2026-10-25"
+}

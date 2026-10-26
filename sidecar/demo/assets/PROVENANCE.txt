@@ -1,0 +1,6 @@
+sample.mp4 is an original solid-colour H.264 fixture generated for Trill.
+No third-party video, audio, fonts, or imagery is included. Covered by the root
+project MIT license, including permission to use it in demo recordings.
+Reproduce with FFmpeg (build-time only):
+ffmpeg -f lavfi -i 'color=c=0x5b63d3:s=160x96:r=12:d=1' -an -c:v libx264 -pix_fmt yuv420p -movflags +faststart -metadata title='Trill generated demo fixture' sample.mp4
+The PNG fixture is generated from original geometric pixels by demo_fixtures.go.

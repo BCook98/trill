@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trill | Remote control for Xirp and Herdr</title>
+<meta name="description" content="Remote control for Xirp and Herdr on your own Mac. Manage sessions, reply to your coding agent, and review files from your iPhone. Trill is in development.">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#f8fafc" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#101216" media="(prefers-color-scheme: dark)">
+<link rel="canonical" href="https://trill.bcook.io/">
+<meta property="og:title" content="Trill | Remote control for Xirp and Herdr">
+<meta property="og:description" content="Remote control for Xirp and Herdr on your own Mac. Manage sessions, reply to your coding agent, and review files from your iPhone. Trill is in development.">
+<meta property="og:image" content="https://trill.bcook.io/assets/app-icon.png">
+<link rel="icon" href="/assets/wave.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/styles.css">
+<link rel="stylesheet" href="/demo.css">
+<script defer src="/site.js"></script>
+
+</head>
+<body class="marketing">
+<a class="skip" href="#main">Skip to content</a>
+<header>
+  <nav class="wrap nav" aria-label="Main navigation">
+    <a class="brand" href="/" aria-label="Trill home"><img src="/assets/wave.svg" alt="" width="37" height="25">trill<span class="word-dot">.</span></a>
+    <div class="nav-links"><a href="#demo">Demo</a><a href="/support">Support</a><a class="nav-cta" href="mailto:trill@bcook.io?subject=Trill%20early%20access">Get in touch</a></div>
+  </nav>
+</header>
+<main id="main">
+  <section class="wrap marketing-hero" aria-labelledby="hero-title">
+    <div class="hero-copy">
+      <p class="app-label">Xirp &amp; Herdr. From your iPhone.</p>
+      <h1 id="hero-title">Your Mac.<br>Remote control.</h1>
+      <p class="hero-description">Remote control for Xirp and Herdr. Check a running task, reply to your coding agent, and preview the result. Your sessions run on your own Mac.</p>
+      <div class="hero-actions"><a class="button primary" href="mailto:trill@bcook.io?subject=Trill%20early%20access">Ask about early access</a><a class="watch-link" href="#demo"><span class="play-mark" aria-hidden="true">▶</span> Watch the demo</a></div>
+      <p class="availability">Trill is in development. Get in touch by email.</p>
+    </div>
+  </section>
+
+  <section class="workspace-section" aria-labelledby="workspace-title">
+    <div class="wrap">
+      <div class="workspace-heading">
+        <h2 id="workspace-title">See what’s happening.<br>And what you’re making.</h2>
+        <p>Read source files, open a page, or play a video from your project. On Duo, unfold to put your terminal and preview side by side.</p>
+      </div>
+      <figure class="demo-experience workspace-figure" aria-describedby="demo-description" id="demo">
+        <div class="demo-stage" id="demo-stage">
+          <picture class="demo-fallback"><source media="(prefers-color-scheme: dark)" srcset="/assets/demos/duo-dark-preview.webp"><img src="/assets/demos/duo-light-preview.webp" alt="Trill unfolded, with a terminal beside the project preview." width="1280" height="900" loading="lazy"></picture>
+          <div class="duo-perspective" aria-hidden="true">
+            <div class="duo-body">
+              <div class="duo-base"><div class="inner-still inner-left"><img id="inner-left-poster" alt="" draggable="false"></div></div>
+              <div class="duo-wing">
+                <div class="wing-front"><div class="inner-still inner-right"><img id="inner-right-poster" alt="" draggable="false"></div></div>
+                <div class="wing-back"><div class="cover-screen"><video id="cover-video" playsinline muted preload="none" disablepictureinpicture tabindex="-1"></video></div></div>
+              </div>
+              <div class="duo-live"><video id="open-video" playsinline muted preload="none" disablepictureinpicture tabindex="-1"></video></div>
+            </div>
+          </div>
+          <button class="demo-toggle" id="demo-toggle" type="button" aria-label="Pause demo" hidden><span id="demo-toggle-label">Pause</span></button>
+        </div>
+        <figcaption><span>iPhone Duo · Real app footage</span><span id="demo-status" role="status">Opening a session on your Mac.</span></figcaption>
+        <noscript><p>Watch the recordings: <a href="/assets/demos/duo-light-cover.mp4">Duo folded</a> · <a href="/assets/demos/duo-light-open.mp4">Duo unfolded</a>.</p></noscript>
+      </figure>
+      <p class="demo-note" id="demo-description">Open a session, send a request, then unfold to inspect files and preview the result. Real app footage from a Codex/tmux session on a Mac, with an illustrative folding frame. No sound.</p>
+    </div>
+  </section>
+
+  <section class="wrap everyday-section" aria-labelledby="everyday-title">
+    <div class="everyday-heading"><h2 id="everyday-title">Made for the moments<br>away from your desk.</h2><p>Your work stays on your Mac.<br>Trill brings you back to it.</p></div>
+    <dl class="feature-list">
+      <div><dt>Your real sessions</dt><dd>Connect to your actual tmux session or a direct terminal over mosh. Disconnect from your phone and leave the session running on your Mac.</dd></div>
+      <div><dt>Write naturally</dt><dd>Type or dictate with the native keyboard. Add a photo from your phone. Review your draft, insert it, then press Return when you’re ready.</dd></div>
+      <div><dt>Xirp and Herdr, together</dt><dd>Use either or both on the same Mac. Xirp manages coding-agent sessions and worktrees; Herdr manages spaces, worktrees, and terminal sessions. Available actions depend on the provider.</dd></div>
+      <div><dt>More than one computer</dt><dd>Save your paired Macs and switch between them, one active computer at a time. The work on your other computers keeps running.</dd></div>
+    </dl>
+  </section>
+
+  <section class="wrap access-section" aria-labelledby="access-title">
+    <div><h2 id="access-title">A little closer to your work.</h2><p>Trill is still in development. You’ll need the Trill companion on your Mac, Xirp or Herdr, and a shared network or VPN such as Tailscale.</p><a class="inline-link" href="/support">Setup &amp; support</a></div>
+    <div class="access-contact"><a class="button primary" href="mailto:trill@bcook.io?subject=Trill%20early%20access">Ask about early access</a><a class="email-address" href="mailto:trill@bcook.io">trill@bcook.io</a></div>
+  </section>
+</main>
+<footer class="wrap footer">
+  <a class="brand" href="/" aria-label="Trill home">trill<span class="word-dot">.</span></a>
+  <p>Made by <a href="https://bcook.io">bcook</a>.<br>An independent project. Not affiliated with Spotify.</p>
+  <div class="footer-links"><a href="/privacy">Privacy</a><a href="/support">Support</a><a href="mailto:trill@bcook.io">Email</a></div>
+  <span class="copyright">© 2026 Trill</span>
+</footer>
+</body>
+</html>

@@ -1,0 +1,6 @@
+{
+  "id": "terminal",
+  "description": "Real private tmux shell over real mosh; pairing and terminal consent happen before capture.",
+  "initial_snapshot": "terminal",
+  "steps": []
+}

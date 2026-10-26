@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>NSAppTransportSecurity</key><dict><key>NSAllowsLocalNetworking</key><true/></dict>
+<key>NSCameraUsageDescription</key><string>Scan the pairing code on your Mac to connect Trill securely.</string>
+<key>CFBundleURLTypes</key><array><dict><key>CFBundleURLName</key><string>io.bcook.trill.pairing</string><key>CFBundleURLSchemes</key><array><string>trill</string></array></dict></array>
+<!-- App Store Connect questionnaire: standard AES-128/OCB, no proprietary cryptography, no French App Store distribution. Reassess before changing encryption or availability. -->
+<key>ITSAppUsesNonExemptEncryption</key><false/>
+</dict></plist>

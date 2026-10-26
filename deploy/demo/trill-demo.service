@@ -1,0 +1,40 @@
+# Example only: install after creating the unprivileged trill-demo account,
+# provisioning its TLS/password files, and editing demo.env. Nothing in the
+# local smoke runner installs or starts this service.
+[Unit]
+Description=Trill isolated reviewer demo
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=trill-demo
+Group=trill-demo
+StateDirectory=trill-demo
+StateDirectoryMode=0700
+UMask=0077
+EnvironmentFile=/etc/trill-demo/demo.env
+ExecStart=/usr/local/bin/trill demo serve --state-dir /var/lib/trill-demo/state --listen 0.0.0.0:8443 --address ${TRILL_DEMO_ADDRESS} --mosh-host ${TRILL_DEMO_MOSH_HOST} --mosh-bind 0.0.0.0 --udp-ports 60300:60303 --preview-listen 127.0.0.1:18080 --profile mixed --max-leases 2 --retention 24h --cert /etc/trill-demo/cert.pem --key /etc/trill-demo/key.pem --review-password-file /etc/trill-demo/reviewer-password
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=15
+KillMode=control-group
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+CapabilityBoundingSet=
+MemoryMax=256M
+CPUQuota=50%
+TasksMax=64
+LimitNOFILE=256
+
+[Install]
+WantedBy=multi-user.target

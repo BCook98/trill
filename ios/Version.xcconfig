@@ -1,0 +1,4 @@
+// Keep the marketing version for small TestFlight updates.
+// Xcode Cloud supplies an increasing build number when archiving.
+MARKETING_VERSION = 2026.10.25
+CURRENT_PROJECT_VERSION = 1

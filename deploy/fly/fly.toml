@@ -1,0 +1,75 @@
+app = "trill-demo"
+primary_region = "iad"
+kill_signal = "SIGTERM"
+kill_timeout = "15s"
+
+[build]
+  dockerfile = "deploy/fly/Dockerfile"
+  ignorefile = "deploy/fly/Dockerfile.dockerignore"
+
+[deploy]
+  strategy = "immediate"
+
+[env]
+  DEMO_MOSH_HOST = "137.66.44.233"
+  GOMEMLIMIT = "160MiB"
+
+[[mounts]]
+  source = "demo_data"
+  destination = "/data"
+  initial_size = "1gb"
+  scheduled_snapshots = false
+
+[[files]]
+  guest_path = "/run/trill/review-password"
+  secret_name = "DEMO_REVIEW_PASSWORD_B64"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  cpu_kind = "shared"
+  cpus = 1
+  memory = "256mb"
+
+[[restart]]
+  policy = "always"
+
+# Only HTTPS is public. Fly terminates TLS and sends HTTP to the private 8080 listener.
+[[services]]
+  protocol = "tcp"
+  internal_port = 8080
+  auto_stop_machines = "off"
+  auto_start_machines = false
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 443
+    handlers = ["tls", "http"]
+
+  [services.concurrency]
+    type = "requests"
+    soft_limit = 16
+    hard_limit = 32
+
+  [[services.tcp_checks]]
+    interval = "15s"
+    timeout = "2s"
+    grace_period = "20s"
+
+# Fly does not translate UDP ports: each external port equals its internal port.
+[[services]]
+  protocol = "udp"
+  internal_port = 60300
+  auto_stop_machines = "off"
+  auto_start_machines = false
+
+  [[services.ports]]
+    port = 60300
+
+[[services]]
+  protocol = "udp"
+  internal_port = 60301
+  auto_stop_machines = "off"
+  auto_start_machines = false
+
+  [[services.ports]]
+    port = 60301

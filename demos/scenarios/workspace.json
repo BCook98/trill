@@ -1,0 +1,17 @@
+{
+  "id": "workspace",
+  "description": "Terminal, actual Field Notes files and local web preview; workspace actions run on the final pose only.",
+  "initial_snapshot": "terminal",
+  "steps": [
+    {"op": "tap", "target": "session-workspace", "key": "AXUniqueId"},
+    {"op": "wait", "target": "index.html"},
+    {"op": "pause", "seconds": 2},
+    {"op": "screenshot", "name": "files"},
+    {"op": "tap", "target": "Browser"},
+    {"op": "wait", "target": "preview-address", "key": "AXUniqueId"},
+    {"op": "set-preview"},
+    {"op": "wait", "target": "Field Notes"},
+    {"op": "pause", "seconds": 3},
+    {"op": "screenshot", "name": "preview"}
+  ]
+}

@@ -1,0 +1,40 @@
+/* Screen pixels are real recordings. Only the understated frame folds. */
+.demo-experience { --fold: -180deg; --shift: 25%; --open-opacity: 0; --base-opacity: 0; margin: 0 auto; }
+.demo-stage { overflow: hidden; height: clamp(300px, 55vw, 580px); display: grid; place-items: center; position: relative; }
+.duo-perspective { width: min(730px, 94%); aspect-ratio: 1280 / 900; position: relative; perspective: 1800px; pointer-events: none; }
+.duo-body { position: absolute; inset: 0; transform-style: preserve-3d; transform: translateX(var(--shift)); }
+.duo-base, .duo-wing { position: absolute; top: 0; height: 100%; width: 50%; transform-style: preserve-3d; }
+.duo-base { opacity: var(--base-opacity); left: 0; border-radius: 22px 0 0 22px; background: #24262a; box-shadow: -1px 0 0 #85878c, 0 20px 40px -24px #0008; }
+.duo-wing { left: 50%; transform-origin: left center; transform: rotateY(var(--fold)); }
+.wing-front, .wing-back { position: absolute; inset: 0; background: #24262a; backface-visibility: hidden; -webkit-backface-visibility: hidden; overflow: hidden; }
+.wing-front { opacity: var(--base-opacity); border-radius: 0 22px 22px 0; transform: translateZ(1px); box-shadow: 1px 0 0 #85878c, 0 20px 40px -24px #0008; }
+.wing-back { border-radius: 22px; padding: 3px; transform: rotateY(180deg) translateZ(3px); box-shadow: 0 0 0 1px #85878c, 0 20px 40px -24px #0008; }
+.cover-screen { width: 100%; height: 100%; border-radius: 19px; overflow: hidden; background: #000; }
+.cover-screen video { width: 100%; height: 100%; object-fit: contain; display: block; }
+.inner-still { position: absolute; top: 3px; bottom: 3px; overflow: hidden; background: #000; }
+.inner-left { left: 3px; right: 0; border-radius: 19px 0 0 19px; }
+.inner-right { left: 0; right: 3px; border-radius: 0 19px 19px 0; }
+.inner-still img { position: absolute; width: 200%; height: 100%; max-width: none; display: block; }
+.inner-right img { left: -100%; }
+.duo-live { position: absolute; inset: 3px; border-radius: 19px; overflow: hidden; transform: translateZ(4px); opacity: var(--open-opacity); background: #000; }
+.duo-live video { display: block; width: 100%; height: 100%; object-fit: contain; }
+.demo-toggle { position: absolute; inset: 0; border: 0; background: transparent; color: var(--ink); cursor: pointer; border-radius: 22px; }
+.demo-toggle span { position: absolute; bottom: 4px; left: 50%; transform: translateX(-50%); padding: 9px 17px; border: 1px solid var(--line); border-radius: 30px; background: var(--bg); font-size: 12px; opacity: 0; transition: opacity .2s; }
+.demo-toggle:hover span, .demo-toggle:focus-visible span, .demo-toggle[data-prompt] span { opacity: 1; }
+.demo-experience figcaption { display: flex; justify-content: center; gap: 8px 24px; flex-wrap: wrap; margin: 18px 0 0; font-size: 12px; color: var(--muted); text-align: center; }
+.demo-note { max-width: 620px; margin: 34px auto 0; text-align: center; font-size: 12px; color: var(--muted); }
+.demo-experience noscript a { text-decoration: underline; }
+@media (max-width: 760px) {
+  .duo-base { border-radius: 13px 0 0 13px; }
+  .wing-front { opacity: var(--base-opacity); border-radius: 0 13px 13px 0; }
+  .wing-back { border-radius: 13px; }
+  .cover-screen, .duo-live { border-radius: 10px; }
+  .inner-left { border-radius: 10px 0 0 10px; }
+  .inner-right { border-radius: 0 10px 10px 0; }
+}
+
+.demo-fallback { width: min(730px, 94%); display: block; }
+.demo-fallback img { display: block; width: 100%; height: auto; border-radius: 16px; }
+.demo-experience:not([data-theme]) .duo-perspective { display: none; }
+.demo-experience[data-theme] .demo-fallback { display: none; }
+.workspace-figure.demo-experience figcaption { display: flex; justify-content: center; }

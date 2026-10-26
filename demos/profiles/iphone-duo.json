@@ -1,0 +1,7 @@
+{
+  "id": "iphone-duo",
+  "device_type": "com.apple.CoreSimulator.SimDeviceType.iPhone-Duo",
+  "runtime": "com.apple.CoreSimulator.SimRuntime.iOS-27-1",
+  "orientation": "PORTRAIT",
+  "poses": [{"id": "cover", "hinge": 0}, {"id": "unfolded", "hinge": 180}]
+}

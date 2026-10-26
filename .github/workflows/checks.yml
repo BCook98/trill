@@ -1,0 +1,118 @@
+name: Checks
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checks-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  go:
+    if: github.repository == 'BCook98/trill' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    name: Go (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: sidecar
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version: '1.26.10'
+          cache-dependency-path: sidecar/go.sum
+      - run: go test ./...
+      - run: go vet ./...
+      - name: Check reachable Go vulnerabilities
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@v1.4.0
+          govulncheck ./...
+
+  python:
+    if: github.repository == 'BCook98/trill' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    name: Python ${{ matrix.python }} tooling
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.12', '3.14']
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: ${{ matrix.python }}
+      # Exercise the optional real export fixtures, including H.264 and WebP.
+      - run: sudo apt-get update && sudo apt-get install --yes ffmpeg webp
+      - run: python3 -m compileall -q scripts tests
+      # These directories are not packages; top-level discover silently misses them.
+      # Include new suites such as tests/release without touching vendor tests.
+      - name: Run each Python tooling suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          for suite in tests/*/; do
+            python3 -m unittest discover -s "$suite" -p 'test_*.py' -v
+          done
+      - run: python3 -m unittest discover -s deploy/fly -p 'test_*.py' -v
+      - run: sh -n scripts/build-ios.sh
+
+  website:
+    if: github.repository == 'BCook98/trill' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    name: Website browsers
+    # macOS supplies the media stack for the H.264 WebKit playback checks.
+    # This job does not build iOS or require the Duo SDK.
+    runs-on: macos-15
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: website
+    env:
+      PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.local/playwright-browsers
+      TRILL_DEMO_ARTIFACTS: ${{ github.workspace }}/.research/website-demo
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+      - run: npm ci
+      - run: npm run check
+      - run: npm run browsers:install
+      - name: Test the local static website
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run preview > "$RUNNER_TEMP/trill-website.log" 2>&1 &
+          preview_pid=$!
+          trap 'kill "$preview_pid" 2>/dev/null || true' EXIT
+          for _attempt in {1..50}; do
+            kill -0 "$preview_pid"
+            if curl --fail --silent http://127.0.0.1:8780/ > /dev/null; then
+              npm test
+              exit 0
+            fi
+            sleep 0.2
+          done
+          cat "$RUNNER_TEMP/trill-website.log"
+          exit 1
+
+# Native checks run in Xcode Cloud on main with pinned SDK 27.1.
+# GitHub-hosted jobs do not build iOS. See docs/DEVELOPMENT.md.

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Trill logo concept</title>
+  <desc id="desc">Three mint curved strokes repeat with a slight upward progression on a dark teal square. A stylised interpretation of a bird trill spectrogram.</desc>
+  <rect width="512" height="512" rx="112" fill="#092229"/>
+  <g fill="none" stroke="#69E3C7" stroke-width="30" stroke-linecap="round">
+    <path d="M150 328 C150 289 190 281 190 242 C190 223 180 210 168 204"/>
+    <path d="M236 310 C236 271 276 263 276 224 C276 205 266 192 254 186"/>
+    <path d="M322 292 C322 253 362 245 362 206 C362 187 352 174 340 168"/>
+  </g>
+</svg>

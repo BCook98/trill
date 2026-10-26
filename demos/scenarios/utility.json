@@ -1,0 +1,146 @@
+{
+  "id": "utility",
+  "description": "Sessions to a real native draft and real Codex request, then the changed public file and authenticated static HTML preview.",
+  "requires_terminal_input": true,
+  "start_at": "sessions",
+  "initial_snapshot": "sessions",
+  "subsequent_snapshot": "terminal",
+  "headings": {
+    "light": [
+      "make room for good ideas.",
+      "good ideas deserve a little room."
+    ],
+    "dark": [
+      "find a little room to think.",
+      "a little space for the next idea."
+    ]
+  },
+  "steps": [
+    {
+      "op": "tap",
+      "target": "$session_name",
+      "pose": "first"
+    },
+    {
+      "op": "wait",
+      "target": "Mosh",
+      "pose": "first"
+    },
+    {
+      "op": "wait-agent",
+      "pose": "first"
+    },
+    {
+      "op": "screenshot",
+      "name": "terminal",
+      "pose": "first"
+    },
+    {
+      "op": "tap",
+      "target": "terminal-write",
+      "key": "AXUniqueId",
+      "pose": "first"
+    },
+    {
+      "op": "text-input",
+      "target": "terminal-draft",
+      "text": "$request",
+      "ready_target": "draft-keyboard",
+      "chunk_chars": 24,
+      "interval_seconds": 0.2,
+      "pose": "first"
+    },
+    {
+      "op": "screenshot",
+      "name": "draft-keyboard",
+      "pose": "first"
+    },
+    {
+      "op": "pause",
+      "seconds": 0.8,
+      "pose": "first"
+    },
+    {
+      "op": "tap",
+      "target": "terminal-insert",
+      "key": "AXUniqueId",
+      "pose": "first"
+    },
+    {
+      "op": "wait",
+      "target": "Mosh",
+      "pose": "first"
+    },
+    {
+      "op": "pause",
+      "seconds": 0.5,
+      "pose": "first"
+    },
+    {
+      "op": "tap",
+      "target": "terminal-return",
+      "key": "AXUniqueId",
+      "pose": "first"
+    },
+    {
+      "op": "screenshot",
+      "name": "request-sent",
+      "pose": "first"
+    },
+    {
+      "op": "wait-heading",
+      "timeout": 120
+    },
+    {
+      "op": "screenshot",
+      "name": "changed-heading"
+    },
+    {
+      "op": "ensure-workspace"
+    },
+    {
+      "op": "wait",
+      "target": "index.html"
+    },
+    {
+      "op": "pause",
+      "seconds": 1
+    },
+    {
+      "op": "screenshot",
+      "name": "files"
+    },
+    {
+      "op": "tap",
+      "target": "file-source",
+      "key": "AXUniqueId"
+    },
+    {
+      "op": "wait-source"
+    },
+    {
+      "op": "screenshot",
+      "name": "source"
+    },
+    {
+      "op": "pause",
+      "seconds": 0.8
+    },
+    {
+      "op": "tap",
+      "target": "file-render-preview",
+      "key": "AXUniqueId"
+    },
+    {
+      "op": "wait-preview"
+    },
+    {
+      "op": "pause",
+      "seconds": 2
+    },
+    {
+      "op": "screenshot",
+      "name": "preview"
+    }
+  ]
+}

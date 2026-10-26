@@ -1,0 +1,4 @@
+interface:
+  display_name: "Trill Release"
+  short_description: "Prepare and verify Trill TestFlight releases"
+  default_prompt: "Use $trill-release to prepare a verified Trill release, keeping the marketing version for a small update."

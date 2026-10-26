@@ -1,0 +1,9 @@
+.env*
+.gitignore
+README.md
+
+# Static hosting needs no local development tools or test output.
+node_modules/
+.research/
+package.json
+package-lock.json

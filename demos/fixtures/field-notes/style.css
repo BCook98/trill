@@ -1,0 +1,49 @@
+:root {
+  color-scheme: light dark;
+  --ink: #263c32;
+  --paper: #f6f3eb;
+  --muted: #58665b;
+  --accent: #526b55;
+  --rule: #cdd3c7;
+  --hover: #e6eadf;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ink: #e4ebe0;
+    --paper: #18221d;
+    --muted: #b0beb1;
+    --accent: #b5cbb0;
+    --rule: #405047;
+    --hover: #2c3c31;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--paper); color: var(--ink); font: 16px/1.55 -apple-system, BlinkMacSystemFont, sans-serif; }
+header { display: flex; align-items: center; gap: 10px; padding: 24px; border-bottom: 1px solid var(--rule); font-weight: 600; }
+.edition { margin-left: auto; font-size: 12px; color: var(--accent); }
+main { padding: 30px 24px; max-width: 740px; margin: auto; }
+.eyebrow { text-transform: uppercase; letter-spacing: 0.12em; color: var(--accent); font-size: 10px; font-weight: 600; }
+h1 { font-family: Georgia, serif; font-weight: 400; font-size: clamp(34px, 7vw, 58px); line-height: 1.06; letter-spacing: -0.04em; margin: 24px 0; }
+.intro { color: var(--muted); max-width: 34em; margin-bottom: 32px; }
+.card { display: flex; align-items: flex-start; gap: 16px; padding: 22px 0; border-top: 1px solid var(--rule); }
+.number { flex-shrink: 0; font-size: 11px; color: var(--accent); padding-top: 4px; }
+.story { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+h2 { font-size: 16px; margin: 0 0 8px; font-weight: 600; }
+.card p { font-size: 13px; margin: 0; color: var(--muted); }
+.bookmark { flex: 0 0 44px; width: 44px; height: 44px; display: grid; place-items: center; padding: 10px; border: 1px solid transparent; border-radius: 4px; background: transparent; color: var(--accent); cursor: pointer; }
+.bookmark[hidden] { display: none; }
+.bookmark svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linejoin: round; }
+.bookmark[aria-pressed="true"] svg { fill: currentColor; }
+.bookmark:hover { background: var(--hover); }
+.bookmark:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+footer { margin-top: 30px; font-size: 11px; color: var(--accent); display: flex; flex-wrap: wrap; justify-content: space-between; gap: 15px; }
+#status { max-width: 100%; }
+@media (max-width: 360px) {
+  header { padding: 20px 16px; }
+  main { padding: 26px 16px; }
+  .card { gap: 10px; }
+}
+@media (forced-colors: active) {
+  .bookmark { color: ButtonText; }
+  .bookmark[aria-pressed="true"] { border-color: ButtonText; }
+}

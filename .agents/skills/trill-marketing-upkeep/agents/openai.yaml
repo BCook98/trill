@@ -1,0 +1,4 @@
+interface:
+  display_name: "Trill marketing upkeep"
+  short_description: "Refresh Trill demos, screenshots, and website content"
+  default_prompt: "Use $trill-marketing-upkeep to rerecord Trill's demo videos, refresh website images and content, and repair the capture workflow and skill where they have drifted."

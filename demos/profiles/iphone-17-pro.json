@@ -1,0 +1,6 @@
+{
+  "id": "iphone-17-pro",
+  "device_type": "com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro",
+  "runtime": "com.apple.CoreSimulator.SimRuntime.iOS-27-0",
+  "poses": [{"id": "portrait", "hinge": null}]
+}

@@ -1,0 +1,31 @@
+.DS_Store
+.research/
+.build/
+.build-*/
+DerivedData/
+bin/
+.local/
+prototypes/herdr/results-*.json
+*.xcuserstate
+xcuserdata/
+
+.vercel/
+
+# Python demo tooling caches
+__pycache__/
+*.pyc
+
+# Repository-local development dependencies
+node_modules/
+.bundle/
+
+# Local credentials and Apple signing exports. Keep example configuration public.
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.p8
+*.p12
+*.mobileprovision
+*.provisionprofile
+*.xcarchive/

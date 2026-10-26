@@ -1,0 +1,175 @@
+{
+  "app_sha256": "17cd7d1ba636f4ff6292c6ba6664b4e05246fedeb69cbd8aaee8dc8a457def3b",
+  "poses": {
+    "portrait": {
+      "pixels": [
+        1206,
+        2622
+      ],
+      "points": [
+        402,
+        874
+      ],
+      "targets": {
+        "Allow once": {
+          "tap": [
+            200,
+            714
+          ],
+          "text": "Allow once"
+        },
+        "Browser": {
+          "tap": [
+            300,
+            164
+          ],
+          "text": "Browser"
+        },
+        "Field Notes": {
+          "text": "Make something"
+        },
+        "Go": {
+          "tap": [
+            367,
+            217
+          ],
+          "text": "localhost:18080"
+        },
+        "Open": {
+          "tap": [
+            275,
+            474
+          ],
+          "text": "Open in"
+        },
+        "confirm-pairing": {
+          "tap": [
+            364,
+            100
+          ],
+          "text": "Review this computer"
+        },
+        "draft-keyboard": {
+          "text": "123"
+        },
+        "field-notes": {
+          "tap": [
+            200,
+            340
+          ],
+          "text": "field-notes"
+        },
+        "file-source": {
+          "tap": [
+            180,
+            447
+          ],
+          "text": "index.html"
+        },
+        "index.html": {
+          "text": "Photos"
+        },
+        "open-terminal": {
+          "tap": [
+            200,
+            434
+          ],
+          "text": "Open terminal"
+        },
+        "preview-address": {
+          "tap": [
+            150,
+            217
+          ],
+          "text": "localhost:3000"
+        },
+        "preview-content": {
+          "rect": [
+            0,
+            287,
+            402,
+            550
+          ]
+        },
+        "session-workspace": {
+          "tap": [
+            305,
+            84
+          ],
+          "text": "Mosh"
+        },
+        "sessions-back": {
+          "tap": [
+            38,
+            84
+          ],
+          "text": "Mosh"
+        },
+        "sessions-list": {
+          "text": "Sessions"
+        },
+        "source-back": {
+          "tap": [
+            38,
+            100
+          ],
+          "text": "index.html"
+        },
+        "source-content": {
+          "rect": [
+            0,
+            140,
+            402,
+            600
+          ]
+        },
+        "terminal-draft": {
+          "tap": [
+            180,
+            290
+          ],
+          "text": "Write to terminal"
+        },
+        "terminal-insert": {
+          "tap": [
+            364,
+            100
+          ],
+          "text": "Write to terminal"
+        },
+        "terminal-return": {
+          "tap": [
+            90,
+            766
+          ],
+          "text": "Mosh"
+        },
+        "terminal-write": {
+          "tap": [
+            247,
+            84
+          ],
+          "text": "Mosh"
+        },
+        "file-render-preview": {
+          "tap": [
+            364,
+            100
+          ],
+          "text": "index.html"
+        }
+      }
+    }
+  },
+  "profile": "iphone-17-pro",
+  "reviewed_at": "2026-10-24T01:44:49.835564+00:00",
+  "reviewed_by": "Codex operator; dedicated simulator screenshot review",
+  "runtime": "com.apple.CoreSimulator.SimRuntime.iOS-27-0",
+  "utility_review": "Parent verified native controls, software keyboard after per-device hardware-keyboard disable, and preview body rectangle; app geometry/hash unchanged.",
+  "identity_ocr_aliases": {
+    "field-notes": [
+      "fiela-notes"
+    ]
+  },
+  "identity_ocr_review": "Vision reads the native field-notes toolbar title as fiela-notes on this pinned build. Visually verified against utility-identity-failure.png; exact alias only."
+}

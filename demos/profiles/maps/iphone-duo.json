@@ -1,0 +1,186 @@
+{
+  "app_sha256": "1c1bd1e23ea0ad6cb4059e28ee00d5e03c74cba20d41bfc99184c814fe2f8f4d",
+  "poses": {
+    "cover": {
+      "pixels": [
+        1398,
+        2034
+      ],
+      "points": [
+        466,
+        678
+      ],
+      "targets": {
+        "Allow once": {
+          "tap": [
+            195,
+            519
+          ],
+          "text": "Allow once"
+        },
+        "Open": {
+          "tap": [
+            295,
+            358
+          ],
+          "text": "Open in"
+        },
+        "confirm-pairing": {
+          "tap": [
+            417,
+            254
+          ],
+          "text": "Review this computer"
+        },
+        "draft-keyboard": {
+          "text": "123"
+        },
+        "field-notes": {
+          "tap": [
+            200,
+            337
+          ],
+          "text": "field-notes"
+        },
+        "open-terminal": {
+          "tap": [
+            190,
+            400
+          ],
+          "text": "Open terminal"
+        },
+        "session-workspace": {
+          "tap": [
+            418,
+            306
+          ],
+          "text": "Mosh"
+        },
+        "sessions-back": {
+          "tap": [
+            418,
+            194
+          ],
+          "text": "Mosh"
+        },
+        "sessions-list": {
+          "text": "Sessions"
+        },
+        "terminal-draft": {
+          "tap": [
+            180,
+            240
+          ],
+          "text": "Write to terminal"
+        },
+        "terminal-insert": {
+          "tap": [
+            418,
+            194
+          ],
+          "text": "Add photo"
+        },
+        "terminal-return": {
+          "tap": [
+            95,
+            620
+          ],
+          "text": "Mosh"
+        },
+        "terminal-write": {
+          "tap": [
+            418,
+            254
+          ],
+          "text": "Mosh"
+        }
+      },
+      "identity_heading_point": [
+        80,
+        48
+      ]
+    },
+    "unfolded": {
+      "pixels": [
+        2853,
+        2007
+      ],
+      "points": [
+        951,
+        669
+      ],
+      "targets": {
+        "Browser": {
+          "tap": [
+            747,
+            48
+          ],
+          "text": "Browser",
+          "api": "ax-coresimulator"
+        },
+        "file-source": {
+          "tap": [
+            650,
+            334
+          ],
+          "text": "index.html",
+          "api": "ax-coresimulator"
+        },
+        "index.html": {
+          "text": "Photos"
+        },
+        "preview-content": {
+          "rect": [
+            488,
+            238,
+            375,
+            390
+          ]
+        },
+        "session-workspace": {
+          "tap": [
+            903,
+            196
+          ],
+          "text": "Mosh",
+          "api": "ax-coresimulator",
+          "expected_id": "session-workspace"
+        },
+        "source-back": {
+          "tap": [
+            532,
+            48
+          ],
+          "text": "index.html",
+          "api": "ax-coresimulator"
+        },
+        "source-content": {
+          "rect": [
+            488,
+            85,
+            375,
+            495
+          ]
+        },
+        "file-render-preview": {
+          "tap": [
+            843,
+            48
+          ],
+          "text": "index.html",
+          "api": "ax-coresimulator",
+          "expected_id": "file-render-preview"
+        }
+      },
+      "identity_heading_point": [
+        120,
+        48
+      ]
+    }
+  },
+  "profile": "iphone-duo",
+  "reviewed_at": "2026-10-24T20:08:21.742400+00:00",
+  "reviewed_by": "Codex operator; current native build screenshots and XCTest AX control frames on runner-owned Duo",
+  "runtime": "com.apple.CoreSimulator.SimRuntime.iOS-27-1",
+  "utility_review": "Reviewed actual current app pairing, session row after Projects, consent, terminal toolbar, empty native draft with software keyboard, Files row, source globe and source/preview content regions. Portrait cover is1398x2034; unfolded2853x2007. idb describe retains cover dimensions; unfolded AX controls match screenshot geometry. Legacy address-entry workspace targets require separate review."
+}
