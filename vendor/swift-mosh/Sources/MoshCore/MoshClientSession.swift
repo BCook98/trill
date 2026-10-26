@@ -61,6 +61,7 @@ public actor MoshClientSession {
     private var consecutiveReceiveFailures: UInt32 = 0
 
     private var hostStreamContinuations: [UUID: AsyncStream<MoshHostOp>.Continuation] = [:]
+    private var hostActivityContinuations: [UUID: AsyncStream<Void>.Continuation] = [:]
 
     private let debugEnabled = ProcessInfo.processInfo.environment["SWIFTMOSH_DEBUG_REAL_E2E"] == "1"
 
@@ -257,6 +258,20 @@ public actor MoshClientSession {
         return drained
     }
 
+    /// Coalesced notifications to drain host operations and check peer liveness.
+    /// Terminal bytes remain in the ordered host-op queue, never in this stream.
+    /// The initial notification covers output received before subscribing.
+    public func hostActivityStream() -> AsyncStream<Void> {
+        let streamID = UUID()
+        return AsyncStream(bufferingPolicy: .bufferingNewest(1)) { continuation in
+            hostActivityContinuations[streamID] = continuation
+            continuation.yield(())
+            continuation.onTermination = { [weak self] _ in
+                Task { await self?.removeHostActivityContinuation(streamID) }
+            }
+        }
+    }
+
     public func hostOpStream() -> AsyncStream<MoshHostOp> {
         let streamID = UUID()
         return AsyncStream(MoshHostOp.self, bufferingPolicy: .unbounded) { continuation in
@@ -438,6 +453,10 @@ public actor MoshClientSession {
 
             if !hostOps.isEmpty {
                 publishHostOps(hostOps)
+            }
+            // ACK-only replies must also wake a resumed client's liveness check.
+            for continuation in hostActivityContinuations.values {
+                continuation.yield(())
             }
 
             // UINT64_MAX is the peer's final transport state, not another live update.
@@ -948,7 +967,16 @@ public actor MoshClientSession {
         hostStreamContinuations.removeValue(forKey: streamID)
     }
 
+    private func removeHostActivityContinuation(_ streamID: UUID) {
+        hostActivityContinuations.removeValue(forKey: streamID)
+    }
+
     private func finishHostStreams() {
+        let activityContinuations = hostActivityContinuations.values
+        hostActivityContinuations.removeAll(keepingCapacity: false)
+        for continuation in activityContinuations {
+            continuation.finish()
+        }
         let continuations = hostStreamContinuations.values
         hostStreamContinuations.removeAll(keepingCapacity: false)
         for continuation in continuations {

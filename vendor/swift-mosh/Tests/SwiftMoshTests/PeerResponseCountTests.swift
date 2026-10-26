@@ -7,6 +7,62 @@ import MoshTransport
 import MoshWire
 
 final class PeerResponseCountTests: XCTestCase {
+    func testActivityNotificationsCoalesceWithoutDroppingOrderedOutput() async throws {
+        let (session, peer) = try await makeSession()
+        let activity = await session.hostActivityStream()
+        var expected: [MoshHostOp] = []
+        for sequence in UInt64(0)..<20 {
+            let operation = MoshHostOp.hostBytes(Data("line \(sequence)\n".utf8))
+            expected.append(operation)
+            let instruction = TransportInstruction(
+                protocolVersion: MoshWire.protocolVersion,
+                oldNum: sequence, newNum: sequence + 1,
+                diff: HostMessage(instructions: [.hostBytes(Data("line \(sequence)\n".utf8))]).encoded()
+            )
+            try await peer.send(datagram(instruction: instruction, sequence: sequence))
+        }
+        try await waitForCount(20, session: session)
+        await session.stop()
+
+        // Even a stalled consumer gets at most one pending notification.
+        var notificationCount = 0
+        for await _ in activity { notificationCount += 1 }
+        XCTAssertEqual(notificationCount, 1)
+        let operations = await session.drainHostOps()
+        XCTAssertEqual(operations, expected)
+    }
+
+    func testActivitySubscriptionCoversEarlyOutputAndAckOnlyResume() async throws {
+        let (session, peer) = try await makeSession()
+        let operation = MoshHostOp.hostBytes(Data("early output".utf8))
+        let instruction = TransportInstruction(
+            protocolVersion: MoshWire.protocolVersion, oldNum: 0, newNum: 1,
+            diff: HostMessage(instructions: [.hostBytes(Data("early output".utf8))]).encoded()
+        )
+        try await peer.send(datagram(instruction: instruction, sequence: 0))
+        try await waitForCount(1, session: session)
+        let activity = await session.hostActivityStream()
+        var iterator = activity.makeAsyncIterator()
+        let initialNotification = await iterator.next()
+        XCTAssertNotNil(initialNotification)
+        let operations = await session.drainHostOps()
+        XCTAssertEqual(operations, [operation])
+
+        _ = try await session.prepareForApplicationBackground()
+        try await session.resumeFromApplicationBackground()
+        let ack = TransportInstruction(
+            protocolVersion: MoshWire.protocolVersion, oldNum: 1, newNum: 1, ackNum: 0)
+        try await peer.send(datagram(instruction: ack, sequence: 1))
+        try await waitForCount(2, session: session)
+        await session.stop() // Also bounds next() if the notification is missing.
+        let resumeNotification = await iterator.next()
+        XCTAssertNotNil(resumeNotification)
+        let remainingOperations = await session.drainHostOps()
+        XCTAssertEqual(remainingOperations, [])
+        let finishedNotification = await iterator.next()
+        XCTAssertNil(finishedNotification)
+    }
+
     func testAckOnlyAndNoOpResponsesCountEvenForRepeatedRemoteState() async throws {
         let (session, peer) = try await makeSession()
         let initialCount = await session.peerResponseCount

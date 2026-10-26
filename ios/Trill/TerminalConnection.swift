@@ -28,6 +28,7 @@ protocol TerminalTransport: AnyObject, Sendable {
     func prepareForApplicationBackground() async throws -> MoshSnapshot
     func enqueue(_ op: MoshClientOp) async throws
     func drainHostOps() async -> [MoshHostOp]
+    func hostActivityStream() async -> AsyncStream<Void>
 }
 extension MoshClientSession: TerminalTransport {}
 
@@ -541,10 +542,11 @@ final class TerminalConnection: NSObject, TerminalViewDelegate {
         }
         sendResize()
         reader = Task { [weak self] in
-            while !Task.isCancelled {
-                // MoshCore keeps at most 1,024 pending ops; drain in order without
-                // creating its unbounded hostOpStream. Extreme output can still
-                // overflow that upstream cap before a 25 ms poll.
+            let activity = await session.hostActivityStream()
+            for await _ in activity {
+                guard !Task.isCancelled else { return }
+                // Wake on incoming traffic; SwiftTerm coalesces drawing at the
+                // display cadence. Notifications coalesce without dropping bytes.
                 let ops = await session.drainHostOps()
                 guard let self else { return }
                 self.consumeHostOps(ops, from: session)
@@ -573,7 +575,6 @@ final class TerminalConnection: NSObject, TerminalViewDelegate {
                     self.sendResize()
                 }
                 guard self.wantsForeground else { return }
-                do { try await Task.sleep(for: .milliseconds(25)) } catch { return }
             }
         }
         let monitorInterval = environment?.monitorInterval ?? .seconds(1)

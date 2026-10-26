@@ -2016,6 +2016,13 @@ private actor TerminalLifecycleFixture {
 }
 
 private actor TerminalLifecycleTransport: TerminalTransport {
+    private var activityContinuation: AsyncStream<Void>.Continuation?
+    func hostActivityStream() async -> AsyncStream<Void> {
+        let channel = AsyncStream<Void>.makeStream(bufferingPolicy: .bufferingNewest(1))
+        activityContinuation = channel.continuation
+        activityContinuation?.yield(())
+        return channel.stream
+    }
     private(set) var state: MoshSessionState = .idle
     private(set) var startCount = 0
     private(set) var stopCount = 0
@@ -2034,6 +2041,7 @@ private actor TerminalLifecycleTransport: TerminalTransport {
     func blockNextOutput(on gate: TerminalLifecycleGate, text: String) {
         drainGate = gate
         hostOps.append(.hostBytes(Data(text.utf8)))
+        activityContinuation?.yield(())
     }
     private let respondsOnResume: Bool
     private let resumeGate: TerminalLifecycleGate?
@@ -2064,7 +2072,10 @@ private actor TerminalLifecycleTransport: TerminalTransport {
     }
 
     func setState(_ state: MoshSessionState) { self.state = state }
-    func respond() { hostOps.append(.hostBytes(Data("fixture response".utf8))) }
+    func respond() {
+        hostOps.append(.hostBytes(Data("fixture response".utf8)))
+        activityContinuation?.yield(())
+    }
     func blockKeystrokes(on gate: TerminalLifecycleGate) { inputGate = gate }
     func start() async throws {
         startCount += 1
@@ -2073,6 +2084,7 @@ private actor TerminalLifecycleTransport: TerminalTransport {
     }
     func stop() async {
         stopCount += 1; statesAtStop.append(state); state = .stopped
+        activityContinuation?.finish()
         await resumeGate?.release()
     }
     func prepareForApplicationBackground() async throws -> MoshSnapshot {
@@ -2090,7 +2102,10 @@ private actor TerminalLifecycleTransport: TerminalTransport {
         state = .running
         if respondsOnResume { responseCount += 1 }
     }
-    func acknowledge() { responseCount += 1 }
+    func acknowledge() {
+        responseCount += 1
+        activityContinuation?.yield(())
+    }
     func enqueue(_ op: MoshClientOp) async throws {
         if case .keystrokes = op, let inputGate { await inputGate.wait() }
         operations.append(op)
