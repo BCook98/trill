@@ -250,6 +250,21 @@ class DemoTests(unittest.TestCase):
         with patch.object(ui, "text", return_value="Trill demo Mosh · encrypted Field Notes"):
             ui.assert_safe()
 
+    def test_mapped_terminal_readiness_requires_exact_enabled_native_surface(self):
+        args = demo.parser().parse_args(["capture", "--timeout", "0.01"])
+        ui = demo.UI(Mock(), self.udid, args, self.profile, self.record, self.root)
+        ui.map = {"poses": {}}
+        terminal = {"AXUniqueId": "remote-terminal", "enabled": True,
+                    "frame": {"x": 0, "y": 0, "width": 382, "height": 570}}
+        with patch.object(ui, "tree", return_value=[terminal]), patch.object(demo.time, "sleep"):
+            self.assertEqual(ui.wait("remote-terminal", "AXUniqueId"), terminal)
+        for invalid in (dict(terminal, AXUniqueId="remote-terminal-other"),
+                        dict(terminal, enabled=False),
+                        dict(terminal, frame={"width": 0, "height": 570})):
+            with self.subTest(invalid=invalid), patch.object(ui, "tree", return_value=[invalid]), patch.object(demo.time, "sleep"):
+                with self.assertRaisesRegex(demo.DemoError, "Timed out"):
+                    ui.wait("remote-terminal", "AXUniqueId")
+
     def test_ui_map_is_bound_to_exact_native_app(self):
         args = demo.parser().parse_args(["capture", "--ui-map", str(self.root / "map.json")])
         demo.write_json(args.ui_map, {"profile": self.profile["id"], "runtime": self.profile["runtime"], "app_sha256": "wrong", "reviewed_by": "operator", "reviewed_at": "today"})

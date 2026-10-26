@@ -23,7 +23,8 @@
     },
     {
       "op": "wait",
-      "target": "Mosh",
+      "target": "remote-terminal",
+      "key": "AXUniqueId",
       "pose": "first"
     },
     {
@@ -68,7 +69,8 @@
     },
     {
       "op": "wait",
-      "target": "Mosh",
+      "target": "remote-terminal",
+      "key": "AXUniqueId",
       "pose": "first"
     },
     {

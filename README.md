@@ -5,8 +5,14 @@ Trill lets you control [Xirp](https://xirp.spotify.com/) and [Herdr](https://her
 The native iPhone app connects to a small Go companion on your Mac. It uses a real terminal over Mosh: tmux for Xirp, and Herdr's direct client for Herdr. **Install from source** using the steps below. [Watch the demo](https://trill.bcook.io/).
 
 <p>
-  <img src="website/assets/demos/duo-light-cover.webp" alt="Trill showing current sessions in the compact Duo layout" width="240">
-  <img src="website/assets/demos/duo-light-preview.webp" alt="Trill showing a real terminal beside a browser preview in the expanded Duo layout" width="520">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="website/assets/demos/duo-dark-cover.webp">
+    <img src="website/assets/demos/duo-light-cover.webp" alt="Trill’s Sessions and Agents switch above the Field Notes session on the Duo cover screen" width="240">
+  </picture>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="website/assets/demos/duo-dark-preview.webp">
+    <img src="website/assets/demos/duo-light-preview.webp" alt="Trill unfolded, showing a real Codex edit beside the updated Field Notes page" width="520">
+  </picture>
 </p>
 
 Simulator captures showing the Duo cover and expanded layouts. [How the demos are recorded](docs/DEMOS.md).

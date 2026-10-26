@@ -565,12 +565,14 @@ class UI:
 
     def wait(self, target, key="AXLabel", timeout=None):
         timeout = self.args.timeout if timeout is None else timeout
-        if not self.map:
+        if not self.map or (key == "AXUniqueId" and target == "remote-terminal"):
+            # Connected terminals no longer display the transport in their title.
+            # Verify the actual native terminal surface even when using a map.
             deadline = time.monotonic() + timeout
             stable, stable_count = None, 0
             began = time.monotonic()
             while True:
-                matches = [x for x in self.elements(self.tree()) if isinstance(x.get(key), str) and target in x[key]
+                matches = [x for x in self.elements(self.tree()) if isinstance(x.get(key), str) and (x[key] == target if key == "AXUniqueId" else target in x[key])
                            and x.get("enabled", True) and x.get("frame", {}).get("width", 0) > 0 and x.get("frame", {}).get("height", 0) > 0]
                 if matches:
                     matches.sort(key=lambda x: (x.get(key) != target, x.get("role") not in {"AXButton", "AXLink"}))
@@ -1075,7 +1077,7 @@ def pair(commands, ui, state, private):
     ui.tap(lab["session_name"])
     ui.tap("open-terminal", "AXUniqueId")
     ui.tap("Allow once")
-    ui.wait("Mosh")
+    ui.wait("remote-terminal", "AXUniqueId")
     if ui.args.ui_quiet:
         ui.quiet()
     ui.assert_safe()
@@ -1166,7 +1168,7 @@ def capture(commands, args, profile, scenario, state, appearance):
                     for index, pose in enumerate(profile["poses"]):
                         if index:
                             ui.pose_ready(pose)
-                            ui.wait("Mosh")
+                            ui.wait("remote-terminal", "AXUniqueId")
                         # All pairing and terminal consent is complete before a public artifact exists.
                         ui.assert_safe()
                         video = output / f"{appearance}-{index + 1:02d}-{pose['id']}.mp4"

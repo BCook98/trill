@@ -113,7 +113,7 @@ python3 scripts/demo.py capture --repo "$PWD" \
 
 `--allow-terminal-input` is mandatory, including for utility dry-run validation. Without it the runner rejects before commands or state writes. Custom `text-input`, Insert, and Return steps also require the flag. Utility requires the reviewed maps: `sessions-back`, `sessions-list`, and other navigation markers are map keys, not invented app accessibility identifiers. The original maps used executable hash `17cd7d1ba636f4ff6292c6ba6664b4e05246fedeb69cbd8aaee8dc8a457def3b`. The Duo map was re-reviewed against the October 25 build below; the iPhone 17 Pro map remains tied to its older build.
 
-Current source uses a split Sessions sidebar and a Projects row (`open-projects`), rather than a Projects tab. `sessions-back` and `sessions-list` remain reviewed map aliases; neither is a native app identifier. Sessions-start captures reject missing navigation entries before appearance changes, app launch, or pairing. This structural check does not validate their geometry: the operator must observe the current build's return control and Sessions layout before reviewing its map. Historical capture results describe their frozen build; inspect the map executable hash and current native UI before every new app capture.
+Current source uses a Sessions/Agents mode switch within the Sessions sidebar. `sessions-back` and `sessions-list` remain reviewed map aliases; neither is a native app identifier. Sessions-start captures reject missing navigation entries before appearance changes, app launch, or pairing. This structural check does not validate their geometry: the operator must observe the current build's return control and Sessions layout before reviewing its map. Historical capture results describe their frozen build; inspect the map executable hash and current native UI before every new app capture.
 
 The native Write editor still exposes `terminal-draft`, disables autocapitalization and smart substitutions, and requires explicit focus. Its available height now shares space with photo tools/status, so re-review draft and keyboard coordinates on the actual build; the runner's keyboard wait and exact value readback remain required. No source-only coordinate replacement is safe.
 
@@ -173,3 +173,23 @@ All four new public clips fully decoded; posters matched decoded frame zero byte
 Focused checks: 87 runner tests, 9 lab tests and 16 exporter tests passed, including real ffmpeg/cwebp export integration. The current utility map intentionally omits stale legacy workspace URL-entry controls; review those controls before running the legacy workspace scenario. Older iPhone 17 Pro captures remain private; unused public exports were removed during publication cleanup.
 
 The final homepage passed the Chrome/WebKit browser suite, including automatic playback/fold, theme continuity, pause/replay, reduced motion, no-JavaScript/error fallback, seven responsive widths, and support/privacy routes. Desktop and mobile layouts were visually reviewed in both themes. The standalone hero screenshot was removed; video is the main product visual. Post-capture review added early rejection of stale URL-entry maps before device interaction and export artifact checksum validation; these do not change captured media or its recorded runner hash.
+
+
+## Duo marketing refresh, 26 October 2026
+
+Built native source `78c1cec36e4adeb921a1683af7977c81a46e6c34` with Xcode 27.1 (27A9275) into `.build/ios-marketing-20261026`. Native app source was clean; the checkout contained existing documentation, companion and runner changes. Executable SHA256: `1cd13f57d049bca710c592028b7b1917ff126ee8fa1b2b0291e7d25bbcb08b81`. The loaded `Trill.debug.dylib` SHA256 is `1c335364e9fc5ddf2ae9fe0decb2a81709c913f97fe49757e84699a3b06b62c7`. Captures used the runner-owned Duo on iOS 27.1; the public manifest preserves runtime build and capture provenance.
+
+The current Sessions/Agents layout moved the session row to y=244 and Open terminal to y=365 in cover point coordinates. Connected terminals no longer show a session/Mosh navigation title. The runner now waits for the exact enabled native `remote-terminal` surface, including when using a map; pixel identity and credential screening remain required. The isolated tmux status shows the real session name with `#S` in neutral colors. Removed obsolete heading identity points, reviewed source/preview geometry, and dismissed the keyboard tutorial before capture. Fresh pairing review requires the same owned-app restart as capture to avoid retained detail navigation.
+
+Smoke run `20261026T102406Z-f4df553f` completed the real utility flow before final recording. No request was replayed after uncertain delivery. The real agent changed the page between takes; no conversation or output was fabricated or reset.
+
+| Appearance | Source duration | Run | Cover cut | Open cut |
+| --- | --- | --- | --- | --- |
+| Light | 42.266667 s | `20261026T102619Z-5f79eed2` | 3–21.7 s | 23–42.266667 s |
+| Dark | 42.066667 s | `20261026T102725Z-98c745f0` | 3–21.7 s | 23–42.066667 s |
+
+New-frame measurements confirmed the unfolded display at x=0/y=525/w=1398/h=984 in the 1398×2034 recorder canvas. The first black frames occurred at 21.798333 s (light) and 21.831667 s (dark); both exports omit the blackout and fade. Four H.264 clips, four exact decoded-first-frame WebP posters and two native-preview WebPs total 4,246,700 bytes. The final light heading is “good ideas deserve a little room.”; dark is “find a little room to think.”
+
+Validation passed: 95 runner tests, 9 lab tests, 16 exporter tests, the skill validator, complete decode and faststart checks, exact poster pixel comparisons, and the Chromium/WebKit website suite. Both themes completed unseeked playback through the illustrative fold to the final preview. Reviewed chronological playback images and desktop/mobile light/dark site captures. Local Vision OCR checked all 2,272 exported frames with no recognized credential/pairing matches; this supplements visual review and is not a general secrecy guarantee. The real Codex 2-warning indicator remains visible.
+
+Private review/build evidence is under `.local/demo-capture/review-20261026`; the exporter staging directory is `.local/demo-capture/export-20261026`. The canonical skill reference was updated and validated. The website assets were replaced after local review. Publication is verified separately from the capture checks.

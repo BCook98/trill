@@ -1,5 +1,5 @@
 {
-  "app_sha256": "1c1bd1e23ea0ad6cb4059e28ee00d5e03c74cba20d41bfc99184c814fe2f8f4d",
+  "app_sha256": "1cd13f57d049bca710c592028b7b1917ff126ee8fa1b2b0291e7d25bbcb08b81",
   "poses": {
     "cover": {
       "pixels": [
@@ -38,14 +38,14 @@
         "field-notes": {
           "tap": [
             200,
-            337
+            244
           ],
           "text": "field-notes"
         },
         "open-terminal": {
           "tap": [
             190,
-            400
+            365
           ],
           "text": "Open terminal"
         },
@@ -54,14 +54,14 @@
             418,
             306
           ],
-          "text": "Mosh"
+          "text": "field-notes"
         },
         "sessions-back": {
           "tap": [
             418,
             194
           ],
-          "text": "Mosh"
+          "text": "field-notes"
         },
         "sessions-list": {
           "text": "Sessions"
@@ -82,23 +82,19 @@
         },
         "terminal-return": {
           "tap": [
-            95,
-            620
+            97,
+            619
           ],
-          "text": "Mosh"
+          "text": "field-notes"
         },
         "terminal-write": {
           "tap": [
             418,
             254
           ],
-          "text": "Mosh"
+          "text": "field-notes"
         }
-      },
-      "identity_heading_point": [
-        80,
-        48
-      ]
+      }
     },
     "unfolded": {
       "pixels": [
@@ -127,14 +123,14 @@
           "api": "ax-coresimulator"
         },
         "index.html": {
-          "text": "Photos"
+          "text": "index.html"
         },
         "preview-content": {
           "rect": [
             488,
-            238,
+            126,
             375,
-            390
+            510
           ]
         },
         "session-workspace": {
@@ -142,7 +138,7 @@
             903,
             196
           ],
-          "text": "Mosh",
+          "text": "field-notes",
           "api": "ax-coresimulator",
           "expected_id": "session-workspace"
         },
@@ -171,16 +167,12 @@
           "api": "ax-coresimulator",
           "expected_id": "file-render-preview"
         }
-      },
-      "identity_heading_point": [
-        120,
-        48
-      ]
+      }
     }
   },
   "profile": "iphone-duo",
-  "reviewed_at": "2026-10-24T20:08:21.742400+00:00",
-  "reviewed_by": "Codex operator; current native build screenshots and XCTest AX control frames on runner-owned Duo",
+  "reviewed_at": "2026-10-26T10:23:50.003573+00:00",
+  "reviewed_by": "Codex operator; fresh native screenshots and XCTest AX control frames on runner-owned Duo",
   "runtime": "com.apple.CoreSimulator.SimRuntime.iOS-27-1",
-  "utility_review": "Reviewed actual current app pairing, session row after Projects, consent, terminal toolbar, empty native draft with software keyboard, Files row, source globe and source/preview content regions. Portrait cover is1398x2034; unfolded2853x2007. idb describe retains cover dimensions; unfolded AX controls match screenshot geometry. Legacy address-entry workspace targets require separate review."
+  "utility_review": "October 26 build: reviewed Sessions/Agents list, pairing, terminal consent, native remote-terminal surface, draft, Files source and browser preview. Native terminal title is intentionally empty; actual isolated tmux status displays its session name for identity screening. Cover 1398x2034; unfolded 2853x2007; IDB retains cover dimensions. Keyboard tutorial dismissed before capture. Legacy URL entry is not reviewed."
 }
