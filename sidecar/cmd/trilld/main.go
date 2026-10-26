@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"trill/sidecar"
+	"trill/sidecar/buildinfo"
 	"trill/sidecar/pairing"
 )
 
@@ -29,6 +30,9 @@ func main() {
 }
 
 func run() error {
+	if len(os.Args) == 2 && os.Args[1] == "--version" {
+		return buildinfo.Write(os.Stdout)
+	}
 	var listen, cert, key, tokenFile, pairingFile, tmuxSocket, labFilesRoot, moshHost, moshBind, ports string
 	var insecure, allowControl bool
 	var backends, herdrPath, herdrSessions, herdrLabRoot, herdrConfigHome string

@@ -22,7 +22,9 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"trill/sidecar/buildinfo"
 	"trill/sidecar/demoapp"
+	"trill/sidecar/distribution"
 	"trill/sidecar/pairing"
 	"trill/sidecar/providers"
 	"trill/sidecar/setup"
@@ -30,6 +32,9 @@ import (
 
 const help = `Usage: trill <command> [options]
 
+  version     Print companion version, source commit and architecture as JSON
+  doctor      Diagnose installation, dependencies, TLS and owned services
+  update      Check for or install a verified signed companion release
   demo        Run an isolated scripted demo with real HTTPS and Mosh
   serve       Run the foreground daemon with daemon flags (serve --help)
   setup       Set up or resume this companion, then offer a pairing QR
@@ -72,6 +77,22 @@ func runWithSetupEnvironment(args []string, in io.Reader, out, errOut io.Writer,
 		return err
 	}
 	command := args[0]
+	if command == "version" {
+		if len(args) != 1 {
+			return errors.New("usage: trill version")
+		}
+		return buildinfo.Write(out)
+	}
+	if command == "doctor" || command == "update" {
+		home, err := userHome()
+		if err != nil {
+			return err
+		}
+		if command == "doctor" {
+			return doctor(args[1:], out, errOut, home)
+		}
+		return update(args[1:], out, errOut, home)
+	}
 	if command == "demo" {
 		file, ok := in.(*os.File)
 		if !ok && len(args) > 1 && args[1] == "terminal" {
@@ -212,6 +233,7 @@ func runWithSetupEnvironment(args []string, in io.Reader, out, errOut io.Writer,
 		if err != nil {
 			return err
 		}
+		cli = distribution.StableCLI(home, cli)
 		if daemon == "" {
 			daemon = filepath.Join(filepath.Dir(cli), "trilld")
 		}
@@ -426,6 +448,16 @@ func serve(args []string, executable func() (string, error), execProcess func(st
 }
 
 func probe(ctx context.Context, c setup.Config) error {
+	config := companionTLSConfig(c)
+	d := tls.Dialer{NetDialer: &net.Dialer{Timeout: 5 * time.Second}, Config: config}
+	conn, err := d.DialContext(ctx, "tcp", companionDialAddress(c))
+	if err != nil {
+		return fmt.Errorf("cannot reach companion HTTPS at %s: %w; check Bonjour/Tailscale connectivity, TCP 7443, and the saved certificate", c.Address, err)
+	}
+	return conn.Close()
+}
+
+func companionTLSConfig(c setup.Config) *tls.Config {
 	u, _ := url.Parse(c.Address)
 	config := &tls.Config{MinVersion: tls.VersionTLS12, ServerName: u.Hostname()}
 	if c.Fingerprint != "" {
@@ -446,18 +478,7 @@ func probe(ctx context.Context, c setup.Config) error {
 			return leaf.VerifyHostname(u.Hostname())
 		}
 	}
-	// A loopback-bound companion is reachable from this Mac only on loopback;
-	// the tailnet name may resolve to another tailnet's route here.
-	target := u.Host
-	if c.BindIP != "" {
-		target = net.JoinHostPort(c.BindIP, setup.Port)
-	}
-	d := tls.Dialer{NetDialer: &net.Dialer{Timeout: 5 * time.Second}, Config: config}
-	conn, err := d.DialContext(ctx, "tcp", target)
-	if err != nil {
-		return fmt.Errorf("cannot reach companion HTTPS at %s: %w; check Bonjour/Tailscale connectivity, TCP 7443, and the saved certificate", c.Address, err)
-	}
-	return conn.Close()
+	return config
 }
 func pair(ctx context.Context, c setup.Config, dir, png string, open, rawJSON, pasteURL, yes bool, in io.Reader, out, errOut io.Writer) error {
 	return approvePair(ctx, c, dir, png, open, rawJSON, pasteURL, yes, in, out, errOut, probe)
