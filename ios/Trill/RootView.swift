@@ -157,20 +157,6 @@ struct SessionListView: View {
                 WelcomeView { store.pairingPresented = true }
             } else {
                 List(selection: $store.selectedID) {
-                    Section {
-                        if store.computers.count > 1 {
-                            if dynamicTypeSize.isAccessibilitySize || store.computers.count > 4 {
-                                computerPicker.pickerStyle(.menu)
-                            } else {
-                                computerPicker.pickerStyle(.segmented).padding(.vertical, 3)
-                            }
-                        }
-                        if dynamicTypeSize.isAccessibilitySize {
-                            browserModePicker.pickerStyle(.menu)
-                        } else {
-                            browserModePicker.pickerStyle(.segmented)
-                        }
-                    }
                     ForEach(store.providerWarnings, id: \.self) { message in
                         Section { Label(message, systemImage: "exclamationmark.triangle").font(.subheadline).foregroundStyle(.secondary) }
                     }
@@ -192,7 +178,9 @@ struct SessionListView: View {
                             if !agents.isEmpty {
                                 Section {
                                     ForEach(agents) { session in
-                                        NavigationLink(value: session.id) { AgentRow(session: session, location: store.agentLocation(for: session)) }
+                                        NavigationLink(value: session.id) {
+                                            SessionRow(session: session, location: store.agentLocation(for: session))
+                                        }
                                             .modifier(SessionRowContextMenu(sessionID: session.id))
                                             .accessibilityIdentifier("agent-session-\(session.id)")
                                     }
@@ -211,17 +199,17 @@ struct SessionListView: View {
                         }
                     } else {
                         ForEach(visibleRoots) { project in
-                            Section {
-                                if project.provider == "herdr" {
-                                    HerdrSpaceRows(project: project, search: search)
-                                } else {
+                            if project.provider == "herdr" {
+                                HerdrSpaceSections(project: project, search: search)
+                            } else {
+                                Section {
                                     ForEach(visible.filter { $0.projectId == project.id }) { session in
                                         NavigationLink(value: session.id) { SessionRow(session: session) }
                                             .modifier(SessionRowContextMenu(sessionID: session.id))
                                     }
+                                } header: {
+                                    SpaceLabel(project: project)
                                 }
-                            } header: {
-                                if project.provider != "herdr" { Label(project.displayName, systemImage: "folder") }
                             }
                         }
                         if visibleRoots.isEmpty && !store.loading && store.error == nil {
@@ -230,12 +218,40 @@ struct SessionListView: View {
                         }
                     }
                 }
-                .listStyle(.insetGrouped)
+                .listStyle(.plain)
+                .textCase(nil)
+                .listSectionSeparator(.hidden)
+                .scrollContentBackground(.hidden)
+                .background(Color(uiColor: .systemBackground))
                 .searchable(text: $search, prompt: showingAgents ? "Agents, spaces, or branches" : "Sessions, projects, or branches")
+                .modifier(BrowserSearchScrollEdge())
+                .scrollDismissesKeyboard(.interactively)
                 .refreshable { await store.refresh() }
+                .safeAreaInset(edge: .top, spacing: 0) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        if store.computers.count > 1 {
+                            computerPicker.pickerStyle(.menu).labelsHidden()
+                                .frame(minHeight: 44, alignment: .leading)
+                        } else if let computer = store.computer {
+                            Text(computer.name)
+                                .font(.subheadline).foregroundStyle(.secondary)
+                                .padding(.vertical, 4)
+                        }
+                        if dynamicTypeSize.isAccessibilitySize {
+                            browserModePicker.pickerStyle(.menu)
+                        } else {
+                            browserModePicker.pickerStyle(.segmented)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(.bar)
+                }
             }
         }
-        .navigationTitle(showingAgents && store.computer != nil ? "Agents" : (store.hasHerdr ? "Spaces" : "Sessions"))
+        .navigationTitle(showingAgents && store.computer != nil ? "Agents" : "Sessions")
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Menu {
@@ -272,8 +288,8 @@ struct SessionListView: View {
     private var browserModePicker: some View {
         @Bindable var store = store
         return Picker("Browse", selection: $store.sessionBrowserMode) {
-            Text(store.hasHerdr ? "Spaces" : "Sessions").tag(SessionBrowserMode.sessions)
             Text("Agents").tag(SessionBrowserMode.agents)
+            Text("Sessions").tag(SessionBrowserMode.sessions)
         }
         .accessibilityIdentifier("session-browser-mode")
     }
@@ -298,46 +314,36 @@ struct SessionListView: View {
 
 }
 
-private struct AgentRow: View {
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    let session: RemoteSession
-    let location: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            SessionRow(session: session, showsBranch: false)
-            if !location.isEmpty {
-                Label(location, systemImage: "folder")
-                    .font(.caption).foregroundStyle(.secondary)
-                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
-            }
-            if !session.branch.isEmpty {
-                Label(session.branch, systemImage: "arrow.triangle.branch")
-                    .font(.caption.monospaced()).foregroundStyle(.secondary)
-                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
-            }
+private struct BrowserSearchScrollEdge: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content.scrollEdgeEffectStyle(.hard, for: .bottom)
+        } else {
+            content
         }
-        .padding(.bottom, 7)
-        .accessibilityElement(children: .combine)
     }
 }
 
-private struct HerdrSpaceRows: View {
+private struct HerdrSpaceSections: View {
     @Environment(AppStore.self) private var store
     let project: Project
     let search: String
-    @State private var expanded = true
     private var children: [Project] { store.worktrees(in: project.id).filter { child in
         project.matchesSearch(search) || child.matchesSearch(search) || store.sessions(in: child.id, archived: false).contains { $0.matchesSearch(search) }
     } }
     var body: some View {
-        DisclosureGroup(isExpanded: $expanded) {
+        Section {
             terminals(in: project, matchesAncestor: project.matchesSearch(search))
-            ForEach(children) { child in
-                HerdrWorktreeRows(project: child, search: search, matchesAncestor: project.matchesSearch(search))
+        } header: {
+            SpaceLabel(project: project)
+        }
+        ForEach(children) { child in
+            Section {
+                terminals(in: child, matchesAncestor: project.matchesSearch(search) || child.matchesSearch(search))
+            } header: {
+                SpaceLabel(project: child, parentName: project.displayName)
             }
-        } label: { SpaceLabel(project: project) }
-        .onChange(of: search) { _, value in if !value.isEmpty { expanded = true } }
+        }
     }
     @ViewBuilder private func terminals(in project: Project, matchesAncestor: Bool) -> some View {
         let sessions = store.sessions(in: project.id, archived: false).filter { matchesAncestor || $0.matchesSearch(search) }
@@ -349,41 +355,25 @@ private struct HerdrSpaceRows: View {
     }
 }
 
-private struct HerdrWorktreeRows: View {
-    @Environment(AppStore.self) private var store
-    let project: Project
-    let search: String
-    let matchesAncestor: Bool
-    @State private var expanded = true
-    var body: some View {
-        DisclosureGroup(isExpanded: $expanded) {
-            let sessions = store.sessions(in: project.id, archived: false).filter { matchesAncestor || project.matchesSearch(search) || $0.matchesSearch(search) }
-            ForEach(sessions) { session in
-                NavigationLink(value: session.id) { SessionRow(session: session, showsBranch: false) }
-                    .modifier(SessionRowContextMenu(sessionID: session.id))
-            }
-            if sessions.isEmpty && search.isEmpty { Text("No sessions").font(.subheadline).foregroundStyle(.secondary) }
-        } label: { SpaceLabel(project: project) }
-        .onChange(of: search) { _, value in if !value.isEmpty { expanded = true } }
-    }
-}
-
 private struct SpaceLabel: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let project: Project
+    var parentName: String = ""
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
-            Image(systemName: project.isWorktree == true ? "arrow.triangle.branch" : "folder")
-                .foregroundStyle(project.focused == true ? Color.accentColor : Color.secondary)
+        let headingLayout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 6))
+            : AnyLayout(HStackLayout(alignment: .top, spacing: 10))
+        headingLayout {
             VStack(alignment: .leading, spacing: 4) {
-                Text(project.displayName).font(.headline).foregroundStyle(.primary)
+                Text(parentName.isEmpty ? project.displayName : "\(parentName) / \(project.displayName)")
+                    .font(.headline).foregroundStyle(Color.primary)
                 if let branch = project.branch, !branch.isEmpty {
-                    Text(branch).font(.caption.monospaced()).foregroundStyle(.secondary)
+                    Text(branch).font(.footnote.monospaced()).foregroundStyle(Color.secondary)
                 }
             }
-            Spacer(minLength: 4)
             if project.focused == true {
-                Image(systemName: "circle.fill").font(.system(size: 7)).foregroundStyle(Color.accentColor)
-                    .accessibilityLabel("Focused on Mac")
+                if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 4) }
+                Text("Focused on Mac").font(.footnote).foregroundStyle(Color.secondary)
             }
         }
         .padding(.vertical, 5)
@@ -591,62 +581,88 @@ private struct BrowserStatusSection: View {
 // Presentation only: terminal availability and archive membership do not imply activity.
 private struct SessionRowStatus {
     let label: String
-    let symbol: String
     let color: Color
+    let isFilled: Bool
 
     init(session: RemoteSession) {
         if ["error", "failed"].contains(session.status) {
-            (label, symbol, color) = (session.status.capitalized, "xmark.octagon.fill", .red)
+            (label, color, isFilled) = (session.status.capitalized, .red, true)
         } else if ["completed", "stopped"].contains(session.status) {
             // Ended sessions can retain stale activity from their last live update.
-            (label, symbol, color) = (session.status.capitalized, "stop.circle", .secondary)
+            (label, color, isFilled) = (session.status.capitalized, .secondary, false)
         } else if ["error", "failed"].contains(session.activityState) {
-            (label, symbol, color) = (session.activityState.capitalized, "xmark.octagon.fill", .red)
+            (label, color, isFilled) = (session.activityState.capitalized, .red, true)
         } else if session.needsAttention {
-            (label, symbol, color) = (session.statusLabel, "exclamationmark.circle.fill", .orange)
+            (label, color, isFilled) = (session.statusLabel, .orange, true)
         } else if session.status == "running" && session.activityState == "working" {
-            (label, symbol, color) = (session.statusLabel, "gearshape.2.fill", .green)
+            (label, color, isFilled) = (session.statusLabel, .green, true)
         } else if (session.provider == "herdr" || session.hasDetectedAgent) && session.status == "running" && session.agentActivityGroup == .idle {
-            (label, symbol, color) = ("Idle", "circle", .green)
+            (label, color, isFilled) = ("Idle", .green, false)
         } else if session.status == "running" {
-            (label, symbol, color) = (session.statusLabel, "play.circle", .blue)
+            (label, color, isFilled) = (session.statusLabel, .blue, true)
         } else {
             // In particular, "finished" is not necessarily an ended session.
-            (label, symbol, color) = (session.statusLabel, "pause.circle", .secondary)
+            (label, color, isFilled) = (session.statusLabel, .secondary, false)
         }
     }
 }
 
 struct SessionRow: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @ScaledMetric(relativeTo: .headline) private var statusDotTopPadding = 6
     let session: RemoteSession
     var showsBranch = true
+    var location: String = ""
     var body: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            Text(session.name.isEmpty ? "Untitled session" : session.name).font(.headline).lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
-            let metadataLayout = dynamicTypeSize.isAccessibilitySize
-                ? AnyLayout(VStackLayout(alignment: .leading, spacing: 6))
-                : AnyLayout(HStackLayout(spacing: 6))
-            metadataLayout {
-                let status = SessionRowStatus(session: session)
-                Label {
-                    Text(status.label).foregroundStyle(Color.primary)
-                } icon: {
-                    Image(systemName: status.symbol)
-                        .foregroundStyle(status.color)
-                        .accessibilityHidden(true)
+        let status = SessionRowStatus(session: session)
+        HStack(alignment: .top, spacing: 12) {
+            Circle()
+                .strokeBorder(status.color, lineWidth: 1.5)
+                .background(Circle().fill(status.isFilled ? status.color : .clear))
+                .frame(width: 9, height: 9)
+                .padding(.top, statusDotTopPadding)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 6) {
+                Text(session.name.isEmpty ? "Untitled session" : session.name)
+                    .font(.headline)
+                    .foregroundStyle(.primary)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
+                if !location.isEmpty || (showsBranch && !session.branch.isEmpty) {
+                    let contextLayout = dynamicTypeSize.isAccessibilitySize
+                        ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
+                        : AnyLayout(HStackLayout(spacing: 6))
+                    contextLayout {
+                        if !location.isEmpty {
+                            Text(location)
+                        }
+                        if showsBranch && !session.branch.isEmpty {
+                            if !location.isEmpty && !dynamicTypeSize.isAccessibilitySize {
+                                Text("/").accessibilityHidden(true)
+                            }
+                            Text(session.branch).font(.footnote.monospaced())
+                                .truncationMode(.middle)
+                        }
+                    }
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
                 }
-                if !dynamicTypeSize.isAccessibilitySize { Text("·").accessibilityHidden(true) }
-                Text(session.displayAgent)
-                if session.provider != "herdr", let provider = session.providerName { Text("·").accessibilityHidden(true); Text(provider) }
-            }.font(.caption).foregroundStyle(.secondary)
-            if showsBranch && !session.branch.isEmpty {
-                Label(session.branch, systemImage: "arrow.triangle.branch")
-                    .font(.caption.monospaced()).foregroundStyle(.secondary).lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+                Text(metadata(status: status))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(.vertical, 7)
+        .frame(minHeight: 44, alignment: .leading)
+        .padding(.vertical, 8)
         .accessibilityElement(children: .combine)
+    }
+    private func metadata(status: SessionRowStatus) -> String {
+        var components = [status.label, session.displayAgent]
+        if session.provider != "herdr", let provider = session.providerName {
+            components.append(provider)
+        }
+        return components.joined(separator: " · ")
     }
 }
 

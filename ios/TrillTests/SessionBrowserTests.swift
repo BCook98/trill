@@ -244,7 +244,7 @@ final class SessionBrowserTests: XCTestCase {
         var onFetchStarted: (() -> Void)?
         var onAction: (() -> Void)?
 
-        func makeStore() async throws -> AppStore {
+        func makeStore(computerName: String = "Fixture") async throws -> AppStore {
             let store = AppStore(loadSavedPairing: false, savePairing: { _, _ in }, deletePairing: { _ in }, saveLibrary: { _ in },
                                  checkHealth: { _ in Health(name: "Fixture", version: "1", readOnly: self.readOnly) },
                                  fetchSessions: { _ in
@@ -264,7 +264,7 @@ final class SessionBrowserTests: XCTestCase {
                 if self.failAction { throw TrillError.message("Fixture resume failed") }
                 self.onAction?()
             })
-            try await store.pair(Computer(name: "Fixture", address: "https://trill-browser.invalid", token: String(repeating: "t", count: 64), fingerprint: ""))
+            try await store.pair(Computer(name: computerName, address: "https://trill-browser.invalid", token: String(repeating: "t", count: 64), fingerprint: ""))
             store.selectedTab = .projects
             return store
         }
@@ -621,7 +621,7 @@ extension SessionBrowserTests {
 
 extension SessionBrowserTests {
     @MainActor func testHerdrBrowserAndCreationLayouts() async throws {
-        let store = try await Fixture().makeStore()
+        let store = try await Fixture().makeStore(computerName: "MacBook Pro")
         var capabilities = SessionCapabilities(); capabilities.createTerminal = true; capabilities.worktree = true
         var root = Project(id: "trill", name: "trill", path: "/sample/trill")
         root.provider = "herdr"; root.providerName = "Herdr · default"; root.branch = "main"; root.workspaceOrder = 1; root.capabilities = capabilities
@@ -634,26 +634,30 @@ extension SessionBrowserTests {
             RemoteSession(provider: "herdr", id: "feature-terminal", name: "Improve Trill integration with Herdr", projectId: child.id, projectName: child.name, status: "running", activityState: "working", agent: "codex", branch: "worktree/calm-meadow", updatedAt: "", attachable: true, resumable: false)
         ]
         store.spaceProviders = [ProviderStatus(id: "herdr:default", name: "Herdr · default", available: true, message: nil, createSpace: true)]
-        let multiComputerStore = try await Fixture().makeStore()
-        try await multiComputerStore.pair(Computer(name: "Second", address: "https://second.invalid", token: String(repeating: "s", count: 64), fingerprint: ""))
+        let multiComputerStore = try await Fixture().makeStore(computerName: "MacBook Pro")
+        try await multiComputerStore.pair(Computer(name: "Mac mini", address: "https://second.invalid", token: String(repeating: "s", count: 64), fingerprint: ""))
         multiComputerStore.projects = store.projects; multiComputerStore.sessions = store.sessions
         multiComputerStore.spaceProviders = store.spaceProviders; multiComputerStore.sessionBrowserMode = .agents
         let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
         let originalWindow = scene.windows.first { $0.isKeyWindow }
         let window = UIWindow(windowScene: scene)
-        window.frame = CGRect(x: 0, y: 0, width: 402, height: 874)
+        window.frame = scene.coordinateSpace.bounds
         defer { window.isHidden = true; originalWindow?.makeKey() }
         for (name, view) in [
-            ("Herdr spaces", AnyView(NavigationStack { SessionListView(openProjects: {}) }.environment(store))),
-            ("Agents", AnyView(NavigationStack { SessionListView(openProjects: {}) }.environment(store))),
-            ("Agents multiple computers", AnyView(NavigationStack { SessionListView(openProjects: {}) }.environment(multiComputerStore))),
-            ("Agents empty", AnyView(NavigationStack { SessionListView(openProjects: {}) }.environment(store))),
-            ("Agents dark", AnyView(NavigationStack { SessionListView(openProjects: {}) }.environment(store).preferredColorScheme(.dark))),
-            ("Agents accessibility", AnyView(NavigationStack { SessionListView(openProjects: {}) }.environment(store).environment(\.dynamicTypeSize, .accessibility3))),
+            ("Herdr spaces", AnyView(RootView().environment(store))),
+            ("Sessions multiple computers", AnyView(RootView().environment(multiComputerStore))),
+            ("Sessions dark", AnyView(RootView().environment(store))),
+            ("Sessions accessibility", AnyView(RootView().environment(store).environment(\.dynamicTypeSize, .accessibility3))),
+            ("Agents", AnyView(RootView().environment(store))),
+            ("Agents multiple computers", AnyView(RootView().environment(multiComputerStore))),
+            ("Agents empty", AnyView(RootView().environment(store))),
+            ("Agents dark", AnyView(RootView().environment(store))),
+            ("Agents accessibility", AnyView(RootView().environment(store).environment(\.dynamicTypeSize, .accessibility3))),
             ("New Herdr space", AnyView(NewHerdrItemView(isWorktree: false).environment(store))),
             ("New Herdr worktree", AnyView(NewHerdrItemView(isWorktree: true).environment(store)))
         ] {
             store.sessionBrowserMode = name.hasPrefix("Agents") ? .agents : .sessions
+            multiComputerStore.sessionBrowserMode = store.sessionBrowserMode
             let originalSessions = store.sessions
             if name == "Agents empty" {
                 store.sessions = [detectedAgent("shell", kind: "Shell")]
@@ -663,7 +667,7 @@ extension SessionBrowserTests {
                 store.sessions.append(waiting)
             }
             defer { store.sessions = originalSessions }
-            window.rootViewController = UIHostingController(rootView: view)
+            window.rootViewController = UIHostingController(rootView: view.preferredColorScheme(name.hasSuffix("dark") ? .dark : .light))
             window.makeKeyAndVisible()
             try await Task.sleep(for: .milliseconds(350))
             window.layoutIfNeeded()

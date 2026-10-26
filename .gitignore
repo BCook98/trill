@@ -11,6 +11,9 @@ xcuserdata/
 
 .vercel/
 
+# Local design mockups and simulator review screenshots.
+/output/
+
 # Python demo tooling caches
 __pycache__/
 *.pyc

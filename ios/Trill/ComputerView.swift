@@ -379,6 +379,7 @@ struct NewHerdrItemView: View {
     @State private var targetID = ""
     @State private var name = ""
     @State private var directoryOrBranch = ""
+    @State private var hasPreparedForm = false
     @State private var creating = false
     @State private var creationUncertain = false
     @State private var error: String?
@@ -422,7 +423,7 @@ struct NewHerdrItemView: View {
                     Section {
                         Text(error).foregroundStyle(.red)
                         if creationUncertain {
-                            Button("Check Spaces") { Task { await store.refresh(); dismiss() } }
+                            Button("Check Sessions") { Task { await store.refresh(); dismiss() } }
                         }
                     }
                 }
@@ -439,8 +440,25 @@ struct NewHerdrItemView: View {
                 }
             }
             .interactiveDismissDisabled(creating)
-            .onAppear { targetID = isWorktree ? (store.worktreeProjects.first?.id ?? "") : (store.spaceProviders.first?.id ?? "") }
+            .onAppear {
+                guard !hasPreparedForm else { return }
+                hasPreparedForm = true
+                targetID = isWorktree ? (store.worktreeProjects.first?.id ?? "") : (store.spaceProviders.first?.id ?? "")
+                if isWorktree {
+                    let suggestedName = Self.suggestedWorktreeName()
+                    name = suggestedName
+                    directoryOrBranch = suggestedName
+                }
+            }
         }
+    }
+    private static func suggestedWorktreeName() -> String {
+        let adjectives = ["bright", "calm", "clever", "gentle", "lively", "nimble", "quiet", "silver", "swift", "vivid", "warm", "wild"]
+        let birds = ["finch", "heron", "kestrel", "kingfisher", "lark", "osprey", "owl", "robin", "sparrow", "swift", "tern", "wren"]
+        let adjective = adjectives[Int.random(in: adjectives.indices)]
+        let bird = birds[Int.random(in: birds.indices)]
+        let suffix = UUID().uuidString.prefix(4).lowercased()
+        return "\(adjective)-\(bird)-\(suffix)"
     }
     private func create() {
         guard !creating, !creationUncertain else { return }
