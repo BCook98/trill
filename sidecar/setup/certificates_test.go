@@ -3,20 +3,15 @@ package setup
 import (
 	"bytes"
 	"context"
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
 	"crypto/x509"
-	"crypto/x509/pkix"
-	"encoding/pem"
 	"errors"
-	"math/big"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
+	"trill/sidecar/internal/testcert"
 )
 
 func TestSelfSignedCertificateAndPin(t *testing.T) {
@@ -51,40 +46,9 @@ func TestSelfSignedCertificateAndPin(t *testing.T) {
 	}
 }
 func trustedBundle(t *testing.T, host string, now time.Time, validity time.Duration) ([]byte, *x509.CertPool) {
-	t.Helper()
-	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
-		t.Fatal(err)
-	}
-	root := &x509.Certificate{SerialNumber: big.NewInt(1), Subject: pkix.Name{CommonName: "Test CA"}, NotBefore: now.Add(-time.Hour), NotAfter: now.AddDate(1, 0, 0), IsCA: true, BasicConstraintsValid: true, KeyUsage: x509.KeyUsageCertSign}
-	rootDER, err := x509.CreateCertificate(rand.Reader, root, root, &key.PublicKey, key)
-	if err != nil {
-		t.Fatal(err)
-	}
-	root, err = x509.ParseCertificate(rootDER)
-	if err != nil {
-		t.Fatal(err)
-	}
-	leafKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
-		t.Fatal(err)
-	}
-	leaf := &x509.Certificate{SerialNumber: big.NewInt(2), DNSNames: []string{host}, NotBefore: now.Add(-time.Minute), NotAfter: now.Add(validity), KeyUsage: x509.KeyUsageDigitalSignature, ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}}
-	der, err := x509.CreateCertificate(rand.Reader, leaf, root, &leafKey.PublicKey, key)
-	if err != nil {
-		t.Fatal(err)
-	}
-	keyDER, err := x509.MarshalPKCS8PrivateKey(leafKey)
-	if err != nil {
-		t.Fatal(err)
-	}
-	bundle := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})
-	bundle = append(bundle, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: rootDER})...)
-	bundle = append(bundle, pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: keyDER})...)
-	pool := x509.NewCertPool()
-	pool.AddCert(root)
-	return bundle, pool
+	return testcert.Bundle(t, host, now, validity)
 }
+
 func TestTailscaleExportValidationAndRenewal(t *testing.T) {
 	dir := testDir(t)
 	now := time.Date(2026, 10, 24, 0, 0, 0, 0, time.UTC)
@@ -227,5 +191,34 @@ func TestTailscaleExportUsesSelectedSocket(t *testing.T) {
 	want := []call{{"/opt/tailscale", []string{"--socket=/run/ts.sock", "cert", "--cert-file=-", "--key-file=-", "mac.example.ts.net"}}}
 	if !reflect.DeepEqual(r.calls, want) {
 		t.Fatalf("%+v", r.calls)
+	}
+}
+
+func TestEmbeddedCertificatesRequirePublicTrustAndDoNotExportFromAnotherDaemon(t *testing.T) {
+	directory := testDir(t)
+	now := time.Now()
+	hostname := "trill.example.ts.net"
+	network := Network{Kind: "tsnet", IP: "100.73.54.69", Host: hostname, BindIP: "127.0.0.1"}
+	manager := Certificates{Now: func() time.Time { return now }}
+	if _, err := manager.Provision(context.Background(), directory, network, "Trill"); err == nil {
+		t.Fatal("missing certificate triggered a fallback")
+	}
+	bundle, roots := trustedBundle(t, hostname, now, 90*24*time.Hour)
+	manager.Roots = roots
+	if err := WritePrivate(filepath.Join(directory, "tls.pem"), bundle, false); err != nil {
+		t.Fatal(err)
+	}
+	pin, err := manager.Provision(context.Background(), directory, network, "Trill")
+	if err != nil || pin != "" {
+		t.Fatalf("embedded certificate is not publicly trusted: %s %v", pin, err)
+	}
+	configuration := testConfig(directory)
+	configuration.Network, configuration.IP, configuration.Address, configuration.BindIP, configuration.TSNetHostname, configuration.Fingerprint = "tsnet", network.IP, "https://"+hostname+":7443", "127.0.0.1", "trill", ""
+	if changed, err := manager.Renew(context.Background(), directory, configuration); err != nil || changed {
+		t.Fatalf("CLI tried to export from another node: %t %v", changed, err)
+	}
+	manager.Now = func() time.Time { return now.Add(65 * 24 * time.Hour) }
+	if _, err := manager.Renew(context.Background(), directory, configuration); err == nil {
+		t.Fatal("overdue embedded renewal was hidden")
 	}
 }

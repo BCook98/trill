@@ -182,14 +182,24 @@ func (a Agents) changeConfiguration(ctx context.Context, c, next Config, dir str
 // Service actions share the control lock so Start cannot race the two-file
 // control commit and accidentally bootstrap the old permission setting.
 func lockControl(dir string) (func(), error) {
+	return lockPrivateState(dir, ".control.lock", "control", "another companion service/configuration change is in progress; retry shortly")
+}
+
+// LockTSNetState prevents enrollment, reauthentication and the daemon from
+// opening the same embedded node concurrently. Hold until tsnet has closed.
+func LockTSNetState(dir string) (func(), error) {
+	return lockPrivateState(dir, ".node.lock", "embedded Tailscale", "embedded Tailscale is already in use; stop this companion before logging in")
+}
+
+func lockPrivateState(dir, filename, description, busyMessage string) (func(), error) {
 	if err := checkPrivateDir(dir); err != nil {
 		return nil, err
 	}
-	fd, err := syscall.Open(filepath.Join(dir, ".control.lock"), syscall.O_RDWR|syscall.O_CREAT|syscall.O_NOFOLLOW|syscall.O_NONBLOCK|syscall.O_CLOEXEC, 0600)
+	fd, err := syscall.Open(filepath.Join(dir, filename), syscall.O_RDWR|syscall.O_CREAT|syscall.O_NOFOLLOW|syscall.O_NONBLOCK|syscall.O_CLOEXEC, 0600)
 	if err != nil {
-		return nil, errors.New("cannot open private control lock")
+		return nil, fmt.Errorf("cannot open private %s lock", description)
 	}
-	lock := os.NewFile(uintptr(fd), "control lock")
+	lock := os.NewFile(uintptr(fd), description+" lock")
 	st, err := lock.Stat()
 	if err != nil {
 		lock.Close()
@@ -198,11 +208,11 @@ func lockControl(dir string) (func(), error) {
 	owner, ok := st.Sys().(*syscall.Stat_t)
 	if !st.Mode().IsRegular() || st.Mode().Perm() != 0600 || !ok || owner.Uid != uint32(os.Getuid()) || owner.Nlink != 1 {
 		lock.Close()
-		return nil, errors.New("control lock must be a user-owned, single-link regular 0600 file")
+		return nil, fmt.Errorf("%s lock must be a user-owned, single-link regular 0600 file", description)
 	}
 	if err = syscall.Flock(fd, syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
 		lock.Close()
-		return nil, errors.New("another companion service/configuration change is in progress; retry shortly")
+		return nil, errors.New(busyMessage)
 	}
 	return func() { syscall.Flock(fd, syscall.LOCK_UN); lock.Close() }, nil
 }

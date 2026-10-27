@@ -8,7 +8,7 @@ From the repository root, run the companion suite in its Go module:
 
 ```sh
 (cd sidecar && go test -race ./... && go vet ./...)
-(cd sidecar && go install golang.org/x/vuln/cmd/govulncheck@v1.4.0 && govulncheck ./...)
+(cd sidecar && go install golang.org/x/vuln/cmd/govulncheck@v1.9.0 && govulncheck ./...)
 ```
 
 The default suite covers authentication, pairing, revocation, lease ownership, provider boundaries, setup/control changes, uploads, file confinement, static preview, browser grants, and video limits. Real transport/provider probes are separate opt-in checks; inspect their prerequisites before enabling them.

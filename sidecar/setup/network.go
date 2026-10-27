@@ -318,3 +318,28 @@ func NormalizeLANHostname(host string) (string, error) {
 	}
 	return label + ".local", nil
 }
+
+// ValidateTSNetHostname accepts a single DNS label for an embedded node.
+func ValidateTSNetHostname(hostname string) error {
+	if len(hostname) < 1 || len(hostname) > 63 || hostname[0] == '-' || hostname[len(hostname)-1] == '-' {
+		return errors.New("tsnet hostname must be a DNS label of 1 to 63 lowercase letters, digits or hyphens")
+	}
+	for _, character := range hostname {
+		if character != '-' && (character < 'a' || character > 'z') && (character < '0' || character > '9') {
+			return errors.New("tsnet hostname must be a DNS label of lowercase letters, digits or hyphens")
+		}
+	}
+	return nil
+}
+
+func validTailnetHostname(hostname string) bool {
+	if len(hostname) > 253 || !strings.HasSuffix(hostname, ".ts.net") {
+		return false
+	}
+	for _, label := range strings.Split(hostname, ".") {
+		if ValidateTSNetHostname(label) != nil {
+			return false
+		}
+	}
+	return hostname != "ts.net"
+}
