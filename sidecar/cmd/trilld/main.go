@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/hex"
 	"errors"
 	"flag"
@@ -20,6 +21,8 @@ import (
 
 	"trill/sidecar"
 	"trill/sidecar/pairing"
+	"trill/sidecar/setup"
+	"trill/sidecar/tailnet"
 )
 
 func main() {
@@ -32,6 +35,7 @@ func run() error {
 	var listen, cert, key, tokenFile, pairingFile, tmuxSocket, labFilesRoot, moshHost, moshBind, ports string
 	var insecure, allowControl bool
 	var backends, herdrPath, herdrSessions, herdrLabRoot, herdrConfigHome string
+	var tsnetStateDirectory, tsnetHostname string
 	var leaseTTL time.Duration
 	flag.StringVar(&listen, "listen", "127.0.0.1:7443", "HTTP bind address")
 	flag.StringVar(&cert, "cert", "", "TLS certificate PEM")
@@ -51,12 +55,36 @@ func run() error {
 	flag.StringVar(&herdrSessions, "herdr-sessions", "", "comma-separated existing Herdr servers (default default)")
 	flag.StringVar(&herdrLabRoot, "herdr-lab-root", "", "disposable probe directory; requires exactly one Herdr backend")
 	flag.StringVar(&herdrConfigHome, "herdr-config-home", "", "absolute XDG config base containing herdr/ (pins server identity)")
+	flag.StringVar(&tsnetStateDirectory, "tsnet-state-dir", "", "private enrolled tsnet state directory; enables embedded Tailscale")
+	flag.StringVar(&tsnetHostname, "tsnet-hostname", "", "embedded Tailscale hostname selected during setup")
 	flag.Parse()
 	if flag.NArg() != 0 {
 		return fmt.Errorf("unexpected arguments")
 	}
 	if err := validateNetwork(listen, cert, key, insecure, moshHost, moshBind); err != nil {
 		return err
+	}
+	if tsnetStateDirectory != "" {
+		if !filepath.IsAbs(tsnetStateDirectory) || filepath.Clean(tsnetStateDirectory) != tsnetStateDirectory || setup.ValidateTSNetHostname(tsnetHostname) != nil || insecure || moshBind != "127.0.0.1" || listen != "127.0.0.1:7443" {
+			return errors.New("embedded Tailscale requires private absolute state, a valid hostname, HTTPS and loopback HTTP/Mosh listeners")
+		}
+		if _, _, err := parseUDPPortRange(ports); err != nil {
+			return err
+		}
+	} else if tsnetHostname != "" {
+		return errors.New("--tsnet-hostname requires --tsnet-state-dir")
+	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	if tsnetStateDirectory != "" {
+		if err := setup.PrivateDir(tsnetStateDirectory); err != nil {
+			return err
+		}
+		unlockNode, err := setup.LockTSNetState(tsnetStateDirectory)
+		if err != nil {
+			return err
+		}
+		defer unlockNode()
 	}
 	svc, err := sidecar.NewService(sidecar.Config{Backends: backends, HerdrConfigHome: herdrConfigHome, HerdrPath: herdrPath, HerdrSessions: herdrSessions, HerdrLabRoot: herdrLabRoot, AllowControl: allowControl, TmuxSocket: tmuxSocket, LabFilesRoot: labFilesRoot, MoshHost: moshHost, MoshBind: moshBind, UDPPorts: ports, LeaseTTL: leaseTTL}, nil)
 	if err != nil {
@@ -71,6 +99,71 @@ func run() error {
 	handler := sidecar.NewHTTPWithPairing(svc, token, store)
 	defer handler.Close()
 	server := &http.Server{Addr: listen, Handler: handler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 20 * time.Second, WriteTimeout: 40 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 8192}
+	var expectedDNSName string
+	if tsnetStateDirectory != "" {
+		certificate, err := tls.LoadX509KeyPair(cert, key)
+		if err != nil || len(certificate.Certificate) == 0 {
+			return errors.New("invalid embedded HTTPS certificate")
+		}
+		leaf, err := x509.ParseCertificate(certificate.Certificate[0])
+		if err != nil || len(leaf.DNSNames) != 1 {
+			return errors.New("embedded HTTPS certificate must identify one tailnet hostname")
+		}
+		expectedDNSName = leaf.DNSNames[0]
+	}
+
+	localListener, err := net.Listen("tcp", listen)
+	if err != nil {
+		return err
+	}
+	defer localListener.Close()
+	listeners := []net.Listener{localListener}
+	var forwarders []*tailnet.UDPForwarder
+	if tsnetStateDirectory != "" {
+		embeddedNode, err := openTSNet(ctx, tsnetStateDirectory, tsnetHostname, moshHost, expectedDNSName)
+		if err != nil {
+			return err
+		}
+		defer embeddedNode.Close()
+		if err := tailnet.RefreshCertificate(ctx, embeddedNode, expectedDNSName, cert); err != nil {
+			return err
+		}
+		renewalContext, cancelRenewal := context.WithCancel(ctx)
+		renewalDone := make(chan struct{})
+		go func() {
+			defer close(renewalDone)
+			timer := time.NewTicker(6 * time.Hour)
+			defer timer.Stop()
+			for {
+				select {
+				case <-renewalContext.Done():
+					return
+				case <-timer.C:
+					if err := tailnet.RefreshCertificate(renewalContext, embeddedNode, expectedDNSName, cert); err != nil {
+						log.Printf("embedded Tailscale certificate renewal failed: %v", err)
+					}
+				}
+			}
+		}()
+		defer func() { cancelRenewal(); <-renewalDone }()
+		tailnetListener, err := embeddedNode.Listen("tcp", ":7443")
+		if err != nil {
+			return err
+		}
+		defer tailnetListener.Close()
+		listeners = append(listeners, tailnetListener)
+		if allowControl {
+			forwarders, err = tsnetUDPForwarders(embeddedNode, moshHost, ports)
+			if err != nil {
+				return err
+			}
+			defer func() {
+				for _, forwarder := range forwarders {
+					forwarder.Close()
+				}
+			}()
+		}
+	}
 	if cert != "" {
 		reloader, err := newCertificateReloader(cert, key)
 		if err != nil {
@@ -78,25 +171,29 @@ func run() error {
 		}
 		server.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12, GetCertificate: reloader.GetCertificate}
 	}
-	ln, err := net.Listen("tcp", listen)
-	if err != nil {
-		return err
+
+	serveErrors := make(chan error, len(listeners)+len(forwarders))
+	for _, listener := range listeners {
+		go func() {
+			if cert != "" {
+				serveErrors <- server.ServeTLS(listener, "", "")
+			} else {
+				serveErrors <- server.Serve(listener)
+			}
+		}()
 	}
-	defer ln.Close()
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-	go func() {
-		<-ctx.Done()
-		shutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		_ = server.Shutdown(shutdown)
-	}()
-	log.Printf("trilld listening on %s (readOnly=%t, terminalLab=%t)", listen, !allowControl, tmuxSocket != "" || herdrLabRoot != "")
-	if cert != "" {
-		err = server.ServeTLS(ln, "", "")
-	} else {
-		err = server.Serve(ln)
+	for _, forwarder := range forwarders {
+		go func() { serveErrors <- forwarder.Serve() }()
 	}
+	log.Printf("trilld listening on %s (readOnly=%t, embeddedTailscale=%t)", listen, !allowControl, tsnetStateDirectory != "")
+	select {
+	case <-ctx.Done():
+		err = nil
+	case err = <-serveErrors:
+	}
+	shutdownContext, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_ = server.Shutdown(shutdownContext)
 	if errors.Is(err, http.ErrServerClosed) {
 		return nil
 	}
