@@ -64,7 +64,7 @@ def main(argv=None):
             set_version(args.version)
         marketing, build = read_version()
         result = {'marketing_version': marketing, 'local_build_number': build,
-                  'archive_build_number': 'Assigned by Xcode Cloud; confirm in App Store Connect'}
+                  'archive_build_number': 'Assigned by Xcode Cloud'}
         if args.command == 'check' and args.tag:
             check_tag(args.tag, marketing)
             # A tag's suffix identifies the actual source being archived, not its Cloud build number.
