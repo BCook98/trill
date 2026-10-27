@@ -184,13 +184,22 @@ func TestUserspaceTailscaleConfigBindsLoopbackAndAdvertisesTailnet(t *testing.T)
 		c.TailscaleCLI, c.TailscaleSocket = "/opt/tailscale", "/run/ts.sock"
 		return c
 	}
-	c := tailnet()
-	if err := c.Validate(dir); err != nil {
-		t.Fatal(err)
-	}
-	args := strings.Join(DaemonArgs(c, dir), " ")
-	if !strings.Contains(args, "--listen 127.0.0.1:7443 ") || !strings.Contains(args, "--mosh-host 100.73.54.69 --mosh-bind 127.0.0.1") {
-		t.Fatal(args)
+	for _, advertisedIP := range []string{"100.73.54.69", "fd7a:115c:a1e0::1"} {
+		t.Run(advertisedIP, func(t *testing.T) {
+			c := tailnet()
+			c.IP = advertisedIP
+			if err := c.Validate(dir); err != nil {
+				t.Fatal(err)
+			}
+			args := strings.Join(DaemonArgs(c, dir), " ")
+			if !strings.Contains(args, "--listen 127.0.0.1:7443 ") || !strings.Contains(args, "--mosh-host "+advertisedIP+" --mosh-bind 127.0.0.1") {
+				t.Fatal(args)
+			}
+			c.BindIP = "::1"
+			if err := c.Validate(dir); err == nil {
+				t.Fatal("accepted IPv6 loopback instead of Tailscale's IPv4 forwarding target")
+			}
+		})
 	}
 	for i, change := range []func(*Config){
 		func(c *Config) { c.BindIP = "::1" }, func(c *Config) { c.BindIP = "192.168.1.2" },

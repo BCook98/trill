@@ -108,7 +108,7 @@ Setup uses the `tailscale` CLI on PATH, then the Tailscale app. To use a differe
 
 Either flag selects Tailscale. Renewal uses the same CLI and socket. Certificate export requires that `tailscaled` to run with `--statedir`.
 
-If the node's tailnet IP is not assigned to a Mac interface, as with `--tun=userspace-networking`, the companion and `mosh-server` listen on loopback. The phone still connects to the tailnet hostname and IP, and `tailscaled` forwards that traffic to loopback.
+If the node's tailnet IP is not assigned to a Mac interface, as with `--tun=userspace-networking`, the companion and `mosh-server` listen on `127.0.0.1` for both IPv4 and IPv6 tailnet addresses. The phone still connects to the tailnet hostname and IP, and `tailscaled` forwards that traffic to loopback.
 
 For LAN, setup reads the Mac's Bonjour name and creates a certificate for its `.local` hostname and selected IP. Use the generated hostname: self-signed numeric-IP HTTPS can be rejected by iOS before pinning. The hostname must actually resolve from the phone. Guest Wi-Fi isolation and VPN DNS can prevent that.
 

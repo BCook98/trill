@@ -189,7 +189,7 @@ func TestUserspaceTailscaleDiscoveryUsesSocketAndBindsLoopback(t *testing.T) {
 	if err != nil || n.IP != "100.73.54.69" || n.BindIP != "127.0.0.1" || n.TailscaleCLI != "/opt/tailscale" || n.TailscaleSocket != "/run/ts.sock" {
 		t.Fatalf("%+v %v", n, err)
 	}
-	if n, err = d.Discover(context.Background(), "tailscale", "fd7a:115c:a1e0::1"); err != nil || n.BindIP != "::1" {
+	if n, err = d.Discover(context.Background(), "tailscale", "fd7a:115c:a1e0::1"); err != nil || n.IP != "fd7a:115c:a1e0::1" || n.BindIP != "127.0.0.1" {
 		t.Fatalf("IPv6: %+v %v", n, err)
 	}
 	d.Assigned = func(net.IP) bool { return true }

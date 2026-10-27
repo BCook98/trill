@@ -121,13 +121,9 @@ func TailscaleArgs(socket string, args ...string) []string {
 	return append([]string{"--socket=" + socket}, args...)
 }
 
-// LoopbackFor returns the loopback address of ip's family.
-func LoopbackFor(ip net.IP) string {
-	if ip.To4() != nil {
-		return "127.0.0.1"
-	}
-	return "::1"
-}
+// Userspace Tailscale forwards inbound node traffic to IPv4 loopback for both
+// IPv4 and IPv6 tailnet addresses, for TCP as well as UDP.
+const userspaceTailscaleBindIP = "127.0.0.1"
 
 // Assigned reports whether ip belongs to an interface on this Mac.
 func Assigned(ip net.IP) bool {
@@ -245,7 +241,7 @@ func (d Discovery) tailscale(ctx context.Context, override string) (Network, err
 			if usableIP(ip) && isTailscale(ip) {
 				n := Network{Kind: "tailscale", IP: ip.String(), Host: host, TailscaleCLI: path, TailscaleSocket: d.TailscaleSocket}
 				if d.Assigned != nil && !d.Assigned(ip) {
-					n.BindIP = LoopbackFor(ip)
+					n.BindIP = userspaceTailscaleBindIP
 				}
 				return n, nil
 			}

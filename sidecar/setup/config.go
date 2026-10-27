@@ -205,8 +205,8 @@ func (c Config) Validate(dir string) error {
 		}
 	} else if !isTailscale(ip) || !strings.HasSuffix(u.Hostname(), ".ts.net") || c.Fingerprint != "" || !filepath.IsAbs(c.TailscaleCLI) {
 		return errors.New("invalid Tailscale HTTPS configuration")
-	} else if c.BindIP != "" && c.BindIP != LoopbackFor(ip) {
-		return errors.New("Tailscale bind address must be the loopback address of the tailnet IP's family")
+	} else if c.BindIP != "" && c.BindIP != userspaceTailscaleBindIP {
+		return errors.New("Tailscale bind address must be 127.0.0.1, the userspace forwarding target")
 	} else if c.TailscaleSocket != "" && (!filepath.IsAbs(c.TailscaleSocket) || filepath.Clean(c.TailscaleSocket) != c.TailscaleSocket) {
 		return errors.New("Tailscale socket must be an absolute clean path")
 	}
