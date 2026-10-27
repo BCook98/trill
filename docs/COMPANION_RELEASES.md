@@ -1,6 +1,6 @@
 # Companion distribution and maintenance
 
-The Mac companion is Go software. Build it with Go, then use Apple's command-line signing/notarization tools. `ios/Trill.xcodeproj` builds the iPhone app; it does not build the companion. Companion versions live in `sidecar/COMPANION_VERSION` and use independent `companion-vMAJOR.MINOR.PATCH` tags.
+The Mac companion is Go software. Build it with Go, then use Apple's command-line signing/notarization tools. `ios/Trill.xcodeproj` builds the iPhone app; it does not build the companion. Companion versions live in `sidecar/COMPANION_VERSION`. This coordinated release uses `2026.10.25` for both iOS and the companion; companion tags use the separate `companion-vVERSION` namespace.
 
 The release machinery is implemented, but signed downloads are **not enabled** until the public signing team and Apple credentials below are configured and an actual release passes clean-Mac validation. Continue using [source installation](SETUP.md#install-the-mac-companion) meanwhile.
 
@@ -12,7 +12,7 @@ trill doctor
 trill doctor --json
 trill update --check
 trill update
-trill update --version 0.1.1
+trill update --version 2026.10.25
 ```
 
 `version` prints companion version, source commit, OS and architecture as JSON. Source builds identify as `dev`. `trilld --version` reports the daemon's identity without starting it.
@@ -47,7 +47,7 @@ The first installer and updater refuse to adopt a source/custom installation or 
 After the first signed release exists, download and inspect its `install-companion.sh`, then run it with the matching version, for example:
 
 ```sh
-bash install-companion.sh 0.1.0
+bash install-companion.sh 2026.10.25
 export PATH="$HOME/.local/bin:$PATH"
 trill setup
 trill doctor
