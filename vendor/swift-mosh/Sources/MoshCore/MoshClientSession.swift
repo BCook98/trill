@@ -57,10 +57,12 @@ public actor MoshClientSession {
     private var currentRtoMs: Double
 
     private var appliedRemoteStateNums: Set<UInt64> = []
+    private var remoteScreens: [UInt64: MoshRemoteScreen] = [0: .initial]
 
     private var consecutiveReceiveFailures: UInt32 = 0
 
     private var hostStreamContinuations: [UUID: AsyncStream<MoshHostOp>.Continuation] = [:]
+    private var hostActivityContinuations: [UUID: AsyncStream<Void>.Continuation] = [:]
 
     private let debugEnabled = ProcessInfo.processInfo.environment["SWIFTMOSH_DEBUG_REAL_E2E"] == "1"
 
@@ -257,6 +259,20 @@ public actor MoshClientSession {
         return drained
     }
 
+    /// Coalesced notifications to drain host operations and check peer liveness.
+    /// Terminal bytes remain in the ordered host-op queue, never in this stream.
+    /// The initial notification covers output received before subscribing.
+    public func hostActivityStream() -> AsyncStream<Void> {
+        let streamID = UUID()
+        return AsyncStream(bufferingPolicy: .bufferingNewest(1)) { continuation in
+            hostActivityContinuations[streamID] = continuation
+            continuation.yield(())
+            continuation.onTermination = { [weak self] _ in
+                Task { await self?.removeHostActivityContinuation(streamID) }
+            }
+        }
+    }
+
     public func hostOpStream() -> AsyncStream<MoshHostOp> {
         let streamID = UUID()
         return AsyncStream(MoshHostOp.self, bufferingPolicy: .unbounded) { continuation in
@@ -289,7 +305,8 @@ public actor MoshClientSession {
             latestReceivedStateNum: latestReceivedStateNum,
             pendingOutbound: outboundSnapshots,
             lastAckReportedNum: lastAckReportedNum,
-            appliedRemoteStateNums: appliedRemoteStateNums
+            appliedRemoteStateNums: appliedRemoteStateNums,
+            remoteScreens: remoteScreens
         )
 
         let stateData: Data
@@ -340,6 +357,9 @@ public actor MoshClientSession {
         } catch {
             throw MoshSessionError.decodeFailure
         }
+        guard blob.remoteScreens[blob.latestReceivedStateNum] != nil else {
+            throw MoshSessionError.decodeFailure
+        }
 
         let effectiveConfig = config == MoshClientConfig() ? blob.config : config
         let session = MoshClientSession(
@@ -359,6 +379,7 @@ public actor MoshClientSession {
         latestReceivedStateNum = blob.latestReceivedStateNum
         lastAckReportedNum = blob.lastAckReportedNum
         appliedRemoteStateNums = blob.appliedRemoteStateNums
+        remoteScreens = blob.remoteScreens
 
         let now = TransportClock.nowMs()
         pendingOutbound = Dictionary(
@@ -438,6 +459,10 @@ public actor MoshClientSession {
 
             if !hostOps.isEmpty {
                 publishHostOps(hostOps)
+            }
+            // ACK-only replies must also wake a resumed client's liveness check.
+            for continuation in hostActivityContinuations.values {
+                continuation.yield(())
             }
 
             // UINT64_MAX is the peer's final transport state, not another live update.
@@ -723,44 +748,55 @@ public actor MoshClientSession {
         if let ack = instruction.ackNum {
             acknowledgePendingOutbound(through: ack)
         }
-        if let throwaway = instruction.throwawayNum, throwaway > 0 {
-            pruneAppliedRemoteStates(before: throwaway)
-        }
-
-        if let newNum = instruction.newNum {
-            if appliedRemoteStateNums.contains(newNum) {
-                return []
-            }
-            if let oldNum = instruction.oldNum, oldNum > latestReceivedStateNum {
-                return []
-            }
-            latestReceivedStateNum = max(latestReceivedStateNum, newNum)
-            appliedRemoteStateNums.insert(newNum)
-            if appliedRemoteStateNums.count > 4096 {
-                let floor = latestReceivedStateNum > 2048 ? latestReceivedStateNum - 2048 : 0
-                appliedRemoteStateNums = Set(appliedRemoteStateNums.filter { $0 >= floor })
-            }
-            ackDirtyAtMs = TransportClock.nowMs()
-        }
-
-        guard let diff = instruction.diff, !diff.isEmpty else {
-            return []
-        }
-
+        var operations: [MoshHostOp] = []
+        let diff = instruction.diff ?? Data()
         if let hostMessage = try? HostMessage(decoding: diff), !hostMessage.instructions.isEmpty {
-            return hostMessage.instructions.map { instruction in
+            operations = try hostMessage.instructions.map { instruction in
                 switch instruction {
                 case .hostBytes(let bytes):
                     return .hostBytes(bytes)
                 case .resize(let width, let height):
+                    guard (1...1000).contains(width), (1...1000).contains(height) else {
+                        throw SessionRuntimeError.fatal(.protocolViolation("Invalid remote terminal dimensions"))
+                    }
                     return .resize(cols: width, rows: height)
                 case .echoAck(let value):
                     return .echoAck(value)
                 }
             }
-        }
+        } else if !diff.isEmpty { operations = [.hostBytes(diff)] }
 
-        return [.hostBytes(diff)]
+        guard let newNumber = instruction.newNum else {
+            if let throwaway = instruction.throwawayNum { pruneAppliedRemoteStates(before: throwaway) }
+            return operations
+        }
+        guard !appliedRemoteStateNums.contains(newNumber),
+              let oldNumber = instruction.oldNum,
+              let reference = remoteScreens[oldNumber] else { return [] }
+        if let throwaway = instruction.throwawayNum, throwaway > 0 {
+            pruneAppliedRemoteStates(before: throwaway)
+        }
+        // Never ACK a state that we cannot retain for subsequent references.
+        guard remoteScreens.count <= 1024 else { return [] }
+        let nextScreen = operations.isEmpty ? reference : reference.applying(operations)
+        remoteScreens[newNumber] = nextScreen
+        appliedRemoteStateNums.insert(newNumber)
+        guard newNumber > latestReceivedStateNum else { return [] }
+        let needsRepaint = oldNumber != latestReceivedStateNum
+        let previousInputModes = remoteScreens[latestReceivedStateNum]?.inputModeBytes
+        latestReceivedStateNum = newNumber
+        ackDirtyAtMs = TransportClock.nowMs()
+        if needsRepaint {
+            // Forward host effects, then repair the grid atomically in the same
+            // ordered output batch. A complete repaint also restores modes and
+            // cursor/SGR state before the next relative host update.
+            // Repainting stable mouse/focus modes would restart an in-flight
+            // drag or generate focus reports. Only restore them when changed.
+            var repair = previousInputModes == nextScreen.inputModeBytes ? Data() : nextScreen.inputModeBytes
+            repair.append(nextScreen.presentationBytes)
+            operations.append(.hostBytes(repair))
+        }
+        return operations
     }
 
     private func instructionHasContent(_ instruction: TransportInstruction) -> Bool {
@@ -822,6 +858,7 @@ public actor MoshClientSession {
     private func pruneAppliedRemoteStates(before throwawayNum: UInt64) {
         guard throwawayNum > 0 else { return }
         appliedRemoteStateNums = Set(appliedRemoteStateNums.filter { $0 >= throwawayNum })
+        remoteScreens = remoteScreens.filter { $0.key >= throwawayNum }
     }
 
     private func processRetransmitQueue(nowMs: UInt64) async throws {
@@ -948,7 +985,16 @@ public actor MoshClientSession {
         hostStreamContinuations.removeValue(forKey: streamID)
     }
 
+    private func removeHostActivityContinuation(_ streamID: UUID) {
+        hostActivityContinuations.removeValue(forKey: streamID)
+    }
+
     private func finishHostStreams() {
+        let activityContinuations = hostActivityContinuations.values
+        hostActivityContinuations.removeAll(keepingCapacity: false)
+        for continuation in activityContinuations {
+            continuation.finish()
+        }
         let continuations = hostStreamContinuations.values
         hostStreamContinuations.removeAll(keepingCapacity: false)
         for continuation in continuations {

@@ -429,7 +429,8 @@ final class CoreAndAdapterTests: XCTestCase {
                 diff: HostMessage(instructions: [.hostBytes(Data("stale".utf8))]).encoded()
             )
         )
-        XCTAssertEqual(staleOld, [.hostBytes(Data("stale".utf8))])
+        XCTAssertEqual(staleOld.first, .hostBytes(Data("stale".utf8)))
+        XCTAssertEqual(staleOld.count, 2, "A shared reference includes a screen repair after the host update")
 
         for index in 2...4100 {
             _ = try await session._testDecodeHostOps(

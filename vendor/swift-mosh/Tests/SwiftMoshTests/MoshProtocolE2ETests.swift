@@ -151,7 +151,7 @@ final class MoshProtocolE2ETests: XCTestCase {
 
         // The client MUST have received all 5 state updates
         // With the strict matching bug, only the first would be received
-        XCTAssertEqual(receivedTexts.count, 5, "Client must accept all server states, not just the first. Got: \(receivedTexts)")
+        XCTAssertGreaterThanOrEqual(receivedTexts.count, 5, "Shared reference updates may include screen repairs")
         for i in 1...5 {
             XCTAssertTrue(receivedTexts.contains("output-\(i)\n"), "Missing output-\(i)")
         }
@@ -256,16 +256,12 @@ final class MoshProtocolE2ETests: XCTestCase {
         let serverEngine = TransportEngine(endpoint: serverEnd, outgoingDirection: .toClient, cipher: serverCipher)
 
         // Simple echo server: read client input, echo it back
-        var serverAckedState: UInt64 = 0
         var serverStateNum: UInt64 = 0
         let echoTask = Task {
             while !Task.isCancelled {
                 let received = try await serverEngine.receivePayload()
                 let decoded = try? MoshCompressionCodec().decompress(received.payload, algorithm: .zlib)
                 guard let decoded, let instr = try? TransportInstruction(decoding: decoded) else { continue }
-
-                // Update server's acked state tracking
-                if let ack = instr.ackNum { serverAckedState = max(serverAckedState, ack) }
 
                 guard let diff = instr.diff, let userMsg = try? UserMessage(decoding: diff) else { continue }
                 for ui in userMsg.instructions {
@@ -274,7 +270,9 @@ final class MoshProtocolE2ETests: XCTestCase {
                         let echoMsg = HostMessage(instructions: [.hostBytes(bytes)])
                         let response = TransportInstruction(
                             protocolVersion: 2,
-                            oldNum: serverAckedState,
+                            // This single-character delta extends the previous
+                            // screen, rather than the last acknowledged screen.
+                            oldNum: serverStateNum - 1,
                             newNum: serverStateNum,
                             ackNum: instr.newNum ?? 0,
                             throwawayNum: 0,

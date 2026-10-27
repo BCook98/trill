@@ -28,6 +28,7 @@ protocol TerminalTransport: AnyObject, Sendable {
     func prepareForApplicationBackground() async throws -> MoshSnapshot
     func enqueue(_ op: MoshClientOp) async throws
     func drainHostOps() async -> [MoshHostOp]
+    func hostActivityStream() async -> AsyncStream<Void>
 }
 extension MoshClientSession: TerminalTransport {}
 
@@ -541,10 +542,11 @@ final class TerminalConnection: NSObject, TerminalViewDelegate {
         }
         sendResize()
         reader = Task { [weak self] in
-            while !Task.isCancelled {
-                // MoshCore keeps at most 1,024 pending ops; drain in order without
-                // creating its unbounded hostOpStream. Extreme output can still
-                // overflow that upstream cap before a 25 ms poll.
+            let activity = await session.hostActivityStream()
+            for await _ in activity {
+                guard !Task.isCancelled else { return }
+                // Wake on incoming traffic; SwiftTerm coalesces drawing at the
+                // display cadence. Notifications coalesce without dropping bytes.
                 let ops = await session.drainHostOps()
                 guard let self else { return }
                 self.consumeHostOps(ops, from: session)
@@ -573,7 +575,6 @@ final class TerminalConnection: NSObject, TerminalViewDelegate {
                     self.sendResize()
                 }
                 guard self.wantsForeground else { return }
-                do { try await Task.sleep(for: .milliseconds(25)) } catch { return }
             }
         }
         let monitorInterval = environment?.monitorInterval ?? .seconds(1)
@@ -609,13 +610,17 @@ final class TerminalConnection: NSObject, TerminalViewDelegate {
     }
     private func consumeHostOps(_ ops: [MoshHostOp], from session: any TerminalTransport) {
         guard client === session else { return }
+        var output: [UInt8] = []
         if !ops.isEmpty, !receivedHostOp {
-            terminal.feed(text: "\u{1b}c")
+            output.append(contentsOf: "\u{1b}c".utf8)
             receivedHostOp = true
         }
         for op in ops {
-            if case .hostBytes(let bytes) = op { terminal.feed(byteArray: Array(bytes)[...]) }
+            if case .hostBytes(let bytes) = op { output.append(contentsOf: bytes) }
         }
+        // A state repair must be parsed with its host update before a renderer
+        // can sample the viewport, rather than exposing an intermediate screen.
+        if !output.isEmpty { terminal.feed(byteArray: output[...]) }
     }
 
     func key(_ text: String) {
