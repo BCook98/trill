@@ -1,8 +1,10 @@
 package main
 
 import (
+	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -101,5 +103,24 @@ func TestPairingAuthenticationConfiguration(t *testing.T) {
 	}
 	if _, _, err := loadAuthentication("", "relative.json"); err == nil {
 		t.Fatal("invalid pairing path accepted")
+	}
+}
+
+func TestEmbeddedDaemonRequiresExistingEnrollment(t *testing.T) {
+	directory := filepath.Join(t.TempDir(), "missing-enrollment")
+	_, err := openTSNet(context.Background(), directory, "trill", "100.73.54.69", "trill.example.ts.net")
+	if err == nil || !strings.Contains(err.Error(), "run trill setup") {
+		t.Fatalf("daemon attempted implicit enrollment: %v", err)
+	}
+}
+
+func TestEmbeddedUDPPortRangeIsBounded(t *testing.T) {
+	for _, value := range []string{"0:10", "65535:65536", "60010:60000", "1:65535", "60000", "bad:60010"} {
+		if _, _, err := parseUDPPortRange(value); err == nil {
+			t.Fatalf("accepted UDP range %s", value)
+		}
+	}
+	if first, last, err := parseUDPPortRange("60000:60010"); err != nil || first != 60000 || last != 60010 {
+		t.Fatalf("invalid default range: %d %d %v", first, last, err)
 	}
 }

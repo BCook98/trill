@@ -38,6 +38,7 @@ type Config struct {
 	PrivateKey      string `json:"privateKey"`
 	TailscaleCLI    string `json:"tailscaleCLI,omitempty"`
 	TailscaleSocket string `json:"tailscaleSocket,omitempty"`
+	TSNetHostname   string `json:"tsnetHostname,omitempty"`
 	AllowControl    bool   `json:"allowControl"`
 	TmuxSocket      string `json:"tmuxSocket,omitempty"`
 	Daemon          string `json:"daemon"`
@@ -188,14 +189,21 @@ func (c Config) Validate(dir string) error {
 	if c.Version != 1 || c.Name == "" || len(c.Name) > 128 || !utf8.ValidString(c.Name) || strings.IndexFunc(c.Name, unicode.IsControl) >= 0 || !usableIP(ip) {
 		return errors.New("invalid companion configuration")
 	}
-	if c.Network != "lan" && c.Network != "tailscale" {
+	if c.Network != "lan" && c.Network != "tailscale" && c.Network != "tsnet" {
 		return errors.New("invalid network")
 	}
 	u, err := url.Parse(c.Address)
 	if err != nil || u.Scheme != "https" || u.Port() != Port || u.User != nil || u.Path != "" || u.RawQuery != "" || u.Fragment != "" {
 		return errors.New("invalid HTTPS address")
 	}
-	if c.Network == "lan" {
+	if c.Network != "tsnet" && c.TSNetHostname != "" {
+		return errors.New("tsnet hostname requires embedded mode")
+	}
+	if c.Network == "tsnet" {
+		if !isTailscale(ip) || !validTailnetHostname(u.Hostname()) || c.BindIP != userspaceTailscaleBindIP || c.TailscaleCLI != "" || c.TailscaleSocket != "" || ValidateTSNetHostname(c.TSNetHostname) != nil || len(c.Fingerprint) != 64 || strings.Trim(c.Fingerprint, "0123456789abcdef") != "" {
+			return errors.New("invalid embedded Tailscale configuration")
+		}
+	} else if c.Network == "lan" {
 		host, hostErr := NormalizeLANHostname(u.Hostname())
 		if hostErr != nil || host != u.Hostname() || isTailscale(ip) || len(c.Fingerprint) != 64 || strings.Trim(c.Fingerprint, "0123456789abcdef") != "" {
 			return errors.New("invalid LAN pin or address")
@@ -262,6 +270,9 @@ func DaemonArgs(c Config, dir string) []string {
 	args := []string{"--listen", net.JoinHostPort(c.ListenIP(), Port), "--cert", c.Certificate, "--key", c.PrivateKey, "--pairing-store", filepath.Join(dir, "devices.json"), "--mosh-host", c.IP}
 	if c.BindIP != "" {
 		args = append(args, "--mosh-bind", c.BindIP)
+	}
+	if c.Network == "tsnet" {
+		args = append(args, "--tsnet-state-dir", filepath.Join(dir, "tsnet"), "--tsnet-hostname", c.TSNetHostname)
 	}
 	if c.AllowControl {
 		args = append(args, "--allow-control")

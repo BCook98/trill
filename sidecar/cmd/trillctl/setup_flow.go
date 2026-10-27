@@ -29,6 +29,7 @@ type setupEnvironment struct {
 	executable    func() (string, error)
 	checkListener func(string) error
 	probe         func(context.Context, setup.Config) error
+	enrollTSNet   func(context.Context, string, string, io.Writer) (setup.Network, error)
 }
 
 // Defaults do not express an intent to reconfigure. Check only flags the caller
@@ -68,6 +69,7 @@ func compatibleSetupFlags(flags *flag.FlagSet, c setup.Config, dir string) error
 		"tmux-socket": c.TmuxSocket, "backends": selection.Backends,
 		"herdr-path": selection.HerdrPath, "herdr-sessions": selection.HerdrSessions,
 		"herdr-config-home": c.HerdrConfigHome,
+		"tsnet-hostname":    c.TSNetHostname,
 		"tailscale-cli":     c.TailscaleCLI, "tailscale-socket": c.TailscaleSocket,
 	}
 	var conflicts []string
@@ -167,7 +169,7 @@ func certificateHelp(c setup.Config, dir string, err error) error {
 	if c.Network == "tailscale" {
 		return fmt.Errorf("saved HTTPS certificate is unusable: %w. Check the Mac clock and Tailscale connection/HTTPS permissions, then run %s and retry setup; setup did not replace the certificate", err, companionCommand(c, dir, "renew"))
 	}
-	return fmt.Errorf("saved LAN certificate is unusable: %w. Check the Mac clock and restore the original private tls.pem if available. Setup will not rotate its pinned identity. To replace it, stop/uninstall the old owned configuration, use a fresh --state-dir and pair again; inspect %s", err, companionCommand(c, dir, "status"))
+	return fmt.Errorf("saved pinned certificate is unusable: %w. Check the Mac clock and restore the original private tls.pem if available. Setup will not rotate its pinned identity. To replace it, stop/uninstall the old owned configuration, use a fresh --state-dir and pair again; inspect %s", err, companionCommand(c, dir, "status"))
 }
 
 func companionCommand(c setup.Config, dir, command string) string {

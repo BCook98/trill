@@ -98,6 +98,30 @@ Setup defaults to `--network auto`: it prefers an **already connected** Tailscal
 
 For Tailscale, follow the official [HTTPS certificate prerequisites](https://tailscale.com/docs/how-to/set-up-https-certificates). The local CLI must be allowed to export a certificate. Publicly issued machine hostnames appear in certificate transparency logs. Setup verifies the certificate chain, hostname, and validity before omitting a pin. Export or trust failure stops setup rather than substituting a self-signed certificate.
 
+### Embedded Tailscale mode
+
+To let the companion register as its own tailnet device without installing the Mac Tailscale app or running a separate `tailscaled`:
+
+```sh
+./scripts/setup-companion.sh --network tsnet --tsnet-hostname trill-mac
+```
+
+Open the Tailscale login URL printed during setup and approve the node in the tailnet used by your iPhone. The iPhone continues to use the Tailscale app. The companion has its own tailnet IP, DNS name and private persistent identity under `<state-dir>/tsnet`; the Mac's system Tailscale connection can use another tailnet. This mode requires no administrator privileges or system VPN configuration. The node name is a lowercase DNS label; the default is `trill`.
+
+Embedded mode uses a self-signed HTTPS certificate pinned by Trill's normal pairing flow. Public HTTPS certificate export and the Tailscale CLI are not needed. Keep the state directory private and preserve it across restarts; deleting it can register a new device. Pinned certificates retain the existing one-year lifetime; `trill status` shows expiry, and replacement requires fresh setup and re-pairing. Setup does not silently rotate a phone's trusted identity.
+
+HTTPS is served inside the embedded node and on `127.0.0.1:7443` for local management checks. Mosh runs on loopback, with the configured UDP ports forwarded through the embedded node. Normal read-only defaults, explicit control permission, pairing and device revocation still apply. `--ip`, `--hostname`, `--tailscale-cli` and `--tailscale-socket` belong to other modes and cannot be combined with `--network tsnet`. Rerunning setup preserves the saved node and paired phones.
+
+If the embedded node needs to log in again, stop this companion before opening its stored identity, then restart it:
+
+```sh
+trill stop
+trill tailnet-login
+trill start
+```
+
+Include the same `--state-dir` on each command when using a custom state directory. A login into a different tailnet that changes the saved identity requires a fresh configuration and re-pairing.
+
 ### Use a second tailnet
 
 Setup uses the `tailscale` CLI on PATH, then the Tailscale app. To use a different tailnet, such as a second `tailscaled` with its own socket, name its CLI and socket:

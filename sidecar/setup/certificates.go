@@ -28,7 +28,14 @@ func SelfSigned(ip, host, name string, now time.Time) ([]byte, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
-	host = normalized
+	return selfSignedForHostname(ip, normalized, name, now)
+}
+
+func selfSignedForHostname(ip, host, name string, now time.Time) ([]byte, string, error) {
+	address := net.ParseIP(ip)
+	if !usableIP(address) {
+		return nil, "", errors.New("certificate requires a concrete IP SAN")
+	}
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		return nil, "", err
@@ -125,6 +132,11 @@ func (m Certificates) Provision(ctx context.Context, dir string, n Network, name
 	var err error
 	if n.Kind == "tailscale" {
 		bundle, err = m.tailscaleBundle(ctx, n.TailscaleCLI, n.TailscaleSocket, n.Host)
+	} else if n.Kind == "tsnet" {
+		if !isTailscale(net.ParseIP(n.IP)) || !validTailnetHostname(n.Host) {
+			return "", errors.New("invalid embedded Tailscale identity")
+		}
+		bundle, pin, err = selfSignedForHostname(n.IP, n.Host, name, m.Now())
 	} else {
 		bundle, pin, err = SelfSigned(n.IP, n.Host, name, m.Now())
 	}
@@ -148,7 +160,7 @@ func (m Certificates) Check(c Config) (time.Time, error) {
 	return m.validate(b, u.Hostname(), c.Fingerprint)
 }
 
-// Renew never signals/restarts a daemon. LAN pins stay stable; replacing that
+// Renew never signals/restarts a daemon. Pinned identities stay stable; replacing that
 // identity requires explicit setup in a new state directory and re-pairing.
 func (m Certificates) Renew(ctx context.Context, dir string, c Config) (bool, error) {
 	if err := c.Validate(dir); err != nil {
@@ -160,7 +172,7 @@ func (m Certificates) Renew(ctx context.Context, dir string, c Config) (bool, er
 			return false, err
 		}
 		if expiry.Sub(m.Now()) < 30*24*time.Hour {
-			return false, errors.New("LAN certificate expires within 30 days; run setup in a new state directory and pair again to change the pinned identity")
+			return false, errors.New("Pinned certificate expires within 30 days; run setup in a new state directory and pair again to change the pinned identity")
 		}
 		return false, nil
 	}

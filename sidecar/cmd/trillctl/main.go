@@ -15,6 +15,7 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -34,6 +35,7 @@ const help = `Usage: trill <command> [options]
   serve       Run the foreground daemon with daemon flags (serve --help)
   setup       Set up or resume this companion, then offer a pairing QR
   pair        Approve one device; single-use invitation expires in 10 minutes
+  tailnet-login  Reauthenticate an enrolled embedded node (stop it first)
   devices     List paired devices, including revoked devices
   revoke ID   Revoke a device and save the revocation
   status      Show configuration, TLS expiry, and owned LaunchAgent status
@@ -83,7 +85,7 @@ func runWithSetupEnvironment(args []string, in io.Reader, out, errOut io.Writer,
 		return serve(args[1:], os.Executable, syscall.Exec)
 	}
 	switch command {
-	case "setup", "pair", "devices", "revoke", "status", "start", "stop", "install", "uninstall", "renew", "control", "providers":
+	case "setup", "pair", "devices", "revoke", "status", "start", "stop", "install", "uninstall", "renew", "control", "providers", "tailnet-login":
 	default:
 		return fmt.Errorf("unknown command %q; use trill --help", command)
 	}
@@ -103,12 +105,13 @@ func runWithSetupEnvironment(args []string, in io.Reader, out, errOut io.Writer,
 		flags.PrintDefaults()
 	}
 	flags.StringVar(&dir, "state-dir", dir, "private state directory (includes devices.json)")
-	var mode, ip, name, daemon, tmuxSocket, png, hostname, tailscaleCLI, tailscaleSocket string
+	var mode, ip, name, daemon, tmuxSocket, png, hostname, tailscaleCLI, tailscaleSocket, tsnetHostname string
 	var backends, herdrPath, herdrSessions, herdrConfigHome string
 	var allowControl, noStart, noPair, yes, open, rawJSON, pasteURL, enable, disable bool
 	if command == "setup" {
-		flags.StringVar(&mode, "network", "auto", "new setup: auto prefers connected Tailscale, otherwise LAN; reruns keep saved network")
+		flags.StringVar(&mode, "network", "auto", "new setup: auto, tailscale, lan, or tsnet (embedded Tailscale); reruns keep saved network")
 		flags.StringVar(&ip, "ip", "", "override with an address assigned to this Mac")
+		flags.StringVar(&tsnetHostname, "tsnet-hostname", "trill", "embedded Tailscale node hostname; requires --network tsnet")
 		flags.StringVar(&hostname, "hostname", "", "LAN Bonjour name override, e.g. my-mac.local (must resolve on phone)")
 		flags.StringVar(&tailscaleCLI, "tailscale-cli", "", "absolute Tailscale CLI path (default tailscale on PATH, then the Tailscale app)")
 		flags.StringVar(&tailscaleSocket, "tailscale-socket", "", "absolute tailscaled socket, for a second tailnet such as a userspace tailscaled")
@@ -168,7 +171,8 @@ func runWithSetupEnvironment(args []string, in io.Reader, out, errOut io.Writer,
 		return err
 	}
 	dir = filepath.Clean(dir)
-	ctx := context.Background()
+	ctx, cancelCommand := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancelCommand()
 	home, err := userHome()
 	if err != nil {
 		return err
@@ -180,7 +184,7 @@ func runWithSetupEnvironment(args []string, in io.Reader, out, errOut io.Writer,
 			return errors.New("companion LaunchAgents require macOS")
 		}
 		if environment == nil {
-			environment = &setupEnvironment{agents: agents, certs: certs, discovery: setup.NewDiscovery(), executable: os.Executable, checkListener: setup.CheckListener, probe: probe}
+			environment = &setupEnvironment{agents: agents, certs: certs, discovery: setup.NewDiscovery(), executable: os.Executable, checkListener: setup.CheckListener, probe: probe, enrollTSNet: enrollTSNet}
 		}
 		certs = environment.certs
 		if _, err = os.Lstat(filepath.Join(dir, "config.json")); err == nil {
@@ -222,6 +226,18 @@ func runWithSetupEnvironment(args []string, in io.Reader, out, errOut io.Writer,
 		if err = setup.Executable(daemon); err != nil {
 			return err
 		}
+		var explicitTSNetHostname bool
+		flags.Visit(func(f *flag.Flag) {
+			if f.Name == "tsnet-hostname" {
+				explicitTSNetHostname = true
+			}
+		})
+		if explicitTSNetHostname && mode != "tsnet" {
+			return errors.New("--tsnet-hostname requires --network tsnet")
+		}
+		if mode == "tsnet" && (ip != "" || hostname != "" || tailscaleCLI != "" || tailscaleSocket != "") {
+			return errors.New("--network tsnet discovers its own identity; omit --ip, --hostname, --tailscale-cli and --tailscale-socket")
+		}
 		discovery := environment.discovery
 		if tailscaleCLI != "" || tailscaleSocket != "" {
 			if mode == "lan" {
@@ -238,7 +254,19 @@ func runWithSetupEnvironment(args []string, in io.Reader, out, errOut io.Writer,
 		if hostname != "" {
 			discovery.LocalHostname = func(context.Context) (string, error) { return setup.NormalizeLANHostname(hostname) }
 		}
-		n, err := discovery.Discover(ctx, mode, ip)
+		var n setup.Network
+		if mode == "tsnet" {
+			if err = setup.ValidateTSNetHostname(tsnetHostname); err != nil {
+				return err
+			}
+			if environment.enrollTSNet == nil {
+				return errors.New("embedded Tailscale enrollment unavailable")
+			}
+			fmt.Fprintln(errOut, "Registering Trill as an independent tailnet device. Open the Tailscale login URL when prompted. The iPhone must join the same tailnet.")
+			n, err = environment.enrollTSNet(ctx, dir, tsnetHostname, errOut)
+		} else {
+			n, err = discovery.Discover(ctx, mode, ip)
+		}
 		if err != nil {
 			return err
 		}
@@ -258,10 +286,13 @@ func runWithSetupEnvironment(args []string, in io.Reader, out, errOut io.Writer,
 				fmt.Fprintf(errOut, "  %s  %s\n", choice.Interface, choice.IP)
 			}
 		}
-		if n.BindIP != "" {
+		if n.BindIP != "" && n.Kind != "tsnet" {
 			fmt.Fprintf(errOut, "%s is not assigned to a local interface, as with a userspace-networking tailscaled. The companion binds %s, where tailscaled delivers inbound tailnet traffic, and advertises %s.\n", n.IP, n.BindIP, n.IP)
 		}
 		c := setup.Config{Backends: backends, HerdrConfigHome: herdrConfigHome, HerdrPath: herdrPath, HerdrSessions: herdrSessions, Version: 1, Name: name, Network: n.Kind, IP: n.IP, BindIP: n.BindIP, Address: "https://" + net.JoinHostPort(n.Host, setup.Port), Certificate: filepath.Join(dir, "tls.pem"), PrivateKey: filepath.Join(dir, "tls.pem"), TailscaleCLI: n.TailscaleCLI, TailscaleSocket: n.TailscaleSocket, AllowControl: allowControl, TmuxSocket: tmuxSocket, Daemon: daemon, CLI: cli, Path: setup.DependencyPath(home, os.Getenv("PATH"))}
+		if n.Kind == "tsnet" {
+			c.TSNetHostname = tsnetHostname
+		}
 		if err = environment.checkListener(c.ListenIP()); err != nil {
 			return err
 		}
@@ -271,7 +302,7 @@ func runWithSetupEnvironment(args []string, in io.Reader, out, errOut io.Writer,
 				return err
 			}
 		}
-		if n.Kind == "lan" {
+		if n.Kind == "lan" || n.Kind == "tsnet" {
 			c.Fingerprint = strings.Repeat("0", 64)
 		}
 		if err = c.Validate(dir); err != nil {
@@ -296,6 +327,28 @@ func runWithSetupEnvironment(args []string, in io.Reader, out, errOut io.Writer,
 		return err
 	}
 	switch command {
+	case "tailnet-login":
+		if c.Network != "tsnet" {
+			return errors.New("tailnet-login requires a saved --network tsnet configuration")
+		}
+		if _, err := setup.ReadPrivate(filepath.Join(dir, "tsnet", "tailscaled.state")); err != nil {
+			return errors.New("embedded node enrollment is missing or unsafe; preserve this directory and configure a fresh companion")
+		}
+		fmt.Fprintln(errOut, "Stop this companion before logging in; restart it with trill start afterwards. The embedded node must retain its saved tailnet identity.")
+		login := enrollTSNet
+		if environment != nil && environment.enrollTSNet != nil {
+			login = environment.enrollTSNet
+		}
+		n, err := login(ctx, dir, c.TSNetHostname, errOut)
+		if err != nil {
+			return err
+		}
+		u, _ := url.Parse(c.Address)
+		if n.IP != c.IP || n.Host != u.Hostname() {
+			return errors.New("embedded tailnet identity changed; configure a fresh state directory and pair again")
+		}
+		fmt.Fprintln(out, "Embedded Tailscale login complete. Start the companion to reconnect paired phones.")
+		return nil
 	case "providers":
 		if backends == "" && (herdrPath != "" || herdrSessions != "" || herdrConfigHome != "") {
 			return errors.New("changing providers requires --backends")

@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"path/filepath"
@@ -532,4 +533,73 @@ func TestTailscaleSocketFlagsConflictWithSavedConfiguration(t *testing.T) {
 		}
 	}
 	assertSnapshot(t, dir, before)
+}
+
+func TestEmbeddedSetupEnrollsOnceAndPreservesPinnedIdentity(t *testing.T) {
+	env, services, home := fakeSetup(t)
+	bin := t.TempDir()
+	for _, name := range []string{"trill", "trilld"} {
+		if err := os.WriteFile(filepath.Join(bin, name), nil, 0700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	env.executable = func() (string, error) { return filepath.Join(bin, "trill"), nil }
+	env.checkListener = func(ip string) error {
+		if ip != "127.0.0.1" {
+			t.Fatalf("unexpected listener %s", ip)
+		}
+		return nil
+	}
+	enrollments := 0
+	env.enrollTSNet = func(_ context.Context, directory, hostname string, _ io.Writer) (setup.Network, error) {
+		enrollments++
+		if hostname != "trill-test" {
+			t.Fatalf("unexpected embedded hostname %s", hostname)
+		}
+		return setup.Network{Kind: "tsnet", IP: "100.73.54.69", Host: "trill-test.example.ts.net", BindIP: "127.0.0.1"}, nil
+	}
+	directory := filepath.Join(t.TempDir(), "state")
+	_, _, err := runSetupTest([]string{"setup", "--state-dir", directory, "--network", "tsnet", "--tsnet-hostname", "trill-test", "--no-start", "--no-pair"}, "", env, home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	configuration, err := setup.LoadConfig(directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if configuration.Network != "tsnet" || configuration.TSNetHostname != "trill-test" || len(configuration.Fingerprint) != 64 || configuration.TailscaleCLI != "" || configuration.TailscaleSocket != "" || configuration.AllowControl {
+		t.Fatalf("incorrect embedded configuration: %+v", configuration)
+	}
+	before := privateSnapshot(t, directory, "config.json", "tls.pem")
+	_, _, err = runSetupTest([]string{"setup", "--state-dir", directory, "--no-pair"}, "", env, home)
+	if err != nil || enrollments != 1 || services.installs != 1 || services.starts != 1 {
+		t.Fatalf("embedded rerun changed identity or failed to start: %v; enrollments=%d", err, enrollments)
+	}
+	assertSnapshot(t, directory, before)
+	// Login must not create a replacement node when the stored identity is lost.
+	_, _, err = runSetupTest([]string{"tailnet-login", "--state-dir", directory}, "", env, home)
+	if err == nil || enrollments != 1 {
+		t.Fatal("login attempted to replace a missing embedded identity")
+	}
+	nodeDirectory := filepath.Join(directory, "tsnet")
+	if err := setup.PrivateDir(nodeDirectory); err != nil {
+		t.Fatal(err)
+	}
+	if err := setup.WritePrivate(filepath.Join(nodeDirectory, "tailscaled.state"), []byte("synthetic enrollment"), false); err != nil {
+		t.Fatal(err)
+	}
+	_, _, err = runSetupTest([]string{"tailnet-login", "--state-dir", directory}, "", env, home)
+	if err != nil || enrollments != 2 || services.starts != 1 {
+		t.Fatalf("explicit login changed service state: %v", err)
+	}
+	assertSnapshot(t, directory, before)
+	args := strings.Join(setup.DaemonArgs(configuration, directory), " ")
+	if !strings.Contains(args, "--tsnet-state-dir "+filepath.Join(directory, "tsnet")) || !strings.Contains(args, "--mosh-bind 127.0.0.1") || !strings.Contains(args, "--tsnet-hostname trill-test") {
+		t.Fatal(args)
+	}
+	_, _, err = runSetupTest([]string{"setup", "--state-dir", directory, "--tsnet-hostname", "another-node", "--no-pair"}, "", env, home)
+	if err == nil || enrollments != 2 {
+		t.Fatal("accepted an implicit embedded identity change")
+	}
+	assertSnapshot(t, directory, before)
 }
