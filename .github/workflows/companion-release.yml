@@ -98,5 +98,5 @@ jobs:
         run: |
           set -euo pipefail
           test -f .build/companion-release/manifest.json
-          gh release create "$RELEASE_TAG" --verify-tag --draft --title "Trill ${RELEASE_TAG#v}" --notes 'Shared iOS and Mac companion release tag. Signed and notarized companion downloads are attached here; iOS distribution runs through Xcode Cloud/TestFlight. Download install-companion.sh, inspect it, then run it with this exact release tag. Existing signed installations can use trill update.' .build/companion-release/*.zip .build/companion-release/manifest.json .build/companion-release/install-companion.sh
+          gh release create "$RELEASE_TAG" --verify-tag --draft --title "Trill ${RELEASE_TAG#v}" --notes 'Shared iOS and Mac companion release tag. Signed and notarized companion downloads are attached here; iOS distribution runs through Xcode Cloud/TestFlight. Download install-companion.sh, inspect it, then run it with this exact release tag. Existing signed installations can use trill update. The attached trill.rb is the checksummed Homebrew cask for this release.' .build/companion-release/*.zip .build/companion-release/manifest.json .build/companion-release/install-companion.sh .build/companion-release/trill.rb
           gh release edit "$RELEASE_TAG" --draft=false --latest=false

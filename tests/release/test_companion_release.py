@@ -30,6 +30,7 @@ class CompanionReleaseTests(unittest.TestCase):
                         companion_release.build(output, unsigned=True)
             self.assertFalse((output / 'manifest.json').exists())
             self.assertFalse((output / 'install-companion.sh').exists())
+            self.assertFalse((output / 'trill.rb').exists())
             self.assertTrue((output / 'UNSIGNED-NOT-FOR-DISTRIBUTION.json').exists())
             self.assertEqual(len(commands.call_args_list), 4)
             for architecture in ('arm64', 'amd64'):
@@ -70,6 +71,21 @@ class CompanionReleaseTests(unittest.TestCase):
             self.assertIn('expected_signing_team="ABCDEFGHIJ"', installer)
             self.assertNotIn('UNCONFIGURED_SIGNING_TEAM', installer)
             self.assertIn('--test-requirement "=$requirement"', installer)
+            cask = (output / 'trill.rb').read_text()
+            self.assertIn('version "0.1.0,100"', cask)
+            self.assertIn('v0.1.0-build.' + 'a' * 12, cask)
+            self.assertIn(manifest['artifacts']['arm64']['sha256'], cask)
+            self.assertIn(manifest['artifacts']['amd64']['sha256'], cask)
+
+    def test_cask_rejects_untrusted_release_metadata(self):
+        manifest = {'version': '2026.10.25', 'commit': 'a' * 40, 'build': '10',
+                    'tag': 'v2026.10.25-build.' + 'a' * 12, 'artifacts': {}}
+        for architecture in ('arm64', 'amd64'):
+            manifest['artifacts'][architecture] = {'name': f'trill-companion-2026.10.25-darwin-{architecture}.zip', 'sha256': 'b' * 64}
+        self.assertIn('version "2026.10.25,10"', companion_release.render_homebrew_cask(manifest))
+        manifest['tag'] = 'untrusted"; system("bad")'
+        with self.assertRaises(ValueError):
+            companion_release.render_homebrew_cask(manifest)
 
     def test_missing_public_team_fails_before_signing(self):
         with tempfile.TemporaryDirectory() as temporary:

@@ -17,6 +17,13 @@ trill update --tag v2026.10.25-build.0123456789ab
 
 `version` prints companion version, source commit, OS and architecture as JSON. Source builds identify as `dev`. `trilld --version` reports the daemon's identity without starting it.
 
+Homebrew packaging is prepared in [packaging/homebrew](../packaging/homebrew/README.md).
+Once its tap is published, `brew install --cask bcook98/tap/trill` installs the
+checksummed signed assets and terminal dependencies. Homebrew installations use
+stable prefix paths and delegate `trill update` to `brew upgrade`; the standalone
+updater never rewrites Homebrew-owned binaries. Existing source/standalone
+configurations require an explicit migration before Homebrew setup can use them.
+
 `doctor` is read-only and returns exit code 1 for failed checks, 0 when there are no failures (warnings alone do not fail). It checks private configuration permissions, executable availability, signatures/notarization for configured distributions, both owned LaunchAgents, TLS identity/expiry, local HTTPS, running daemon versus CLI build, pending update recovery, and selected provider/Mosh/tmux dependencies on the saved service PATH. `--state-dir` selects an existing configuration. It never creates a pairing credential, repairs services, executes provider commands, or changes settings. Phone reachability, Mosh UDP connectivity and provider authentication still need a phone-side check.
 
 `update --check` reads official stable companion release metadata over HTTPS without changing files or services. It uses the shared release tags and ignores draft/prerelease releases. Normal updates reject older versions/builds and development/source builds. Repeated releases of the same marketing version are ordered by the full main-history commit count, embedded in signed binaries and the manifest; it is independent of Xcode Cloud’s build number. A check is advisory: payload signatures are verified during installation, not by the metadata-only check.
