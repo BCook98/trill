@@ -13,7 +13,7 @@ import time
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION_PATTERN = re.compile(r'(0|[1-9][0-9]{0,3})\.(0|[1-9][0-9]{0,3})\.(0|[1-9][0-9]{0,3})')
+VERSION_PATTERN = re.compile(r'(0|[1-9][0-9]{0,3})\.[0-9]{1,2}\.[0-9]{1,2}')
 
 
 def run(arguments, **kwargs):
@@ -21,9 +21,10 @@ def run(arguments, **kwargs):
 
 
 def configuration(unsigned):
-    version = (ROOT / 'sidecar/COMPANION_VERSION').read_text().strip()
+    release = json.loads(subprocess.check_output([sys.executable, str(ROOT / 'scripts/release.py'), 'check'], cwd=ROOT, text=True))
+    version = release['marketing_version']
     if not VERSION_PATTERN.fullmatch(version):
-        raise ValueError('COMPANION_VERSION must use numeric MAJOR.MINOR.PATCH')
+        raise ValueError('The shared marketing version must use numeric components')
     commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
     team = (ROOT / 'sidecar/distribution/signing-team.txt').read_text().strip()
     if not unsigned:
@@ -31,6 +32,8 @@ def configuration(unsigned):
             raise ValueError('Set the public Apple team ID in sidecar/distribution/signing-team.txt before signed releases')
         if subprocess.check_output(['git', 'status', '--porcelain'], cwd=ROOT, text=True).strip():
             raise ValueError('Signed releases require a clean checkout')
+        if subprocess.check_output(['git', 'rev-parse', '--is-shallow-repository'], cwd=ROOT, text=True).strip() != 'false':
+            raise ValueError('Signed release build ordering requires the full Git history')
         if not os.environ.get('COMPANION_SIGNING_IDENTITY', '').startswith('Developer ID Application:'):
             raise ValueError('Set COMPANION_SIGNING_IDENTITY to a Developer ID Application identity')
         if not os.environ.get('COMPANION_NOTARY_PROFILE') and not all(os.environ.get(name) for name in
@@ -53,18 +56,23 @@ def notarize(archive):
 
 def build(output, unsigned=False):
     version, commit, team = configuration(unsigned)
+    tag = f'v{version}-build.{commit[:12]}'
+    build_number = subprocess.check_output(['git', 'rev-list', '--count', 'HEAD'], cwd=ROOT, text=True).strip()
+    if not re.fullmatch(r'[1-9][0-9]{0,8}', build_number):
+        raise ValueError('Invalid source-history build number; fetch the full repository history')
     if sys.platform != 'darwin':
         raise ValueError('Companion packaging must run on macOS')
     output = output.resolve()
     output.mkdir(parents=True, exist_ok=False)
-    manifest = {'schema': 1, 'version': version, 'commit': commit, 'artifacts': {}}
+    manifest = {'schema': 1, 'version': version, 'commit': commit, 'tag': tag, 'build': build_number, 'artifacts': {}}
     for architecture in ('arm64', 'amd64'):
         binaries = output / architecture
         binaries.mkdir()
         environment = dict(os.environ, GOOS='darwin', GOARCH=architecture, CGO_ENABLED='0')
         # Unsigned fixtures intentionally identify as dev and cannot self-update.
         embedded_version = 'dev' if unsigned else version
-        linker_flags = f'-X trill/sidecar/buildinfo.Version={embedded_version} -X trill/sidecar/buildinfo.Commit={commit}'
+        linker_flags = (f'-X trill/sidecar/buildinfo.Version={embedded_version} -X trill/sidecar/buildinfo.Commit={commit} '
+                        f'-X trill/sidecar/buildinfo.ReleaseTag={tag} -X trill/sidecar/buildinfo.Build={build_number}')
         for binary, package, identifier in (('trill', './cmd/trillctl', 'io.bcook.trill.cli'),
                                              ('trilld', './cmd/trilld', 'io.bcook.trill.daemon')):
             path = binaries / binary

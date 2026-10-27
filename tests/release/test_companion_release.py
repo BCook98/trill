@@ -55,13 +55,15 @@ class CompanionReleaseTests(unittest.TestCase):
             with mock.patch.object(companion_release, 'configuration', return_value=('0.1.0', 'a' * 40, 'ABCDEFGHIJ')):
                 with mock.patch.object(companion_release, 'run', side_effect=self.fake_build_command):
                     with mock.patch.object(companion_release, 'notarize') as notarize:
-                        with mock.patch.object(companion_release.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0)):
+                        with mock.patch.object(companion_release.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, stdout='100\n')):
                             with mock.patch.dict(os.environ, {'COMPANION_SIGNING_IDENTITY': 'Developer ID Application: Fixture'}):
                                 with mock.patch.object(companion_release.sys, 'platform', 'darwin'):
                                     companion_release.build(output)
             self.assertEqual(notarize.call_count, 2)
             manifest = json.loads((output / 'manifest.json').read_text())
             self.assertEqual(set(manifest['artifacts']), {'arm64', 'amd64'})
+            self.assertEqual(manifest['tag'], 'v0.1.0-build.' + 'a' * 12)
+            self.assertTrue(manifest['build'].isdigit())
             installer = (output / 'install-companion.sh').read_text()
             self.assertIn('expected_signing_team="ABCDEFGHIJ"', installer)
             self.assertNotIn('UNCONFIGURED_SIGNING_TEAM', installer)
@@ -70,12 +72,17 @@ class CompanionReleaseTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             (root / 'sidecar/distribution').mkdir(parents=True)
-            (root / 'sidecar/COMPANION_VERSION').write_text('0.1.0\n')
             (root / 'sidecar/distribution/signing-team.txt').write_text('\n')
             with mock.patch.object(companion_release, 'ROOT', root):
-                with mock.patch.object(companion_release.subprocess, 'check_output', return_value='a' * 40):
+                with mock.patch.object(companion_release.subprocess, 'check_output', side_effect=[json.dumps({'marketing_version': '0.1.0'}), 'a' * 40]):
                     with self.assertRaisesRegex(ValueError, 'public Apple team'):
                         companion_release.configuration(unsigned=False)
+
+    def test_companion_uses_the_shared_ios_version(self):
+        version, commit, _ = companion_release.configuration(unsigned=True)
+        shared = json.loads(subprocess.check_output([companion_release.sys.executable, str(companion_release.ROOT / 'scripts/release.py'), 'check'], text=True))
+        self.assertEqual(version, shared['marketing_version'])
+        self.assertEqual(len(commit), 40)
 
     def test_checkout_installer_refuses_unconfigured_distribution(self):
         result = subprocess.run(['bash', str(companion_release.ROOT / 'scripts/install-companion.sh'), '0.1.0'], capture_output=True, text=True)

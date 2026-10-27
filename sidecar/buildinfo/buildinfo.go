@@ -1,4 +1,4 @@
-// Package buildinfo identifies companion builds independently of the iOS app.
+// Package buildinfo identifies Mac builds under the shared iOS/companion tag.
 package buildinfo
 
 import (
@@ -11,12 +11,16 @@ import (
 // Set by the companion release builder with -ldflags. Source builds stay dev.
 var Version = "dev"
 var Commit = "unknown"
+var ReleaseTag = "dev"
+var Build = "dev"
 
 type Info struct {
 	Version      string `json:"version"`
 	Commit       string `json:"commit"`
 	OS           string `json:"os"`
 	Architecture string `json:"architecture"`
+	ReleaseTag   string `json:"releaseTag"`
+	Build        string `json:"build"`
 }
 
 func Current() Info {
@@ -30,7 +34,7 @@ func Current() Info {
 			}
 		}
 	}
-	return Info{Version, commit, runtime.GOOS, runtime.GOARCH}
+	return Info{Version: Version, Commit: commit, OS: runtime.GOOS, Architecture: runtime.GOARCH, ReleaseTag: ReleaseTag, Build: Build}
 }
 
 func Write(output io.Writer) error { return json.NewEncoder(output).Encode(Current()) }

@@ -100,7 +100,7 @@ func TestRunningVersionUsesPinnedTLSWithoutDeviceCredentials(t *testing.T) {
 
 func TestUpdateFailsClosedBeforeChangingInstallation(t *testing.T) {
 	home := t.TempDir()
-	for _, args := range [][]string{{"extra"}, {"--install", "--check"}, {"--version", "../../bad"}, {"--install"}, {"--check"}} {
+	for _, args := range [][]string{{"extra"}, {"--install", "--check"}, {"--tag", "../../bad"}, {"--install"}, {"--check"}} {
 		if err := update(args, &bytes.Buffer{}, &bytes.Buffer{}, home); err == nil {
 			t.Fatalf("accepted unconfigured/invalid update %v", args)
 		}

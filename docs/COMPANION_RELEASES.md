@@ -1,6 +1,6 @@
 # Companion distribution and maintenance
 
-The Mac companion is Go software. Build it with Go, then use Apple's command-line signing/notarization tools. `ios/Trill.xcodeproj` builds the iPhone app; it does not build the companion. Companion versions live in `sidecar/COMPANION_VERSION`. This coordinated release uses `2026.10.25` for both iOS and the companion; companion tags use the separate `companion-vVERSION` namespace.
+The Mac companion is Go software. Build it with Go, then use Apple's command-line signing/notarization tools. `ios/Trill.xcodeproj` builds the iPhone app; it does not build the companion. Both platforms read the marketing version from `ios/Version.xcconfig`. A single immutable `vVERSION-build.COMMIT12` tag triggers Xcode Cloud for iOS and the companion signing workflow. Small updates retain the marketing version and get a new commit-based tag; there is no separate companion tag or version file.
 
 The release machinery is implemented, but signed downloads are **not enabled** until the public signing team and Apple credentials below are configured and an actual release passes clean-Mac validation. Continue using [source installation](SETUP.md#install-the-mac-companion) meanwhile.
 
@@ -12,14 +12,14 @@ trill doctor
 trill doctor --json
 trill update --check
 trill update
-trill update --version 2026.10.25
+trill update --tag v2026.10.25-build.0123456789ab
 ```
 
 `version` prints companion version, source commit, OS and architecture as JSON. Source builds identify as `dev`. `trilld --version` reports the daemon's identity without starting it.
 
 `doctor` is read-only and returns exit code 1 for failed checks, 0 when there are no failures (warnings alone do not fail). It checks private configuration permissions, executable availability, signatures/notarization for configured distributions, both owned LaunchAgents, TLS identity/expiry, local HTTPS, running daemon versus CLI build, pending update recovery, and selected provider/Mosh/tmux dependencies on the saved service PATH. `--state-dir` selects an existing configuration. It never creates a pairing credential, repairs services, executes provider commands, or changes settings. Phone reachability, Mosh UDP connectivity and provider authentication still need a phone-side check.
 
-`update --check` reads official stable companion release metadata over HTTPS without changing files or services. It ignores iOS tags and draft/prerelease releases. Normal updates reject older versions and development/source builds. A check is advisory: payload signatures are verified during installation, not by the metadata-only check.
+`update --check` reads official stable companion release metadata over HTTPS without changing files or services. It uses the shared release tags and ignores draft/prerelease releases. Normal updates reject older versions/builds and development/source builds. Repeated releases of the same marketing version are ordered by the full main-history commit count, embedded in signed binaries and the manifest; it is independent of Xcode Cloud’s build number. A check is advisory: payload signatures are verified during installation, not by the metadata-only check.
 
 Updates require internet access to fetch assets and verify Apple's notarization ticket. SHA-256 verifies archive integrity; the compiled-in Apple team and fixed code identifiers authenticate the executables. Downloaded metadata cannot supply a replacement signing team. Every executable must pass both Developer ID verification and Apple's online notarization check before any payload runs. Signed embedded version/commit/architecture must match the manifest. ZIP extraction rejects links, paths, duplicates and unexpected tools.
 
@@ -44,10 +44,10 @@ Failure restores the previous pointer and loaded jobs. If the process or Mac sto
 
 The first installer and updater refuse to adopt a source/custom installation or overwrite its public command/configuration. Existing source users should keep using `scripts/setup-companion.sh`. Automatic source-to-signed migration, state schema migrations and downgrades are outside this first implementation; do not delete pairing state to force a conversion.
 
-After the first signed release exists, download and inspect its `install-companion.sh`, then run it with the matching version, for example:
+After the first signed release exists, download and inspect its `install-companion.sh`, then run it with the exact tag from that release, for example (replace the example commit suffix):
 
 ```sh
-bash install-companion.sh 2026.10.25
+bash install-companion.sh v2026.10.25-build.0123456789ab
 export PATH="$HOME/.local/bin:$PATH"
 trill setup
 trill doctor
@@ -58,7 +58,7 @@ The standalone installer contains the expected public team ID. It downloads only
 ## Enable signed releases
 
 1. Commit the **public** ten-character Apple Developer team ID in `sidecar/distribution/signing-team.txt`. This is a trust anchor, not a secret. Changing teams later requires a deliberate trust migration for already installed clients.
-2. Create a GitHub environment named `companion-release`, restrict it to companion release tags, and configure the following values there. Keep private keys and certificate exports out of the repository.
+2. Create a GitHub environment named `companion-release`, restrict it to shared `v*-build.*` release tags, and configure the following values there. Keep private keys and certificate exports out of the repository.
 
 | Environment value | Type | Purpose |
 | --- | --- | --- |
@@ -69,9 +69,9 @@ The standalone installer contains the expected public team ID. It downloads only
 | `COMPANION_NOTARY_KEY_ID` | Secret | API key ID |
 | `COMPANION_NOTARY_ISSUER_ID` | Secret | API issuer ID |
 
-3. Validate the first release manually before enabling general distribution. From a clean tested commit, increase `COMPANION_VERSION` as needed and create/push its exact `companion-vVERSION` tag. Never move a released tag or replace published assets. The separate [workflow](../.github/workflows/companion-release.yml) runs on those tags, or manually when a companion tag is selected. It cannot publish from a branch, a fork, or an iOS tag. No release is triggered by this feature branch alone.
+3. Validate the first release manually before enabling general distribution. From a clean tested main commit, use `python3 scripts/release.py plan` and publish its exact `vVERSION-build.COMMIT12` tag once for both platforms. Never move a released tag or replace published assets. The separate [workflow](../.github/workflows/companion-release.yml) runs on those tags, or manually when the same shared tag is selected. It checks the shared version, commit suffix and main ancestry. It cannot publish from a branch or a fork. No release is triggered by this feature branch alone.
 
-The workflow tests Go, imports the certificate into a temporary Keychain, builds both architectures, signs with timestamp and hardened runtime, notarizes both archives, and confirms the tickets are available. Only then does it produce a publishable manifest and installer. It creates a draft GitHub release containing the full set, then publishes it without replacing the repository's default latest release. Existing releases are not overwritten. A failed publish may leave a draft for inspection; inspect it before retrying. Signing files and the temporary Keychain are removed on exit.
+The workflow tests Go, imports the certificate into a temporary Keychain, builds both architectures, signs with timestamp and hardened runtime, notarizes both archives, and confirms the tickets are available. Only then does it produce a publishable manifest and installer. It creates a draft GitHub release containing the full set, then publishes it under the same shared tag used by Xcode Cloud. Existing releases are not overwritten. A failed publish may leave a draft for inspection; inspect it before retrying. Signing files and the temporary Keychain are removed on exit.
 
 For a local signed build, use the same builder with an existing Keychain identity and either `COMPANION_NOTARY_PROFILE` or the three key-file variables (`COMPANION_NOTARY_KEY_PATH`, `COMPANION_NOTARY_KEY_ID`, `COMPANION_NOTARY_ISSUER_ID`):
 

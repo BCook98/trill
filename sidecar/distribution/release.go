@@ -27,9 +27,11 @@ const repositoryURL = "https://github.com/BCook98/trill"
 const releaseAPI = "https://api.github.com/repos/BCook98/trill/releases?per_page=100"
 const maximumArchiveBytes = 200 << 20
 
-var versionPattern = regexp.MustCompile(`^(0|[1-9][0-9]{0,3})\.(0|[1-9][0-9]{0,3})\.(0|[1-9][0-9]{0,3})$`)
+var versionPattern = regexp.MustCompile(`^(0|[1-9][0-9]{0,3})\.[0-9]{1,2}\.[0-9]{1,2}$`)
 var commitPattern = regexp.MustCompile(`^[0-9a-f]{40}$`)
 var digestPattern = regexp.MustCompile(`^[0-9a-f]{64}$`)
+var releaseTagPattern = regexp.MustCompile(`^v((?:0|[1-9][0-9]{0,3})\.[0-9]{1,2}\.[0-9]{1,2})-build\.([0-9a-f]{12})$`)
+var buildPattern = regexp.MustCompile(`^[1-9][0-9]{0,8}$`)
 
 type Artifact struct {
 	Name   string `json:"name"`
@@ -40,6 +42,8 @@ type Manifest struct {
 	Schema    int                 `json:"schema"`
 	Version   string              `json:"version"`
 	Commit    string              `json:"commit"`
+	Tag       string              `json:"tag"`
+	Build     string              `json:"build"`
 	Artifacts map[string]Artifact `json:"artifacts"`
 }
 
@@ -64,8 +68,40 @@ func CompareVersions(left, right string) (int, error) {
 func artifactName(version, architecture string) string {
 	return "trill-companion-" + version + "-darwin-" + architecture + ".zip"
 }
-func assetURL(version, name string) string {
-	return repositoryURL + "/releases/download/companion-v" + version + "/" + name
+func assetURL(tag, name string) string {
+	return repositoryURL + "/releases/download/" + tag + "/" + name
+}
+
+func ReleaseVersion(tag string) (string, error) {
+	match := releaseTagPattern.FindStringSubmatch(tag)
+	if match == nil {
+		return "", errors.New("release tag must use vVERSION-build.COMMIT12")
+	}
+	return match[1], nil
+}
+
+// UpdateAvailable orders repeated builds of the same marketing version using
+// the main-history commit count embedded in both the signed code and manifest.
+func UpdateAvailable(manifest Manifest, installed buildinfo.Info) (bool, error) {
+	comparison, err := CompareVersions(manifest.Version, installed.Version)
+	if err != nil {
+		return false, err
+	}
+	if !buildPattern.MatchString(manifest.Build) || !buildPattern.MatchString(installed.Build) {
+		return false, errors.New("invalid release build number")
+	}
+	availableBuild, _ := strconv.Atoi(manifest.Build)
+	installedBuild, _ := strconv.Atoi(installed.Build)
+	if comparison < 0 || availableBuild < installedBuild {
+		return false, errors.New("refusing to downgrade the companion")
+	}
+	if availableBuild == installedBuild {
+		if comparison != 0 || manifest.Commit != installed.Commit || manifest.Tag != installed.ReleaseTag {
+			return false, errors.New("release build number conflicts with the installed identity")
+		}
+		return false, nil
+	}
+	return true, nil
 }
 
 func httpClient() *http.Client {
@@ -105,7 +141,7 @@ func download(ctx context.Context, client *http.Client, address string, output i
 	return nil
 }
 
-func LatestVersion(ctx context.Context) (string, error) {
+func LatestReleaseTag(ctx context.Context) (string, error) {
 	client := httpClient()
 	for page := 1; page <= 10; page++ {
 		var buffer strings.Builder
@@ -120,12 +156,11 @@ func LatestVersion(ctx context.Context) (string, error) {
 		if err := json.Unmarshal([]byte(buffer.String()), &releases); err != nil {
 			return "", errors.New("invalid release listing")
 		}
-		// GitHub orders releases by creation time. The first stable companion
-		// release is authoritative; iOS release tags are deliberately ignored.
+		// Both pipelines use the same immutable tag. Only complete, published
+		// releases become visible here; CI creates the release as a draft first.
 		for _, release := range releases {
-			version := strings.TrimPrefix(release.Tag, "companion-v")
-			if !release.Draft && !release.Prerelease && strings.HasPrefix(release.Tag, "companion-v") && versionPattern.MatchString(version) {
-				return version, nil
+			if _, err := ReleaseVersion(release.Tag); err == nil && !release.Draft && !release.Prerelease {
+				return release.Tag, nil
 			}
 		}
 		if len(releases) < 100 {
@@ -135,26 +170,30 @@ func LatestVersion(ctx context.Context) (string, error) {
 	return "", errors.New("no published stable companion release found")
 }
 
-func FetchManifest(ctx context.Context, version string) (Manifest, error) {
+func FetchManifest(ctx context.Context, tag string) (Manifest, error) {
 	var manifest Manifest
-	if !versionPattern.MatchString(version) {
-		return manifest, errors.New("invalid companion release version")
+	if _, err := ReleaseVersion(tag); err != nil {
+		return manifest, err
 	}
 	var buffer strings.Builder
-	if err := download(ctx, httpClient(), assetURL(version, "manifest.json"), &buffer, 1<<20); err != nil {
+	if err := download(ctx, httpClient(), assetURL(tag, "manifest.json"), &buffer, 1<<20); err != nil {
 		return manifest, err
 	}
 	if err := json.Unmarshal([]byte(buffer.String()), &manifest); err != nil {
 		return manifest, errors.New("invalid companion manifest")
 	}
-	if err := manifest.Validate(version); err != nil {
+	if err := manifest.Validate(tag); err != nil {
 		return manifest, err
 	}
 	return manifest, nil
 }
 
-func (manifest Manifest) Validate(version string) error {
-	if manifest.Schema != 1 || manifest.Version != version || !versionPattern.MatchString(version) || !commitPattern.MatchString(manifest.Commit) {
+func (manifest Manifest) Validate(tag string) error {
+	version, err := ReleaseVersion(tag)
+	if err != nil {
+		return err
+	}
+	if manifest.Schema != 1 || manifest.Tag != tag || manifest.Version != version || !commitPattern.MatchString(manifest.Commit) || !buildPattern.MatchString(manifest.Build) || tag != "v"+version+"-build."+manifest.Commit[:12] {
 		return errors.New("release manifest schema, version or commit is invalid")
 	}
 	if len(manifest.Artifacts) != 2 {
@@ -183,7 +222,7 @@ func Stage(ctx context.Context, manifest Manifest, parent string) (string, error
 }
 
 func stage(ctx context.Context, manifest Manifest, parent, architecture string, client *http.Client, verify func(context.Context, string, string) error) (string, error) {
-	if err := manifest.Validate(manifest.Version); err != nil {
+	if err := manifest.Validate(manifest.Tag); err != nil {
 		return "", err
 	}
 	artifact, ok := manifest.Artifacts[architecture]
@@ -206,7 +245,7 @@ func stage(ctx context.Context, manifest Manifest, parent, architecture string, 
 	}
 	defer os.Remove(archive.Name())
 	digest := sha256.New()
-	downloadErr := download(ctx, client, assetURL(manifest.Version, artifact.Name), io.MultiWriter(archive, digest), maximumArchiveBytes)
+	downloadErr := download(ctx, client, assetURL(manifest.Tag, artifact.Name), io.MultiWriter(archive, digest), maximumArchiveBytes)
 	closeErr := archive.Close()
 	if downloadErr != nil {
 		return "", downloadErr
@@ -237,7 +276,7 @@ func stage(ctx context.Context, manifest Manifest, parent, architecture string, 
 			return "", fmt.Errorf("verified %s failed its version check", binary)
 		}
 		var info buildinfo.Info
-		if err := json.Unmarshal(output.data, &info); err != nil || info.Version != manifest.Version || info.Commit != manifest.Commit || info.OS != "darwin" || info.Architecture != architecture {
+		if err := json.Unmarshal(output.data, &info); err != nil || info.Version != manifest.Version || info.Commit != manifest.Commit || info.OS != "darwin" || info.Architecture != architecture || info.ReleaseTag != manifest.Tag || info.Build != manifest.Build {
 			return "", fmt.Errorf("%s embedded identity does not match the release", binary)
 		}
 	}

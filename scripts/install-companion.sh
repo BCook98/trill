@@ -10,10 +10,12 @@ fi
 if [[ "$(uname -s)" != Darwin ]]; then
   echo 'The Trill companion requires macOS.' >&2; exit 1
 fi
-if [[ $# != 1 || ! "$1" =~ ^(0|[1-9][0-9]{0,3})\.(0|[1-9][0-9]{0,3})\.(0|[1-9][0-9]{0,3})$ ]]; then
-  echo 'Usage: bash install-companion.sh MAJOR.MINOR.PATCH' >&2; exit 1
+if [[ $# != 1 || ! "$1" =~ ^v(0|[1-9][0-9]{0,3})\.[0-9]{1,2}\.[0-9]{1,2}-build\.[0-9a-f]{12}$ ]]; then
+  echo 'Usage: bash install-companion.sh vVERSION-build.COMMIT12' >&2; exit 1
 fi
-release_version="$1"
+release_tag="$1"
+release_version="${release_tag#v}"
+release_version="${release_version%-build.*}"
 case "$(uname -m)" in
   arm64) architecture=arm64 ;;
   x86_64) architecture=amd64 ;;
@@ -22,7 +24,7 @@ esac
 umask 077
 staging_directory="$(mktemp -d)"
 trap 'rm -rf -- "$staging_directory"' EXIT
-archive_url="https://github.com/BCook98/trill/releases/download/companion-v${release_version}/trill-companion-${release_version}-darwin-${architecture}.zip"
+archive_url="https://github.com/BCook98/trill/releases/download/${release_tag}/trill-companion-${release_version}-darwin-${architecture}.zip"
 /usr/bin/curl --fail --location --proto '=https' --proto-redir '=https' --max-time 120 --max-filesize 209715200 "$archive_url" -o "$staging_directory/release.zip"
 # Extract only the named CLI to a fixed private path; never follow archive paths.
 /usr/bin/unzip -l "$staging_directory/release.zip" trill | /usr/bin/awk '
@@ -37,5 +39,5 @@ requirement="anchor apple generic and certificate 1[field.1.2.840.113635.100.6.2
 /usr/bin/codesign --verify --strict --all-architectures --test-requirement "$requirement" "$staging_directory/trill"
 /usr/bin/codesign --verify --check-notarization "$staging_directory/trill"
 chmod 700 "$staging_directory/trill"
-"$staging_directory/trill" update --install --version "$release_version"
+"$staging_directory/trill" update --install --tag "$release_tag"
 printf '\nInstalled. Add ~/.local/bin to PATH if needed, then run:\n  trill setup\n  trill doctor\n'

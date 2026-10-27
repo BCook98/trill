@@ -4,7 +4,7 @@ Trill uses Xcode Cloud and TestFlight: build and test the shared scheme, archive
 
 For routine release requests, finish after pushing the verified commit and its new release tag. Do not open Xcode or App Store Connect, poll Cloud/TestFlight status, or wait for archive, processing or tester availability unless the user explicitly asks to monitor or troubleshoot the release. Report the published tag and completed validation without claiming that the beta is available.
 
-The macOS Go companion has a separate [signing, notarization and update workflow](COMPANION_RELEASES.md). This guide and the Xcode project concern the iOS app.
+The macOS Go companion has a [signing, notarization and update workflow](COMPANION_RELEASES.md) triggered by the same `vVERSION-build.COMMIT12` tag. Both platforms share the marketing version in `ios/Version.xcconfig`; publish one tag to release both. The Xcode project builds the iOS app.
 
 ## Versions and repeat builds
 

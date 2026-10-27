@@ -23,7 +23,7 @@ func update(args []string, output, errorOutput io.Writer, home string) error {
 	flags.SetOutput(errorOutput)
 	checkOnly := flags.Bool("check", false, "check the latest stable release without modifying installation or services")
 	install := flags.Bool("install", false, "first install into a new managed location; never adopt source/custom installations")
-	requestedVersion := flags.String("version", "", "select an exact release; downgrades are refused")
+	requestedTag := flags.String("tag", "", "select an exact shared vVERSION-build.COMMIT12 tag; downgrades are refused")
 	stateDirectory := flags.String("state-dir", filepath.Join(home, ".config", "trill"), "existing companion state directory")
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -32,10 +32,10 @@ func update(args []string, output, errorOutput io.Writer, home string) error {
 		return err
 	}
 	if flags.NArg() != 0 || (*checkOnly && *install) {
-		return errors.New("usage: trill update [--check | --install] [--version MAJOR.MINOR.PATCH] [--state-dir PATH]")
+		return errors.New("usage: trill update [--check | --install] [--tag vVERSION-build.COMMIT12] [--state-dir PATH]")
 	}
-	if *requestedVersion != "" {
-		if _, err := distribution.CompareVersions(*requestedVersion, *requestedVersion); err != nil {
+	if *requestedTag != "" {
+		if _, err := distribution.ReleaseVersion(*requestedTag); err != nil {
 			return err
 		}
 	}
@@ -121,39 +121,35 @@ func update(args []string, output, errorOutput io.Writer, home string) error {
 			}
 		}
 	}
-	version := *requestedVersion
-	if version == "" {
-		version, err = distribution.LatestVersion(ctx)
+	tag := *requestedTag
+	if tag == "" {
+		tag, err = distribution.LatestReleaseTag(ctx)
 		if err != nil {
 			return err
 		}
 	}
-	if _, err := distribution.CompareVersions(version, version); err != nil {
+	manifest, err := distribution.FetchManifest(ctx, tag)
+	if err != nil {
 		return err
 	}
 	if !*install {
-		comparison, err := distribution.CompareVersions(version, buildinfo.Version)
+		available, err := distribution.UpdateAvailable(manifest, buildinfo.Current())
 		if err != nil {
-			return errors.New("source/development builds cannot self-update; use the source installer or an official signed release")
+			return err
 		}
-		if comparison < 0 {
-			return errors.New("refusing to downgrade the companion")
-		}
-		if comparison == 0 && !*checkOnly {
-			fmt.Fprintf(output, "Companion %s is current.\n", version)
+		if !available && !*checkOnly {
+			fmt.Fprintf(output, "Companion %s is current.\n", tag)
 			return nil
 		}
-	}
-	manifest, err := distribution.FetchManifest(ctx, version)
-	if err != nil {
-		return err
 	}
 	if *checkOnly {
 		return json.NewEncoder(output).Encode(struct {
 			Installed string `json:"installed"`
 			Available string `json:"available"`
 			Commit    string `json:"commit"`
-		}{buildinfo.Version, manifest.Version, manifest.Commit})
+			Tag       string `json:"tag"`
+			Build     string `json:"build"`
+		}{buildinfo.Version, manifest.Version, manifest.Commit, manifest.Tag, manifest.Build})
 	}
 	staging, err := distribution.Stage(ctx, manifest, filepath.Join(root, "releases"))
 	if err != nil {
