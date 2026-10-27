@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
+    <key>TrillPushEnvironment</key>
+    <string>$(TRILL_PUSH_ENVIRONMENT)</string>
 <key>NSAppTransportSecurity</key><dict><key>NSAllowsLocalNetworking</key><true/></dict>
 <key>NSCameraUsageDescription</key><string>Scan the pairing code on your Mac to connect Trill securely.</string>
 <key>CFBundleURLTypes</key><array><dict><key>CFBundleURLName</key><string>io.bcook.trill.pairing</string><key>CFBundleURLSchemes</key><array><string>trill</string></array></dict></array>

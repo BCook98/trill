@@ -198,7 +198,7 @@ func (s *Service) herdrMetadata(ctx context.Context) ([]Project, []rawSession, e
 			projectID = "herdr-lab"
 		}
 		sessions = append(sessions, rawSession{ID: s.herdrID("terminal", p.Terminal), Name: name, ProjectID: projectID,
-			Status: "running", ActivityState: activity, CurrentAgent: agent, Mode: "terminal", HerdrTerminal: p.Terminal, HerdrPane: p.ID,
+			HerdrAgentStatus: p.State, Status: "running", ActivityState: activity, CurrentAgent: agent, Mode: "terminal", HerdrTerminal: p.Terminal, HerdrPane: p.ID,
 			Branch: projects[index].Branch, WorktreePath: p.Cwd, TerminalLive: strings.TrimSpace(p.RestoreError) == ""})
 	}
 	if s.config.HerdrLabRoot != "" {

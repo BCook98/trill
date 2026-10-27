@@ -19,6 +19,7 @@ app.build_configurations.each do |c|
   c.base_configuration_reference = version_config
   c.build_settings.merge!({
     'PRODUCT_BUNDLE_IDENTIFIER' => 'io.bcook.trill', 'SWIFT_VERSION' => '5.0',
+    'TRILL_PUSH_ENVIRONMENT' => 'disabled',
     'TARGETED_DEVICE_FAMILY' => '1,2', 'GENERATE_INFOPLIST_FILE' => 'YES',
     'INFOPLIST_KEY_CFBundleDisplayName' => 'Trill', 'INFOPLIST_KEY_UILaunchScreen_Generation' => 'YES',
     'INFOPLIST_KEY_UIApplicationSceneManifest_Generation' => 'YES',

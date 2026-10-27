@@ -19,9 +19,11 @@ import (
 	"syscall"
 	"time"
 
+	"strings"
 	"trill/sidecar"
 	"trill/sidecar/buildinfo"
 	"trill/sidecar/pairing"
+	"trill/sidecar/push"
 	"trill/sidecar/setup"
 	"trill/sidecar/tailnet"
 )
@@ -37,10 +39,13 @@ func run() error {
 		return buildinfo.Write(os.Stdout)
 	}
 	var listen, cert, key, tokenFile, pairingFile string
+	var pushRelayURL, pushRelayCredentialFile string
 	var insecure, allowControl bool
 	var backends, herdrPath, herdrSessions, herdrLabRoot, herdrConfigHome string
 	var tsnetStateDirectory, tsnetHostname, tsnetIP string
 	var leaseTTL time.Duration
+	flag.StringVar(&pushRelayURL, "push-relay-url", "", "opt-in HTTPS relay /v1/alerts URL")
+	flag.StringVar(&pushRelayCredentialFile, "push-relay-credential-file", "", "private 0600 companion relay credential file")
 	flag.StringVar(&listen, "listen", "127.0.0.1:7443", "HTTP bind address")
 	flag.StringVar(&cert, "cert", "", "TLS certificate PEM")
 	flag.StringVar(&key, "key", "", "TLS private key PEM")
@@ -98,6 +103,19 @@ func run() error {
 	}
 	handler := sidecar.NewHTTPWithPairing(svc, token, store)
 	defer handler.Close()
+	if pushRelayURL != "" || pushRelayCredentialFile != "" {
+		credential, err := push.ReadPrivateFile(pushRelayCredentialFile)
+		if err != nil {
+			return err
+		}
+		sender, err := push.NewRelayClient(pushRelayURL, strings.TrimSpace(string(credential)))
+		if err != nil {
+			return err
+		}
+		if err := handler.EnableAgentNotifications(ctx, sender); err != nil {
+			return err
+		}
+	}
 	server := &http.Server{Addr: listen, Handler: handler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 20 * time.Second, WriteTimeout: 40 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 8192}
 	var expectedDNSName string
 	if tsnetStateDirectory != "" {
