@@ -79,6 +79,7 @@ Keep your Mac awake and reachable. Trill connects directly over HTTPS and Mosh U
 | Build, test, or contribute | [Development](docs/DEVELOPMENT.md) and [contributing](CONTRIBUTING.md) |
 | Understand the companion or integrate with it | [Architecture](docs/ARCHITECTURE.md), [CLI reference](sidecar/README.md), and [API](docs/API.md) |
 | Prepare a TestFlight build | [Release process](docs/RELEASING.md) |
+| Prepare signed Mac companion downloads or diagnose/update an installation | [Companion distribution and maintenance](docs/COMPANION_RELEASES.md) |
 | Understand access or report a vulnerability | [Security](SECURITY.md) |
 
 

@@ -6,6 +6,8 @@ For prerequisites (including provider installation, `mosh-server`, and `tmux`), 
 
 For the installed `trill` command on PATH, run `../scripts/setup-companion.sh` from this directory. Use `../scripts/setup-companion.sh --help` to build/update binaries without configuring or starting services. Management commands include `trill setup`, `trill pair`, `trill status`, and `trill control --enable`; see [setup details](../docs/SETUP.md).
 
+`trill version` reports the companion build, and `trill doctor` diagnoses the installation without changing it. Signed installations support `trill update --check` and `trill update`; source installations continue using the script above. See [companion distribution](../docs/COMPANION_RELEASES.md) for release setup, trust checks and recovery. Signing credentials are not yet configured in the repository.
+
 For a local development build, keep the CLI and its private sibling together:
 
 ```sh

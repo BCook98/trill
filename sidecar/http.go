@@ -15,6 +15,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"trill/sidecar/buildinfo"
 	"trill/sidecar/pairing"
 )
 
@@ -80,6 +81,12 @@ func NewHTTPWithPairing(service *Service, token string, store *pairing.Store) *H
 }
 
 func (h *HTTP) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// Public build identity supports local diagnostics without minting or
+	// exposing a device credential. The health body still requires auth.
+	if r.Method == http.MethodGet && r.URL.Path == "/v1/health" {
+		w.Header().Set("X-Trill-Version", buildinfo.Current().Version)
+		w.Header().Set("X-Trill-Commit", buildinfo.Current().Commit)
+	}
 	if h.previews.serve(w, r) {
 		return
 	}

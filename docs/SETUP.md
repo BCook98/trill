@@ -141,6 +141,8 @@ Allow TCP **7443** and UDP **60000 to 60010** through applicable Mac firewall, L
 
 ## Install the Mac companion
 
+The companion is Go software; Xcode builds the iPhone app. Use the source installer below. Signed binary distribution and maintenance commands are described in [Companion releases](COMPANION_RELEASES.md); signed downloads remain unavailable until Apple signing is configured and the first release is validated.
+
 Clone the repository if you have not already:
 
 ```sh
@@ -252,6 +254,10 @@ Provider changes preserve pairings and control permission. They restart the owne
 
 ## Update Trill
 
+For a managed signed companion installation, use `trill update --check`, then `trill update`. Updates preserve pairings and restore the prior loaded service state; phone transports disconnect. See [companion distribution and recovery](COMPANION_RELEASES.md). Signed releases require signing configuration and validation before they become available.
+
+The following commands apply to **source installations**:
+
 Update your checkout to the release/revision you intend to use. Rebuild and run the iPhone app through Xcode. To rebuild/install companion binaries **without configuring state or starting services**, run from the repository root:
 
 ```sh
@@ -297,7 +303,8 @@ For complete removal, first uninstall through the correct state directory, then 
 | Default path | Purpose |
 | --- | --- |
 | `~/.local/bin/trill` | Managed public symlink |
-| `~/.local/share/trill/bin` | Binaries and ownership marker |
+| `~/.local/share/trill/bin` | Source-installed binaries and ownership marker |
+| `~/.local/share/trill/companion` | Managed signed releases, stable binary links and current release pointer |
 | `~/.config/trill/config.json` | Network, permissions, provider and executable settings |
 | `~/.config/trill/devices.json` | Device metadata and credential/invitation hashes |
 | `~/.config/trill/tls.pem` | Certificate and private key |
@@ -319,7 +326,7 @@ Changing network, selected IP, Bonjour name, or certificate identity requires st
 
 ## Troubleshooting
 
-Start with `trill status`, **Sessions → More → Connection details → Check connection**, and the companion's private log. Do not publish device credentials, certificate private keys, or active pairing links when asking for help.
+Start with `trill doctor`, `trill status`, **Sessions → More → Connection details → Check connection**, and the companion's private log. `trill doctor --json` provides read-only structured diagnostics and exits nonzero when checks fail. Do not publish device credentials, certificate private keys, or active pairing links when asking for help.
 
 | Symptom | What to check |
 | --- | --- |
@@ -336,6 +343,7 @@ Start with `trill status`, **Sessions → More → Connection details → Check 
 | Saved flags conflict | Remove conflicting flags to resume. Use `control` or `providers` for those changes; network/identity changes require the explicit new-state flow. |
 | `tls.pem` exists without `config.json` | Preserve the orphan identity and use a fresh state directory. Setup refuses to overwrite it. |
 | Interrupted permission/provider update | Run the printed `trill start --state-dir ...` recovery command. Unrelated ownership/configuration differences remain errors. |
+| Interrupted signed binary update | Run `trill update` with the same `--state-dir` to restore the previous release and jobs, then rerun it to retry. |
 | Service loaded but not running | Inspect the private companion log and dependencies on its saved PATH. A port collision is an error; Trill does not kill the listener. |
 | LAN certificate expired | Check the clock or restore the original bundle. Replacement identity requires stop/uninstall, new state, and re-pairing. |
 | Localhost preview fails | Start the development server on the Mac, verify its port and IPv4 loopback listener (`127.0.0.1`), then Reload. Trill does not start servers; re-pairing does not fix a stopped server. |
