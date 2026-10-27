@@ -209,34 +209,6 @@ func TestStaticFilesAuthoritativeWorktreeAndLabRoot(t *testing.T) {
 	if w := request(h, "GET", staticRoute("", "index.html"), "secret", ""); w.Code != 404 {
 		t.Fatal("fell back to project", w.Code)
 	}
-	for _, explicit := range []bool{false, true} {
-		lab := t.TempDir()
-		explorerWrite(t, lab, "index.html", []byte("explicit lab"))
-		runner := &explorerLabRunner{fakeRunner: &fakeRunner{}, socket: filepath.Join(lab, "lab.sock")}
-		config := Config{AllowControl: true, TmuxSocket: runner.socket, TmuxPath: "/usr/bin/tmux"}
-		if explicit {
-			config.LabFilesRoot = lab
-		}
-		svc, err := NewService(config, runner)
-		if err != nil {
-			t.Fatal(err)
-		}
-		t.Cleanup(svc.Close)
-		handler := NewHTTP(svc, "secret")
-		t.Cleanup(handler.Close)
-		route := "/v1/sessions/lab-1/static-file?root=&path=index.html"
-		w := request(handler, "GET", route, "secret", "")
-		if explicit {
-			if w.Code != 200 || w.Body.String() != "explicit lab" {
-				t.Fatal(w.Code, w.Body.String())
-			}
-			if w := request(handler, "GET", route+"&root="+url.QueryEscape(root), "secret", ""); w.Code != 400 {
-				t.Fatal(w.Code)
-			}
-		} else if w.Code != 409 {
-			t.Fatal("implicit lab root allowed", w.Code, w.Body.String())
-		}
-	}
 }
 
 func TestStaticFilesBoundedTextImagesAndSpecialFiles(t *testing.T) {

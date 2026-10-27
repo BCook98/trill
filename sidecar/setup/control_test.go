@@ -187,11 +187,11 @@ func TestProviderSelectionPersistsWithoutChangingControlOrDevices(t *testing.T) 
 	}
 	r := &fakeRunner{}
 	a := Agents{Runner: r, Home: t.TempDir(), UID: 501}
-	if err := a.Providers(context.Background(), c, dir, "xirp,herdr", "/tmp/herdr", "default,work", ""); err != nil {
+	if err := a.Providers(context.Background(), c, dir, "herdr", "/tmp/herdr", "default,work", ""); err != nil {
 		t.Fatal(err)
 	}
 	next, err := LoadConfig(dir)
-	if err != nil || next.Backends != "xirp,herdr" || next.HerdrSessions != "default,work" || next.AllowControl != c.AllowControl {
+	if err != nil || next.Backends != "herdr" || next.HerdrSessions != "default,work" || next.AllowControl != c.AllowControl {
 		t.Fatalf("configuration: %+v %v", next, err)
 	}
 	b, _ := ReadPrivate(devices)
@@ -202,7 +202,7 @@ func TestProviderSelectionPersistsWithoutChangingControlOrDevices(t *testing.T) 
 		t.Fatal("stale update accepted")
 	}
 	args := strings.Join(DaemonArgs(next, dir), " ")
-	if !strings.Contains(args, "--backends xirp,herdr") || !strings.Contains(args, "--herdr-sessions default,work") {
+	if !strings.Contains(args, "--backends herdr") || !strings.Contains(args, "--herdr-sessions default,work") {
 		t.Fatal(args)
 	}
 }
@@ -248,7 +248,7 @@ func TestProviderSelectionRestartsOnlyTheOwnedCompanion(t *testing.T) {
 func TestStartRepairsAnInterruptedProviderCommit(t *testing.T) {
 	a, r, dir, old := testAgents(t)
 	next := old
-	next.Backends = "xirp,herdr"
+	next.Backends = "herdr"
 	next.HerdrPath = "/tmp/herdr"
 	next.HerdrSessions = "default,work"
 	previous, _ := json.Marshal(old)

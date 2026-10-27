@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Real, private tmux/mosh/HTTPS fixtures for IDB demos. No personal sessions."""
+"""Real, private Herdr/HTTPS fixtures for IDB demos. No personal sessions."""
 import argparse
 import fcntl
 import hashlib
@@ -82,11 +82,11 @@ def available(port):
     return True
 
 
-def spawn(args, log):
+def spawn(args, log, environment=None):
     fd = os.open(log, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
     with os.fdopen(fd, "ab") as output:
         process = subprocess.Popen([str(a) for a in args], stdin=subprocess.DEVNULL,
-                                   stdout=output, stderr=output, start_new_session=True)
+                                   stdout=output, stderr=output, start_new_session=True, env=environment)
     time.sleep(0.1)
     identity = process_identity(process.pid)
     if process.poll() is not None or not identity:
@@ -123,10 +123,20 @@ def healthy(data):
     return True
 
 
+def herdr_environment(path):
+    environment = {key: value for key, value in os.environ.items() if not key.startswith(('HERDR_', 'CHIRP_', 'XDG_'))}
+    environment.update(XDG_CONFIG_HOME=str(path / 'config'), XDG_STATE_HOME=str(path / 'state'), SHELL='/bin/zsh', TERM='xterm-256color')
+    return environment
+
+
+def herdr_command(path, *arguments):
+    data = owned(path)
+    return command([data['herdr_executable'], '--session', 'trill-demo-lab', *arguments], env=herdr_environment(path))
+
+
 def demo_panes(path):
-    result = command(["tmux", "-S", path / "tmux.sock", "list-panes", "-a", "-F",
-                      "#{session_name}\t#{pane_id}\t#{pane_current_command}"])
-    return [line.split("\t") for line in result.stdout.splitlines() if line.split("\t")[0] == SESSION]
+    response = json.loads(herdr_command(path, 'api', 'snapshot').stdout)['result']['snapshot']
+    return [[SESSION, pane['pane_id'], pane.get('agent') or 'zsh'] for pane in response['panes']]
 
 
 def start(path, api_port, preview_port):
@@ -137,7 +147,7 @@ def start(path, api_port, preview_port):
         private_json(path / "owner.json", {"kind": KIND, "state_dir": str(path)})
     data = owned(path)
     old = data.get("processes", {})
-    if running(old.get("companion")) and running(old.get("preview")):
+    if all(running(old.get(name)) for name in ("companion", "preview", "herdr")):
         healthy(data)
         if not demo_panes(path):
             raise RuntimeError("Demo session is missing; stop the owned helpers and start again to recreate it")
@@ -146,9 +156,11 @@ def start(path, api_port, preview_port):
         stop_owned_process(item)
     if not available(api_port) or not available(preview_port):
         raise RuntimeError("A requested demo port is occupied; no existing process was stopped")
-    socket_path = path / "tmux.sock"
-    if len(os.fsencode(socket_path)) >= 100:
-        raise RuntimeError("Demo state path is too long for a tmux socket")
+    herdr = shutil.which('herdr')
+    if not herdr:
+        raise RuntimeError('Install Herdr before starting this isolated lab')
+    if len(os.fsencode(path)) > 65:
+        raise RuntimeError('Demo state path is too long for a Herdr socket')
     binaries = path / "bin"
     binaries.mkdir(exist_ok=True, mode=0o700)
     for target, package in [("trilld", "./cmd/trilld"), ("demo-invite", "./tools/demo-invite")]:
@@ -167,29 +179,32 @@ def start(path, api_port, preview_port):
                 preview_url="http://localhost:%d/index.html" % preview_port, files_root=str(files),
                 fingerprint=hashlib.sha256(der).hexdigest(), processes={})
     private_json(path / "owner.json", data)
-    base = ["tmux", "-S", str(socket_path)]
-    exists = subprocess.run(base + ["has-session", "-t", "=" + SESSION], capture_output=True).returncode == 0
-    if not exists:
-        data["initialized"] = False
-        data["codex_started"] = False
-        command(base + ["-f", "/dev/null", "new-session", "-d", "-s", SESSION, "-c", str(files), "-x", "90", "-y", "28", "/bin/zsh -f"])
-        command(base + ["set-option", "-g", "status", "off"])
-        command(base + ["set-option", "-g", "default-terminal", "xterm-256color"])
-    if not data.get("initialized"):
-        panes = command(base + ["list-panes", "-a", "-F", "#{session_name}\t#{pane_id}"]).stdout.splitlines()
-        pane = next(line.split("\t")[1] for line in panes if line.split("\t")[0] == SESSION)
-        # Real commands in the shell we just created, never an agent transcript.
-        line = "PROMPT='demo % '; RPS1=''; clear; printf '\\033[1;32mField Notes\\033[0m\\nLocal development workspace\\n\\n'; ls; printf '\\nPreview: %s\\n\\n' " + shlex.quote(data["preview_url"])
-        command(base + ["send-keys", "-t", pane, "-l", line])
-        command(base + ["send-keys", "-t", pane, "Enter"])
-        data["initialized"] = True
-        private_json(path / "owner.json", data)
+    config = path / 'config/herdr'
+    config.mkdir(parents=True, exist_ok=True)
+    (config / 'config.toml').write_text('onboarding = false\n[terminal]\ndefault_shell = "/bin/zsh"\nshell_mode = "non_login"\n[update]\nversion_check = false\nmanifest_check = false\n')
+    data['herdr_executable'] = str(Path(herdr).resolve())
+    data['processes']['herdr'] = spawn([herdr, '--session', 'trill-demo-lab', 'server'], path / 'herdr.log', herdr_environment(path))
+    private_json(path / 'owner.json', data)
+    for attempt in range(50):
+        try:
+            herdr_command(path, 'workspace', 'list')
+            break
+        except subprocess.CalledProcessError:
+            if attempt == 49:
+                stop_owned_process(data['processes']['herdr'])
+                raise RuntimeError('Owned Herdr server did not start')
+            time.sleep(.1)
+    workspace = json.loads(herdr_command(path, 'workspace', 'create', '--cwd', str(files), '--label', SESSION, '--no-focus').stdout)['result']
+    data['pane_id'] = workspace['root_pane']['pane_id']
+    data['initialized'] = True
+    data['codex_started'] = False
+    private_json(path / 'owner.json', data)
     try:
         data["processes"]["preview"] = spawn([sys.executable, "-m", "http.server", str(preview_port), "--bind", "127.0.0.1", "--directory", files], path / "preview.log")
         private_json(path / "owner.json", data)
         data["processes"]["companion"] = spawn([binaries / "trilld", "--listen", "127.0.0.1:%d" % api_port,
             "--cert", cert, "--key", key, "--pairing-store", path / "devices.json", "--allow-control",
-            "--tmux-socket", socket_path, "--lab-files-root", files, "--mosh-host", "127.0.0.1", "--udp-ports", "60400:60420"], path / "companion.log")
+            "--herdr-path", herdr, "--herdr-config-home", path / "config", "--herdr-sessions", "trill-demo-lab"], path / "companion.log")
         private_json(path / "owner.json", data)
         last_error = None
         for _ in range(50):
@@ -214,7 +229,6 @@ def start_codex(path, data):
     executable = shutil.which("codex")
     if not executable:
         raise RuntimeError("Install/sign in to Codex before starting a real demo agent")
-    base = ["tmux", "-S", str(path / "tmux.sock")]
     matching = panes
     if len(matching) != 1 or matching[0][2] not in ("zsh", "bash", "sh"):
         raise RuntimeError("Demo shell is not idle; no input was sent")
@@ -230,8 +244,7 @@ def start_codex(path, data):
             "sessions, or modify other repositories. This is a real demo task: never fabricate test results or agent output. "
             "Finish with a concise summary and this clickable preview URL: " + data["preview_url"])
     args = [executable, "--no-daemon", "--sandbox", "workspace-write", "--ask-for-approval", "on-request", "--model", "gpt-6.1-sol", "--cd", str(project), goal]
-    command(base + ["send-keys", "-t", matching[0][1], "-l", shlex.join(args)])
-    command(base + ["send-keys", "-t", matching[0][1], "Enter"])
+    herdr_command(path, "pane", "run", matching[0][1], shlex.join(args))
     for _ in range(50):
         current = demo_panes(path)
         if len(current) == 1 and current[0][1] == matching[0][1] and current[0][2] == "codex":
@@ -277,10 +290,10 @@ def main():
                     stop_owned_process(item)
                 data["processes"] = {}
                 private_json(path / "owner.json", data)
-                result = {"stopped": True, "tmux_preserved": True}
+                result = {"stopped": True}
             else:
                 result = public_state(data)
-                result["running"] = all(running(item) for item in data.get("processes", {}).values()) and len(data.get("processes", {})) == 2
+                result["running"] = all(running(item) for item in data.get("processes", {}).values()) and len(data.get("processes", {})) == 3
                 try:
                     panes = demo_panes(path)
                     result["agent_running"] = len(panes) == 1 and panes[0][2] == "codex"

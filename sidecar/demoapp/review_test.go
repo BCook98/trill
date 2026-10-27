@@ -97,7 +97,7 @@ func TestPublicRouterDoesNotExposeControl(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	service, demo, err := sidecar.NewDemoService(sidecar.Config{AllowControl: true}, sidecar.DemoOptions{Root: s.root, Profile: "mixed", Executable: exe, Socket: filepath.Join(s.root, "control.sock"), BindHost: "127.0.0.1", MaxLeases: 2})
+	service, demo, err := sidecar.NewDemoService(sidecar.Config{AllowControl: true}, sidecar.DemoOptions{Root: s.root, Profile: "herdr", Executable: exe, Socket: filepath.Join(s.root, "control.sock"), BindHost: "127.0.0.1", MaxLeases: 2})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -176,7 +176,7 @@ func TestPrivateStatusExposesRuntimeFaultsForSmokePreflight(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, demo, err := sidecar.NewDemoService(sidecar.Config{AllowControl: true}, sidecar.DemoOptions{Root: s.root, Profile: "mixed", Executable: exe, Socket: filepath.Join(s.root, "control.sock"), BindHost: "127.0.0.1", MaxLeases: 2})
+	_, demo, err := sidecar.NewDemoService(sidecar.Config{AllowControl: true}, sidecar.DemoOptions{Root: s.root, Profile: "herdr", Executable: exe, Socket: filepath.Join(s.root, "control.sock"), BindHost: "127.0.0.1", MaxLeases: 2})
 	if err != nil {
 		t.Fatal(err)
 	}

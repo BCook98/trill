@@ -116,7 +116,7 @@ private struct SessionAlerts: ViewModifier {
             ), presenting: store.sessionPrompt) { prompt in
                 if prompt.action == .rename { TextField("Session name", text: $store.renameDraft) }
                 Button("Cancel", role: .cancel) { store.sessionPrompt = nil }
-                Button(prompt.button, role: prompt.action == .stop ? .destructive : nil) {
+                Button(prompt.button) {
                     let name = store.renameDraft
                     Task { await store.confirm(prompt, name: name) }
                 }
@@ -213,7 +213,7 @@ struct SessionListView: View {
                             }
                         }
                         if visibleRoots.isEmpty && !store.loading && store.error == nil {
-                            ContentUnavailableView(search.isEmpty ? "No current sessions" : "No matching sessions", systemImage: "terminal", description: Text("Use More → Projects and archive to find archived sessions."))
+                            ContentUnavailableView(search.isEmpty ? "No current sessions" : "No matching sessions", systemImage: "terminal", description: Text("Create a terminal in a Herdr space to get started."))
                                 .listRowBackground(Color.clear)
                         }
                     }
@@ -278,7 +278,7 @@ struct SessionListView: View {
         }
     }
     @ViewBuilder private var browserMenuActions: some View {
-        Button("Projects and archive", systemImage: "archivebox", action: openProjects)
+        Button("Spaces", systemImage: "folder", action: openProjects)
             .accessibilityIdentifier("open-projects")
         Button("Computers", systemImage: "laptopcomputer") { store.computersPresented = true }
             .accessibilityIdentifier("saved-computers")
@@ -409,28 +409,28 @@ struct ProjectListView: View {
                                         Text(project.path)
                                             .font(.caption).foregroundStyle(.secondary)
                                     }
-                                    Text("\(store.sessions(in: project.id, archived: false).count) current · \(store.sessions(in: project.id, archived: true).count) archived")
+                                    Text("\(store.sessions(in: project.id, archived: false).count) terminals")
                                         .font(.subheadline).foregroundStyle(.secondary)
                                 }.padding(.vertical, 4)
                             }
                             .contextMenu {
-                                Button("Open project", systemImage: "folder") { openedProject = project }
+                                Button("Open space", systemImage: "folder") { openedProject = project }
                             }
                         }
                     }
                     if visibleProjects.isEmpty && !store.loading && store.error == nil {
-                        ContentUnavailableView(search.isEmpty ? "No projects yet" : "No matching projects", systemImage: "folder", description: Text(search.isEmpty ? "Your projects and Herdr workspaces appear here, even if they have no sessions." : "Search by project, session, agent, or branch."))
+                        ContentUnavailableView(search.isEmpty ? "No spaces yet" : "No matching spaces", systemImage: "folder", description: Text(search.isEmpty ? "Your Herdr spaces appear here, even if they have no terminals." : "Search by space, terminal, agent, or branch."))
                             .listRowBackground(Color.clear)
                     }
                 }
                 .listStyle(.insetGrouped)
-                .searchable(text: $search, prompt: "Projects, sessions, or branches")
+                .searchable(text: $search, prompt: "Spaces, sessions, or branches")
                 .refreshable { await store.refresh() }
                 .navigationDestination(for: String.self) { ProjectSessionsView(projectID: $0) }
                 .navigationDestination(item: $openedProject) { ProjectSessionsView(projectID: $0.id) }
             }
         }
-        .navigationTitle("Projects")
+        .navigationTitle("Spaces")
     }
 }
 
@@ -441,7 +441,6 @@ struct ProjectSessionsView: View {
 
     private var project: Project? { store.browserProjects.first { $0.id == projectID } }
     private var current: [RemoteSession] { store.sessions(in: projectID, archived: false).filter { $0.matchesSearch(search) } }
-    private var archived: [RemoteSession] { store.sessions(in: projectID, archived: true).filter { $0.matchesSearch(search) } }
 
     var body: some View {
         List {
@@ -467,23 +466,10 @@ struct ProjectSessionsView: View {
                     Text(search.isEmpty ? "No current sessions" : "No matching current sessions").foregroundStyle(.secondary)
                 }
             }
-            Section {
-                ForEach(archived) { session in
-                    // Metadata only: the terminal surface lives exclusively in Sessions.
-                    DisclosureGroup {
-                        ArchivedSessionPreview(sessionID: session.id)
-                    } label: { SessionRow(session: session) }
-                    .modifier(SessionRowContextMenu(sessionID: session.id))
-                }
-                if archived.isEmpty && !store.loading && store.error == nil {
-                    Text(search.isEmpty ? "No archived sessions" : "No matching archived sessions").foregroundStyle(.secondary)
-                }
-            } header: { Text("Archived") } footer: {
-                Text("Reopen a session to move it back to Sessions. Choose Open terminal when you want to connect.")
-            }
+
         }
         .listStyle(.insetGrouped)
-        .navigationTitle(project?.displayName ?? "Project")
+        .navigationTitle(project?.displayName ?? "Space")
         .searchable(text: $search, prompt: "Sessions, agents, or branches")
         .refreshable { await store.refresh() }
     }
@@ -492,62 +478,12 @@ struct ProjectSessionsView: View {
 private struct SessionRowContextMenu: ViewModifier {
     @Environment(AppStore.self) private var store
     let sessionID: String
-    private var session: RemoteSession? { store.sessions.first { $0.id == sessionID } }
-    private var mutationsDisabled: Bool { store.readOnly || store.busy || store.changingComputer }
-
     func body(content: Content) -> some View {
         content.contextMenu {
-            if let session {
-                if session.isArchived {
-                    if session.resumable && store.supports("resume", session: session) {
-                        Button("Reopen session", systemImage: "arrow.counterclockwise") { resume() }.disabled(mutationsDisabled)
-                    }
-                } else {
-                    Button("Open session", systemImage: "terminal") { store.selectSession(id: sessionID) }.disabled(store.changingComputer)
-                    Button("Rename…", systemImage: "pencil") { store.requestSessionPrompt(.rename, sessionID: sessionID) }.disabled(mutationsDisabled || !store.supports("rename", session: session))
-                    Button("Archive session…", systemImage: "archivebox") { store.requestSessionPrompt(.archive, sessionID: sessionID) }.disabled(mutationsDisabled || !store.supports("archive", session: session))
-                    if session.attachable && store.supports("stop", session: session) {
-                        Button("Stop session…", systemImage: "stop.circle", role: .destructive) { store.requestSessionPrompt(.stop, sessionID: sessionID) }.disabled(mutationsDisabled)
-                    } else if session.resumable && store.supports("resume", session: session) {
-                        Button("Resume session", systemImage: "play") { resume() }.disabled(mutationsDisabled)
-                    }
-                }
-            }
-        }
-    }
-    private func resume() {
-        let owner = store.activeComputerID
-        Task {
-            guard owner == store.activeComputerID, !mutationsDisabled, let session, session.resumable else { return }
-            await store.action("resume", session: session)
-        }
-    }
-}
-
-private struct ArchivedSessionPreview: View {
-    @Environment(AppStore.self) private var store
-    let sessionID: String
-
-    var body: some View {
-        // Resolve by ID on every refresh; never act on a navigation snapshot.
-        if let session = store.sessions.first(where: { $0.id == sessionID }), session.isArchived {
-            LabeledContent("Status", value: session.statusLabel)
-            LabeledContent("Agent", value: session.displayAgent)
-            if !session.branch.isEmpty { LabeledContent("Branch", value: session.branch) }
-            if let updated = ISO8601DateFormatter().date(from: session.updatedAt) {
-                LabeledContent("Updated") { Text(updated, format: .dateTime.day().month().year().hour().minute()) }
-            }
-            if session.resumable && store.supports("resume", session: session) {
-                Button {
-                    Task { await store.action("resume", session: session) }
-                } label: {
-                    Label("Reopen session", systemImage: "arrow.counterclockwise")
-                }
-                .disabled(store.readOnly || store.busy)
-                .accessibilityIdentifier("reopen-session-\(session.id)")
-            } else {
-                Text("This session has no saved agent history to resume.").font(.footnote).foregroundStyle(.secondary)
-            }
+            Button("Open terminal", systemImage: "terminal") { store.selectSession(id: sessionID) }
+                .disabled(store.changingComputer)
+            Button("Rename…", systemImage: "pencil") { store.requestSessionPrompt(.rename, sessionID: sessionID) }
+                .disabled(store.readOnly || store.busy || store.changingComputer)
         }
     }
 }
@@ -560,12 +496,12 @@ private struct BrowserStatusSection: View {
             Section { Label(message, systemImage: "exclamationmark.triangle").font(.subheadline).foregroundStyle(.secondary) }
         }
         if store.loading {
-            Section { HStack(spacing: 10) { ProgressView(); Text("Refreshing projects and sessions…").foregroundStyle(.secondary) } }
+            Section { HStack(spacing: 10) { ProgressView(); Text("Refreshing Herdr spaces and sessions…").foregroundStyle(.secondary) } }
         }
         if store.readOnly {
             Section {
                 Label("Read-only access", systemImage: "eye")
-                Text("You can browse all sessions. Enable control on your computer to reopen archived sessions.")
+                Text("You can browse all sessions. Enable control on your computer to open terminals.")
                     .font(.footnote).foregroundStyle(.secondary)
             }
         }
@@ -675,12 +611,12 @@ struct WelcomeView: View {
                     .frame(width: 80, height: 80).background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 24)).accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Your Mac's terminal.\nOn your iPhone.").font(.largeTitle.bold())
-                    Text("Open your Xirp and Herdr sessions from your phone. Connect to the terminal already running on your Mac.")
+                    Text("Open your Herdr sessions from your phone. Connect to the terminal already running on your Mac.")
                         .font(.body).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
                 VStack(alignment: .leading, spacing: 20) {
                     FeatureRow(symbol: "terminal", title: "Your existing terminal", text: "Keep working in the terminal already running on your Mac.")
-                    FeatureRow(symbol: "antenna.radiowaves.left.and.right", title: "Reconnect with Mosh", text: "Mosh reconnects when you return to the app.")
+                    FeatureRow(symbol: "antenna.radiowaves.left.and.right", title: "Live Herdr connection", text: "Reconnect to your Herdr terminal when you return.")
                     FeatureRow(symbol: "lock.shield", title: "Direct to your computer", text: "Connect over your local network or a VPN you have set up.")
                 }
                 Button(action: pair) { Text("Pair a computer").frame(maxWidth: .infinity).padding(.vertical, 6) }

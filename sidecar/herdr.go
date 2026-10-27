@@ -338,6 +338,13 @@ func (s *Service) herdrEnv() []string {
 	return []string{"XDG_CONFIG_HOME=" + s.config.HerdrConfigHome, "HERDR_CONFIG_PATH=" + filepath.Join(s.config.HerdrConfigHome, "herdr", "config.toml")}
 }
 func (s *Service) herdrCommand(ctx context.Context, args ...string) ([]byte, error) {
+	if len(args) == 4 && args[0] == "--session" && args[2] == "api" && args[3] == "snapshot" {
+		if reader, ok := s.runner.(interface {
+			HerdrSnapshot(context.Context, string, string) ([]byte, error)
+		}); ok {
+			return reader.HerdrSnapshot(ctx, s.config.HerdrConfigHome, args[1])
+		}
+	}
 	runner, ok := s.runner.(interface {
 		RunWithEnv(context.Context, string, []string, []string) ([]byte, error)
 	})

@@ -42,12 +42,6 @@ sources.new_file('Info.plist')
   dep.package = pkg; dep.product_name = name; app.package_product_dependencies << dep
   bf = project.new(Xcodeproj::Project::Object::PBXBuildFile); bf.product_ref = dep; app.frameworks_build_phase.files << bf
 end
-pkg = project.new(Xcodeproj::Project::Object::XCLocalSwiftPackageReference)
-pkg.relative_path = '../vendor/swift-mosh'
-project.root_object.package_references << pkg
-dep = project.new(Xcodeproj::Project::Object::XCSwiftPackageProductDependency)
-dep.package = pkg; dep.product_name = 'MoshCore'; app.package_product_dependencies << dep
-bf = project.new(Xcodeproj::Project::Object::PBXBuildFile); bf.product_ref = dep; app.frameworks_build_phase.files << bf
 [:unit_test_bundle, :ui_test_bundle].each do |kind|
   name = kind == :unit_test_bundle ? 'TrillTests' : 'TrillUITests'
   target = project.new_target(kind, name, :ios, '18.0')

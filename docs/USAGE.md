@@ -14,32 +14,13 @@ Under **More → Connection details**, you can check the connection, see the add
 
 **Spaces** (or **Sessions** for Xirp-only computers) shows current work grouped by project or Herdr space, with linked worktrees nested beneath their repository. Search by session, project, or branch. Switch to **Agents** to browse detected coding agents across the active computer’s spaces and worktrees, grouped with **Needs attention** first, then **Working**, **Idle**, and other states. Agent rows include their space/worktree and branch; search also matches the agent and parent space. Shell terminals and archived sessions stay out of the Agents view. Selecting an agent opens its existing session; terminal connection and consent work as usual. Pull to refresh. Provider warnings identify unavailable sources; healthy providers remain browsable. Previously loaded metadata may be marked stale when refreshing fails.
 
-Select a session to view details, then tap **Open terminal** to attach. Browsing the list does not open terminals automatically. Read-only installations show metadata; run `trill control --enable` on the Mac to enable terminal access and session changes.
+Select a live session to open its terminal directly. Read-only installations show metadata; run `trill control --enable` on the Mac to allow terminal access and changes.
 
-Touch and hold a session or open **Session actions** for the actions its provider supports:
-
-| Action | Effect |
-| --- | --- |
-| Rename | Changes the Xirp session name or Herdr pane label. |
-| Disconnect | Closes Trill's transport; the underlying session keeps running. |
-| Archive session | For Xirp, removes it from current lists in Trill and Xirp without stopping it. |
-| Stop session | For supported Xirp sessions, asks for confirmation before stopping work. |
-| Reopen / Resume | For Xirp, returns an archived live session or resumes ended work when history supports it. |
-
-Herdr does not expose Trill archive, stop, or resume actions. A completed agent turn can still have a live terminal. See the full [provider capability matrix](PROVIDERS.md#available-actions).
-
-To find older Xirp work, open **More → Projects and archive → your project → Archived**. Archived, completed, stopped, and failed sessions appear there. Expand a session and choose **Reopen session**. A live archived session returns without restarting; an ended session requires resumable history. After reopening, tap **Open terminal** to connect.
-
-Projects remain browsable even without current sessions. Project search also matches session and branch context.
+Touch and hold a session to open or rename it. **Disconnect** closes the phone attachment and leaves work running. Manage terminal closure and history in Herdr. Spaces remain browsable even without terminals.
 
 ### Create work
 
-Choose **New session**, select a project/workspace, and choose an available session type:
-
-- **Coding agent** uses the agent configured for that Xirp project. Enter an optional name and a goal, then choose **New worktree** for a separate branch/checkout or **Project folder** to share its current branch and files. Review the agent approval before starting.
-- **Terminal** opens a plain shell without starting a coding agent. Xirp uses the project folder; Herdr creates a native terminal tab in the workspace's default directory. You can start an agent there yourself.
-
-Xirp supports coding-session creation. Herdr supports terminal tabs, new spaces in existing Mac folders, and new worktrees from primary repository spaces through the **+** menu. If an action reports an unconfirmed outcome, refresh and check Sessions before retrying so you do not accidentally duplicate work.
+The **+** menu offers **New session**, **New space**, and **New worktree** when supported. A session is a terminal tab in an existing space. Start a coding agent in that terminal. A space uses an existing absolute directory on the Mac; a worktree uses a primary repository space and a branch name. If creation is unconfirmed, inspect Spaces before trying again.
 
 ## Terminals, writing, and dictation
 
@@ -53,19 +34,17 @@ Use **Keyboard** for direct input, including a hardware keyboard. The key strip 
 
 **Insert** puts the reviewed text into the terminal without adding Return. Use **Return** when ready to submit. Quotes and dashes remain literal. Multiline insertion needs bracketed-paste support from the remote terminal.
 
-Shift+Return sends a bracketed newline when supported, or the negotiated extended key. If neither is available, Trill explains that it did not send Return. It does not change tmux settings.
+Shift+Return sends a bracketed newline when supported, or the negotiated extended key. If neither is available, Trill explains that it did not send Return.
 
 **Done** keeps your draft while Trill is open and cancels unfinished photo uploads. Drafts are held in memory per computer and session. After an interruption, Trill never automatically retries insertion; check the remote terminal before inserting again.
 
-For Xirp terminal history beyond Mosh's current screen, use tmux copy mode. Available scrollback and copy behavior also depend on your terminal/provider configuration.
+Swipe the terminal to scroll through Herdr’s history. Gestures send explicit scroll commands with their touched cell, preserving mouse-aware applications’ behavior.
 
 ### Backgrounding and recovery
 
-When you return from the background, Trill first tries to resume the Mosh connection for each terminal you left open. If it cannot confirm a response, it obtains a fresh connection to the same terminal. Input stays disabled until recovery succeeds. Temporary failures retry with increasing delays while the app is active; **Retry now** can request an earlier attempt.
+Leaving the terminal or backgrounding the app returns control and sizing to Herdr. Returning obtains a fresh HTTPS stream after cleanup. Input remains disabled until connected. Temporary failures retry while foreground with increasing delays; **Retry now** requests an earlier attempt.
 
-Disconnecting, archiving, stopping, or forgetting the computer cancels recovery. An access rejection or a session that is no longer attachable needs user action. Unsent drafts are not inserted during recovery.
-
-After iOS evicts the entire app process, explicitly open the terminal again. There is no push service. The Mac and provider must remain running and reachable; physical-device network roaming is still part of release validation.
+Explicit Disconnect or forgetting a computer cancels recovery. An access rejection or closed terminal requires user action. Unsent drafts and terminal input are never replayed. After process eviction, select the live terminal again. Your Mac and Herdr must remain reachable. There is no push service.
 
 ## Files, images, and videos
 

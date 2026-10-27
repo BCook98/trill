@@ -3,236 +3,237 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 60;
+	objectVersion = 46;
 	objects = {
 
 /* Begin PBXBuildFile section */
-		065FFC59A5E8D904A6C7F749 /* WorkspaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 549528F131BA8CB504EE2D74 /* WorkspaceView.swift */; };
-		0FA9C5E68EB66F93B41B6A8D /* Acknowledgements.txt in Resources */ = {isa = PBXBuildFile; fileRef = 15603766485ECC04B9246A1B /* Acknowledgements.txt */; };
-		1A1E1E56A437F0CEAACD9115 /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; productRef = 56D2B3BC25CC13E5623E11B3 /* SwiftTerm */; };
-		2073F5784AEFE94A7AB35679 /* TrillUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FE8BA8AB04434D5AC0F4242 /* TrillUITests.swift */; };
-		2F05BBE5D89EBDABCFD5CFB5 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E574813D7E3DB226D35F79D4 /* Foundation.framework */; };
-		3CC72761FC9A46E825196A92 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BF576B32DFE2952BC0F11DDC /* Assets.xcassets */; };
-		433A1F6348BD4C058CB5D9B6 /* PrivacyPolicy.txt in Resources */ = {isa = PBXBuildFile; fileRef = BAE61D54EABA7393CE802893 /* PrivacyPolicy.txt */; };
-		443A24D7F93F52D53B4B6877 /* PrivacyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87CF267723DAABDE1E89178E /* PrivacyView.swift */; };
-		48D3D9AB9A594F879AA601C1 /* SessionBrowserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BC5B0A94C564CFEA4DF34C0 /* SessionBrowserTests.swift */; };
-		4A92309E4DE2ED859C36CFD9 /* PairingScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0440FCCE7E1D386FB16744D5 /* PairingScanner.swift */; };
-		5DCA9B2AB197DD267ACBF6B7 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E574813D7E3DB226D35F79D4 /* Foundation.framework */; };
-		66B005EC549534F9BFBF904C /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA08BD032008F14653C384C /* RootView.swift */; };
-		7CA378EFF53B44495F2FC270 /* ComputersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05A0A5007161419275E356FF /* ComputersView.swift */; };
-		81EBA08AA60D5EE61132B495 /* ComputerSwitchingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF6EF38BA7BF7769BAF327FB /* ComputerSwitchingTests.swift */; };
-		85DD8674984BEBF011790020 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E574813D7E3DB226D35F79D4 /* Foundation.framework */; };
-		90BD496A810019D8DCB1E370 /* WorkspacePreviewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2D7B2E0CA97E179055323C0 /* WorkspacePreviewTests.swift */; };
-		90CF40FD6FD06C0993B70F31 /* ComputerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F023C1F8E6365D5261CDBF44 /* ComputerView.swift */; };
-		921A11B60E6DF64E89418980 /* PairingInvitation.swift in Sources */ = {isa = PBXBuildFile; fileRef = F06812BCD0714334016A79BB /* PairingInvitation.swift */; };
-		993030DDC14ED2D29FE867AD /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B8E78AE24E59B8404012170 /* APIClient.swift */; };
-		B2C282A1C38731744C284CE2 /* SessionDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5453DCD5C45800C8567D9D2E /* SessionDetailView.swift */; };
-		B5E98932EBF1F1BEAF99F608 /* MoshCore in Frameworks */ = {isa = PBXBuildFile; productRef = 49556EE0D4111647A32ED469 /* MoshCore */; };
-		C2AE090BE1478CD92C063534 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 3F6E87A28DE9BEED4ADDA5E4 /* PrivacyInfo.xcprivacy */; };
-		C626CC6611FAFFF2A9E72471 /* TerminalInputTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C50C41FF31FE48735DC0EB0F /* TerminalInputTests.swift */; };
-		C72F72D3EAF1935210F0079C /* ModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 544CC782D5D92E59131D1EB7 /* ModelTests.swift */; };
-		D1BDFB2CEDCFB4E4A3505BD9 /* ComputerLibraryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64B8980CA4CE8EC15D7292BC /* ComputerLibraryTests.swift */; };
-		ECF04597AB0DE538460C0824 /* AppStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80825E86AFA39E9421CFFD4 /* AppStore.swift */; };
-		EEB7E8CF503E039C75804DEB /* TerminalConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 348EDFEDF854428FF6B338CB /* TerminalConnection.swift */; };
-		F63C7EE894EAB12315AC4B7A /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64BC88ECD640CDC8995114C3 /* Models.swift */; };
-		F97F716EC561E0F04467DF86 /* ComputerLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74E184C1BBECD83C7AB10373 /* ComputerLibrary.swift */; };
-		F9AA5855F8C172B34A492B9E /* TerminalViewportRegion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 963846511FE439F709A98CEF /* TerminalViewportRegion.swift */; };
+		02E610B8101603A19C770899 /* SessionDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7E9B936E2D538B938A7F0E1 /* SessionDetailView.swift */; };
+		0499284CE837B6A980CC271C /* ComputerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 560C9368072B22A25028AE49 /* ComputerView.swift */; };
+		06EC48F7F2F084CB5C60400C /* ComputerLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73249FA13D3AB9FEC4490B98 /* ComputerLibrary.swift */; };
+		07FD6A4D9FD2ED7283D8CBAA /* WorkspacePreviewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 284E14E488D5502ED2A1F69C /* WorkspacePreviewTests.swift */; };
+		0B7E8C9ADB1EA62D9D046F42 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4F012ECC39A4E083EDE18D52 /* Foundation.framework */; };
+		142BA5131A12A7105151471A /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4F012ECC39A4E083EDE18D52 /* Foundation.framework */; };
+		2692236150212D8001FE9FF2 /* PrivacyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 993726B6E84849F6E6EBB809 /* PrivacyView.swift */; };
+		332E74EF5FCF569FA7EE5C7A /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F68329A2F5C4746FAB2536B6 /* RootView.swift */; };
+		3E0636CA26BD9C88A9C9ECA6 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5B380E9F5847DC72365528D /* APIClient.swift */; };
+		4181228AF3E8F6956E9E6998 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 33EA8F05B1DDA42E669AE5FD /* PrivacyInfo.xcprivacy */; };
+		4E1A3255C461206BFDCFC880 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4F012ECC39A4E083EDE18D52 /* Foundation.framework */; };
+		4F8ACA5734CB465B0608895D /* WorkspaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06B481BDFAE41D276E493FFC /* WorkspaceView.swift */; };
+		53735E901F3A25AAEAF14A18 /* ComputerSwitchingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A06D4112FDFB42A3FAB80EC /* ComputerSwitchingTests.swift */; };
+		57EFBFA7F931B871E6BDF5E7 /* SessionBrowserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97D2C12A7115A13D36785847 /* SessionBrowserTests.swift */; };
+		5B570039D14991E3FB62CBC7 /* AppStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8F5B6D46D33D32E21E81C0B /* AppStore.swift */; };
+		5C6E4500987465363A3DD9AA /* PairingScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8084ED45DEDB50AAAA88822 /* PairingScanner.swift */; };
+		6B0A04AB56E23AC196B65C22 /* TerminalInputTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88177B568BA50F225A4E62AD /* TerminalInputTests.swift */; };
+		773891FB43B2C7CBEDACCCA6 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BB8682EB07A28168C27E5F5D /* Assets.xcassets */; };
+		7F62C1CB7963E4B738DEFD3F /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 399FAAD2452D9EBB8657B27E /* Models.swift */; };
+		813119C384A384F47CA02082 /* ModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202A50AF5C67798442550F53 /* ModelTests.swift */; };
+		8727084B33B3DA832813FAD2 /* TerminalConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6101AD07708408A4AD9E368 /* TerminalConnection.swift */; };
+		9220862420ACD54B15AF25BF /* PrivacyPolicy.txt in Resources */ = {isa = PBXBuildFile; fileRef = 2F0617BEDF95942A1A63F092 /* PrivacyPolicy.txt */; };
+		9690B142CDD929F6F79694E4 /* PairingInvitation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DBE113EE6B4E753F3BDB3D8 /* PairingInvitation.swift */; };
+		A3193E046051FCEB29847E8D /* TerminalViewportRegion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B52A1576EFBB1109809ABA7 /* TerminalViewportRegion.swift */; };
+		A4A3CD36CC838633484F49C1 /* Acknowledgements.txt in Resources */ = {isa = PBXBuildFile; fileRef = AD69E8F982EA8FFDFB0D0CE4 /* Acknowledgements.txt */; };
+		A96860450BBA644956F56677 /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; productRef = C9294CCACBAD12D1FC37A842 /* SwiftTerm */; };
+		B2DBEC48B507B8DDC703D5CE /* ComputerLibraryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14D2076523B63A69AC91D72C /* ComputerLibraryTests.swift */; };
+		D40289EA384ED0FBF3D47DFF /* TrillUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA01AC07509CCB1650D6D3DB /* TrillUITests.swift */; };
+		DDC888C4661E5C6A124BF9A7 /* ComputersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D4FB9CED906D2EC4CD5BBAE /* ComputersView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
-		74E2FF8413CD0DAB007BFD04 /* PBXContainerItemProxy */ = {
+		1FB23BAC54DAADFB77A05FC8 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
-			containerPortal = D38FCCBB32D34BF1929C9B8B /* Project object */;
+			containerPortal = EEFD4D2BAE146A39181E1D52 /* Project object */;
 			proxyType = 1;
-			remoteGlobalIDString = 2554CA50B12F36EB8E9A7B79;
+			remoteGlobalIDString = 176083639EA1A282472CD169;
 			remoteInfo = Trill;
 		};
-		D33909C84904BF31498F6F82 /* PBXContainerItemProxy */ = {
+		980DFC325988BE4CD10FA9D5 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
-			containerPortal = D38FCCBB32D34BF1929C9B8B /* Project object */;
+			containerPortal = EEFD4D2BAE146A39181E1D52 /* Project object */;
 			proxyType = 1;
-			remoteGlobalIDString = 2554CA50B12F36EB8E9A7B79;
+			remoteGlobalIDString = 176083639EA1A282472CD169;
 			remoteInfo = Trill;
 		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		0440FCCE7E1D386FB16744D5 /* PairingScanner.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PairingScanner.swift; sourceTree = "<group>"; };
-		05A0A5007161419275E356FF /* ComputersView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ComputersView.swift; sourceTree = "<group>"; };
-		15603766485ECC04B9246A1B /* Acknowledgements.txt */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text; path = Acknowledgements.txt; sourceTree = "<group>"; };
-		348EDFEDF854428FF6B338CB /* TerminalConnection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TerminalConnection.swift; sourceTree = "<group>"; };
-		3BC5B0A94C564CFEA4DF34C0 /* SessionBrowserTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SessionBrowserTests.swift; sourceTree = "<group>"; };
-		3F6E87A28DE9BEED4ADDA5E4 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
-		544CC782D5D92E59131D1EB7 /* ModelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ModelTests.swift; sourceTree = "<group>"; };
-		5453DCD5C45800C8567D9D2E /* SessionDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SessionDetailView.swift; sourceTree = "<group>"; };
-		549528F131BA8CB504EE2D74 /* WorkspaceView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WorkspaceView.swift; sourceTree = "<group>"; };
-		5B8E78AE24E59B8404012170 /* APIClient.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
-		610B28661B627F2FFC7BC3BC /* TrillUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TrillUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		64B8980CA4CE8EC15D7292BC /* ComputerLibraryTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ComputerLibraryTests.swift; sourceTree = "<group>"; };
-		64BC88ECD640CDC8995114C3 /* Models.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
-		74E184C1BBECD83C7AB10373 /* ComputerLibrary.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ComputerLibrary.swift; sourceTree = "<group>"; };
-		7FE8BA8AB04434D5AC0F4242 /* TrillUITests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TrillUITests.swift; sourceTree = "<group>"; };
-		87CF267723DAABDE1E89178E /* PrivacyView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PrivacyView.swift; sourceTree = "<group>"; };
-		963846511FE439F709A98CEF /* TerminalViewportRegion.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TerminalViewportRegion.swift; sourceTree = "<group>"; };
-		AAA08BD032008F14653C384C /* RootView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
-		AD893EF8D03E2A73272573A5 /* Trill.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Trill.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		BAE61D54EABA7393CE802893 /* PrivacyPolicy.txt */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text; path = PrivacyPolicy.txt; sourceTree = "<group>"; };
-		BF576B32DFE2952BC0F11DDC /* Assets.xcassets */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		BF6EF38BA7BF7769BAF327FB /* ComputerSwitchingTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ComputerSwitchingTests.swift; sourceTree = "<group>"; };
-		C2D7B2E0CA97E179055323C0 /* WorkspacePreviewTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WorkspacePreviewTests.swift; sourceTree = "<group>"; };
-		C50C41FF31FE48735DC0EB0F /* TerminalInputTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TerminalInputTests.swift; sourceTree = "<group>"; };
-		D7D78D03572BE4378794C4A1 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		D80825E86AFA39E9421CFFD4 /* AppStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppStore.swift; sourceTree = "<group>"; };
-		E574813D7E3DB226D35F79D4 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
-		ED443F64437D1C18507CB629 /* TrillTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TrillTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		F023C1F8E6365D5261CDBF44 /* ComputerView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ComputerView.swift; sourceTree = "<group>"; };
-		F06812BCD0714334016A79BB /* PairingInvitation.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PairingInvitation.swift; sourceTree = "<group>"; };
-		F502541500A5AC8A94C8FE73 /* Version.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; path = Version.xcconfig; sourceTree = "<group>"; };
+		06B481BDFAE41D276E493FFC /* WorkspaceView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WorkspaceView.swift; sourceTree = "<group>"; };
+		14D2076523B63A69AC91D72C /* ComputerLibraryTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ComputerLibraryTests.swift; sourceTree = "<group>"; };
+		1A06D4112FDFB42A3FAB80EC /* ComputerSwitchingTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ComputerSwitchingTests.swift; sourceTree = "<group>"; };
+		1DDE7B91A4EDF8D630FDF967 /* Trill.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Trill.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		202A50AF5C67798442550F53 /* ModelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ModelTests.swift; sourceTree = "<group>"; };
+		284E14E488D5502ED2A1F69C /* WorkspacePreviewTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WorkspacePreviewTests.swift; sourceTree = "<group>"; };
+		2F0617BEDF95942A1A63F092 /* PrivacyPolicy.txt */ = {isa = PBXFileReference; includeInIndex = 1; path = PrivacyPolicy.txt; sourceTree = "<group>"; };
+		33EA8F05B1DDA42E669AE5FD /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		389951861130A9BC1C6E8C3E /* TrillTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TrillTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		399FAAD2452D9EBB8657B27E /* Models.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		3DBE113EE6B4E753F3BDB3D8 /* PairingInvitation.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PairingInvitation.swift; sourceTree = "<group>"; };
+		4D4FB9CED906D2EC4CD5BBAE /* ComputersView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ComputersView.swift; sourceTree = "<group>"; };
+		4F012ECC39A4E083EDE18D52 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
+		560C9368072B22A25028AE49 /* ComputerView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ComputerView.swift; sourceTree = "<group>"; };
+		6B52A1576EFBB1109809ABA7 /* TerminalViewportRegion.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TerminalViewportRegion.swift; sourceTree = "<group>"; };
+		73249FA13D3AB9FEC4490B98 /* ComputerLibrary.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ComputerLibrary.swift; sourceTree = "<group>"; };
+		88177B568BA50F225A4E62AD /* TerminalInputTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TerminalInputTests.swift; sourceTree = "<group>"; };
+		92141E42A345860073BD01DA /* TrillUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TrillUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		97D2C12A7115A13D36785847 /* SessionBrowserTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SessionBrowserTests.swift; sourceTree = "<group>"; };
+		993726B6E84849F6E6EBB809 /* PrivacyView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PrivacyView.swift; sourceTree = "<group>"; };
+		A6101AD07708408A4AD9E368 /* TerminalConnection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TerminalConnection.swift; sourceTree = "<group>"; };
+		A8084ED45DEDB50AAAA88822 /* PairingScanner.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PairingScanner.swift; sourceTree = "<group>"; };
+		A8F5B6D46D33D32E21E81C0B /* AppStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppStore.swift; sourceTree = "<group>"; };
+		AD69E8F982EA8FFDFB0D0CE4 /* Acknowledgements.txt */ = {isa = PBXFileReference; includeInIndex = 1; path = Acknowledgements.txt; sourceTree = "<group>"; };
+		BB8682EB07A28168C27E5F5D /* Assets.xcassets */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		BC5E798B88995FB0B36FD982 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		C7E9B936E2D538B938A7F0E1 /* SessionDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SessionDetailView.swift; sourceTree = "<group>"; };
+		E7CD470FD1FFB8B63D0F53F5 /* Version.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; path = Version.xcconfig; sourceTree = "<group>"; };
+		EA01AC07509CCB1650D6D3DB /* TrillUITests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TrillUITests.swift; sourceTree = "<group>"; };
+		F5B380E9F5847DC72365528D /* APIClient.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
+		F68329A2F5C4746FAB2536B6 /* RootView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		35332A7441752E1D4352C6CE /* Frameworks */ = {
+		5C381BBF03BC83E6DD92516F /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				5DCA9B2AB197DD267ACBF6B7 /* Foundation.framework in Frameworks */,
+				4E1A3255C461206BFDCFC880 /* Foundation.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		35E43730BC6F888B2064D847 /* Frameworks */ = {
+		A346E97A84529E003CC02DF7 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				2F05BBE5D89EBDABCFD5CFB5 /* Foundation.framework in Frameworks */,
+				0B7E8C9ADB1EA62D9D046F42 /* Foundation.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		62861FC188CF55880FD1813E /* Frameworks */ = {
+		F26E03C2991441BAFCE5230F /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				85DD8674984BEBF011790020 /* Foundation.framework in Frameworks */,
-				1A1E1E56A437F0CEAACD9115 /* SwiftTerm in Frameworks */,
-				B5E98932EBF1F1BEAF99F608 /* MoshCore in Frameworks */,
+				142BA5131A12A7105151471A /* Foundation.framework in Frameworks */,
+				A96860450BBA644956F56677 /* SwiftTerm in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		0756502707A59E79E5792E73 /* Products */ = {
+		071BC243A3F466B402578F37 = {
 			isa = PBXGroup;
 			children = (
-				AD893EF8D03E2A73272573A5 /* Trill.app */,
-				ED443F64437D1C18507CB629 /* TrillTests.xctest */,
-				610B28661B627F2FFC7BC3BC /* TrillUITests.xctest */,
+				55AAB8F630411F4C6C802C70 /* Products */,
+				DEEB25807575927F331FA2F0 /* Frameworks */,
+				E7CD470FD1FFB8B63D0F53F5 /* Version.xcconfig */,
+				9FCBD49480AA979CD8DAF011 /* Trill */,
+				163C552E727706EF0FE996BB /* TrillTests */,
+				57A667CBB581DAAFB6637B89 /* TrillUITests */,
+			);
+			sourceTree = "<group>";
+		};
+		163C552E727706EF0FE996BB /* TrillTests */ = {
+			isa = PBXGroup;
+			children = (
+				14D2076523B63A69AC91D72C /* ComputerLibraryTests.swift */,
+				1A06D4112FDFB42A3FAB80EC /* ComputerSwitchingTests.swift */,
+				202A50AF5C67798442550F53 /* ModelTests.swift */,
+				97D2C12A7115A13D36785847 /* SessionBrowserTests.swift */,
+				88177B568BA50F225A4E62AD /* TerminalInputTests.swift */,
+				284E14E488D5502ED2A1F69C /* WorkspacePreviewTests.swift */,
+			);
+			name = TrillTests;
+			path = TrillTests;
+			sourceTree = "<group>";
+		};
+		4FFF4092691C6D933AEEC635 /* iOS */ = {
+			isa = PBXGroup;
+			children = (
+				4F012ECC39A4E083EDE18D52 /* Foundation.framework */,
+			);
+			name = iOS;
+			sourceTree = "<group>";
+		};
+		55AAB8F630411F4C6C802C70 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				1DDE7B91A4EDF8D630FDF967 /* Trill.app */,
+				389951861130A9BC1C6E8C3E /* TrillTests.xctest */,
+				92141E42A345860073BD01DA /* TrillUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
 		};
-		12B7E43849AE840817D69B08 /* TrillUITests */ = {
+		57A667CBB581DAAFB6637B89 /* TrillUITests */ = {
 			isa = PBXGroup;
 			children = (
-				7FE8BA8AB04434D5AC0F4242 /* TrillUITests.swift */,
+				EA01AC07509CCB1650D6D3DB /* TrillUITests.swift */,
 			);
+			name = TrillUITests;
 			path = TrillUITests;
 			sourceTree = "<group>";
 		};
-		50D18A6F9998C0289C2397EA /* TrillTests */ = {
+		9FCBD49480AA979CD8DAF011 /* Trill */ = {
 			isa = PBXGroup;
 			children = (
-				544CC782D5D92E59131D1EB7 /* ModelTests.swift */,
-				3BC5B0A94C564CFEA4DF34C0 /* SessionBrowserTests.swift */,
-				64B8980CA4CE8EC15D7292BC /* ComputerLibraryTests.swift */,
-				BF6EF38BA7BF7769BAF327FB /* ComputerSwitchingTests.swift */,
-				C2D7B2E0CA97E179055323C0 /* WorkspacePreviewTests.swift */,
-				C50C41FF31FE48735DC0EB0F /* TerminalInputTests.swift */,
+				F5B380E9F5847DC72365528D /* APIClient.swift */,
+				A8F5B6D46D33D32E21E81C0B /* AppStore.swift */,
+				73249FA13D3AB9FEC4490B98 /* ComputerLibrary.swift */,
+				560C9368072B22A25028AE49 /* ComputerView.swift */,
+				4D4FB9CED906D2EC4CD5BBAE /* ComputersView.swift */,
+				399FAAD2452D9EBB8657B27E /* Models.swift */,
+				3DBE113EE6B4E753F3BDB3D8 /* PairingInvitation.swift */,
+				A8084ED45DEDB50AAAA88822 /* PairingScanner.swift */,
+				993726B6E84849F6E6EBB809 /* PrivacyView.swift */,
+				F68329A2F5C4746FAB2536B6 /* RootView.swift */,
+				C7E9B936E2D538B938A7F0E1 /* SessionDetailView.swift */,
+				A6101AD07708408A4AD9E368 /* TerminalConnection.swift */,
+				6B52A1576EFBB1109809ABA7 /* TerminalViewportRegion.swift */,
+				06B481BDFAE41D276E493FFC /* WorkspaceView.swift */,
+				BB8682EB07A28168C27E5F5D /* Assets.xcassets */,
+				BC5E798B88995FB0B36FD982 /* Info.plist */,
+				33EA8F05B1DDA42E669AE5FD /* PrivacyInfo.xcprivacy */,
+				2F0617BEDF95942A1A63F092 /* PrivacyPolicy.txt */,
+				AD69E8F982EA8FFDFB0D0CE4 /* Acknowledgements.txt */,
 			);
-			path = TrillTests;
-			sourceTree = "<group>";
-		};
-		5FADB0329E186D1E3B1EC240 /* Trill */ = {
-			isa = PBXGroup;
-			children = (
-				5B8E78AE24E59B8404012170 /* APIClient.swift */,
-				D80825E86AFA39E9421CFFD4 /* AppStore.swift */,
-				F023C1F8E6365D5261CDBF44 /* ComputerView.swift */,
-				64BC88ECD640CDC8995114C3 /* Models.swift */,
-				AAA08BD032008F14653C384C /* RootView.swift */,
-				5453DCD5C45800C8567D9D2E /* SessionDetailView.swift */,
-				348EDFEDF854428FF6B338CB /* TerminalConnection.swift */,
-				BF576B32DFE2952BC0F11DDC /* Assets.xcassets */,
-				D7D78D03572BE4378794C4A1 /* Info.plist */,
-				963846511FE439F709A98CEF /* TerminalViewportRegion.swift */,
-				F06812BCD0714334016A79BB /* PairingInvitation.swift */,
-				0440FCCE7E1D386FB16744D5 /* PairingScanner.swift */,
-				87CF267723DAABDE1E89178E /* PrivacyView.swift */,
-				3F6E87A28DE9BEED4ADDA5E4 /* PrivacyInfo.xcprivacy */,
-				BAE61D54EABA7393CE802893 /* PrivacyPolicy.txt */,
-				15603766485ECC04B9246A1B /* Acknowledgements.txt */,
-				549528F131BA8CB504EE2D74 /* WorkspaceView.swift */,
-				74E184C1BBECD83C7AB10373 /* ComputerLibrary.swift */,
-				05A0A5007161419275E356FF /* ComputersView.swift */,
-			);
+			name = Trill;
 			path = Trill;
 			sourceTree = "<group>";
 		};
-		68EB817A524D541AF6EC33D6 = {
+		DEEB25807575927F331FA2F0 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
-				0756502707A59E79E5792E73 /* Products */,
-				E5FB6791AB2E5B39C67EC292 /* Frameworks */,
-				5FADB0329E186D1E3B1EC240 /* Trill */,
-				50D18A6F9998C0289C2397EA /* TrillTests */,
-				12B7E43849AE840817D69B08 /* TrillUITests */,
-				F502541500A5AC8A94C8FE73 /* Version.xcconfig */,
-			);
-			sourceTree = "<group>";
-		};
-		E5FB6791AB2E5B39C67EC292 /* Frameworks */ = {
-			isa = PBXGroup;
-			children = (
-				EA9FAFF77861EA9045752C6D /* iOS */,
+				4FFF4092691C6D933AEEC635 /* iOS */,
 			);
 			name = Frameworks;
-			sourceTree = "<group>";
-		};
-		EA9FAFF77861EA9045752C6D /* iOS */ = {
-			isa = PBXGroup;
-			children = (
-				E574813D7E3DB226D35F79D4 /* Foundation.framework */,
-			);
-			name = iOS;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		1695200190A7609FADA9429C /* TrillTests */ = {
+		0FD4755F0A0D62ABC0EEA7E4 /* TrillUITests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = BC38EBEFFCF116CBDAD8DBDF /* Build configuration list for PBXNativeTarget "TrillTests" */;
+			buildConfigurationList = 6FC2A6B8F99102FAC90BDB19 /* Build configuration list for PBXNativeTarget "TrillUITests" */;
 			buildPhases = (
-				DA22775D72A7F520085E4B7C /* Sources */,
-				35332A7441752E1D4352C6CE /* Frameworks */,
-				9063620C7223673117C80AF4 /* Resources */,
+				E78C4F266D003E4DA3B7AF3C /* Sources */,
+				A346E97A84529E003CC02DF7 /* Frameworks */,
+				049743DAAA2C43B40253CEB8 /* Resources */,
 			);
 			buildRules = (
 			);
 			dependencies = (
-				D1A6A228433CB94EE3FBDD39 /* PBXTargetDependency */,
+				1CBDD9C6BBB64DBABA1182FC /* PBXTargetDependency */,
 			);
-			name = TrillTests;
-			productName = TrillTests;
-			productReference = ED443F64437D1C18507CB629 /* TrillTests.xctest */;
-			productType = "com.apple.product-type.bundle.unit-test";
+			name = TrillUITests;
+			productName = TrillUITests;
+			productReference = 92141E42A345860073BD01DA /* TrillUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
 		};
-		2554CA50B12F36EB8E9A7B79 /* Trill */ = {
+		176083639EA1A282472CD169 /* Trill */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 0F41C937A6180A21961EE1DA /* Build configuration list for PBXNativeTarget "Trill" */;
+			buildConfigurationList = A2F7FA1C91EF757006D67A31 /* Build configuration list for PBXNativeTarget "Trill" */;
 			buildPhases = (
-				52232578EFC7EFFD472CE556 /* Sources */,
-				62861FC188CF55880FD1813E /* Frameworks */,
-				6C8789E11CFA26D424440A1E /* Resources */,
+				C3F564269277C41B96DD7171 /* Sources */,
+				F26E03C2991441BAFCE5230F /* Frameworks */,
+				CBE3EE31CF984E18939CF216 /* Resources */,
 			);
 			buildRules = (
 			);
@@ -240,42 +241,41 @@
 			);
 			name = Trill;
 			packageProductDependencies = (
-				56D2B3BC25CC13E5623E11B3 /* SwiftTerm */,
-				49556EE0D4111647A32ED469 /* MoshCore */,
+				C9294CCACBAD12D1FC37A842 /* SwiftTerm */,
 			);
 			productName = Trill;
-			productReference = AD893EF8D03E2A73272573A5 /* Trill.app */;
+			productReference = 1DDE7B91A4EDF8D630FDF967 /* Trill.app */;
 			productType = "com.apple.product-type.application";
 		};
-		7976CE56AADC471AD48FBB2E /* TrillUITests */ = {
+		B423FEFA3E641813C04B0D74 /* TrillTests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 93687941FC23620A74EFC734 /* Build configuration list for PBXNativeTarget "TrillUITests" */;
+			buildConfigurationList = B4CA7CA820B4E03784B56359 /* Build configuration list for PBXNativeTarget "TrillTests" */;
 			buildPhases = (
-				4AAA9B859CFAE15BE412F7D4 /* Sources */,
-				35E43730BC6F888B2064D847 /* Frameworks */,
-				5ED028D777F6D58387C0A03F /* Resources */,
+				9453FD8C1BAF35534A11BA77 /* Sources */,
+				5C381BBF03BC83E6DD92516F /* Frameworks */,
+				F04C3CFA5DEF06CA82B77932 /* Resources */,
 			);
 			buildRules = (
 			);
 			dependencies = (
-				3397B096075EB3244AE91E12 /* PBXTargetDependency */,
+				5DC6A780398532F2A1D9E31D /* PBXTargetDependency */,
 			);
-			name = TrillUITests;
-			productName = TrillUITests;
-			productReference = 610B28661B627F2FFC7BC3BC /* TrillUITests.xctest */;
-			productType = "com.apple.product-type.bundle.ui-testing";
+			name = TrillTests;
+			productName = TrillTests;
+			productReference = 389951861130A9BC1C6E8C3E /* TrillTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
 		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
-		D38FCCBB32D34BF1929C9B8B /* Project object */ = {
+		EEFD4D2BAE146A39181E1D52 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 1600;
 				LastUpgradeCheck = 2710;
 			};
-			buildConfigurationList = 1E347A2113E5709A63A5AF04 /* Build configuration list for PBXProject "Trill" */;
+			buildConfigurationList = 61AEA78EFDE17D12B1451C0C /* Build configuration list for PBXProject "Trill" */;
 			compatibilityVersion = "Xcode 3.2";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -283,42 +283,43 @@
 				en,
 				Base,
 			);
-			mainGroup = 68EB817A524D541AF6EC33D6;
+			mainGroup = 071BC243A3F466B402578F37;
+			minimizedProjectReferenceProxies = 0;
 			packageReferences = (
-				491D6702877C1639B9428157 /* XCLocalSwiftPackageReference "../vendor/SwiftTerm" */,
-				2014D66EFE7F2DC60B52C1F8 /* XCLocalSwiftPackageReference "../vendor/swift-mosh" */,
+				C385785F8C6727D712E9788F /* XCLocalSwiftPackageReference "SwiftTerm" */,
 			);
-			productRefGroup = 0756502707A59E79E5792E73 /* Products */;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 55AAB8F630411F4C6C802C70 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				2554CA50B12F36EB8E9A7B79 /* Trill */,
-				1695200190A7609FADA9429C /* TrillTests */,
-				7976CE56AADC471AD48FBB2E /* TrillUITests */,
+				176083639EA1A282472CD169 /* Trill */,
+				B423FEFA3E641813C04B0D74 /* TrillTests */,
+				0FD4755F0A0D62ABC0EEA7E4 /* TrillUITests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		5ED028D777F6D58387C0A03F /* Resources */ = {
+		049743DAAA2C43B40253CEB8 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		6C8789E11CFA26D424440A1E /* Resources */ = {
+		CBE3EE31CF984E18939CF216 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				3CC72761FC9A46E825196A92 /* Assets.xcassets in Resources */,
-				C2AE090BE1478CD92C063534 /* PrivacyInfo.xcprivacy in Resources */,
-				433A1F6348BD4C058CB5D9B6 /* PrivacyPolicy.txt in Resources */,
-				0FA9C5E68EB66F93B41B6A8D /* Acknowledgements.txt in Resources */,
+				773891FB43B2C7CBEDACCCA6 /* Assets.xcassets in Resources */,
+				4181228AF3E8F6956E9E6998 /* PrivacyInfo.xcprivacy in Resources */,
+				9220862420ACD54B15AF25BF /* PrivacyPolicy.txt in Resources */,
+				A4A3CD36CC838633484F49C1 /* Acknowledgements.txt in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		9063620C7223673117C80AF4 /* Resources */ = {
+		F04C3CFA5DEF06CA82B77932 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -328,243 +329,67 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		4AAA9B859CFAE15BE412F7D4 /* Sources */ = {
+		9453FD8C1BAF35534A11BA77 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				2073F5784AEFE94A7AB35679 /* TrillUITests.swift in Sources */,
+				B2DBEC48B507B8DDC703D5CE /* ComputerLibraryTests.swift in Sources */,
+				53735E901F3A25AAEAF14A18 /* ComputerSwitchingTests.swift in Sources */,
+				813119C384A384F47CA02082 /* ModelTests.swift in Sources */,
+				57EFBFA7F931B871E6BDF5E7 /* SessionBrowserTests.swift in Sources */,
+				6B0A04AB56E23AC196B65C22 /* TerminalInputTests.swift in Sources */,
+				07FD6A4D9FD2ED7283D8CBAA /* WorkspacePreviewTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		52232578EFC7EFFD472CE556 /* Sources */ = {
+		C3F564269277C41B96DD7171 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				993030DDC14ED2D29FE867AD /* APIClient.swift in Sources */,
-				ECF04597AB0DE538460C0824 /* AppStore.swift in Sources */,
-				90CF40FD6FD06C0993B70F31 /* ComputerView.swift in Sources */,
-				F63C7EE894EAB12315AC4B7A /* Models.swift in Sources */,
-				66B005EC549534F9BFBF904C /* RootView.swift in Sources */,
-				B2C282A1C38731744C284CE2 /* SessionDetailView.swift in Sources */,
-				EEB7E8CF503E039C75804DEB /* TerminalConnection.swift in Sources */,
-				F9AA5855F8C172B34A492B9E /* TerminalViewportRegion.swift in Sources */,
-				921A11B60E6DF64E89418980 /* PairingInvitation.swift in Sources */,
-				4A92309E4DE2ED859C36CFD9 /* PairingScanner.swift in Sources */,
-				443A24D7F93F52D53B4B6877 /* PrivacyView.swift in Sources */,
-				065FFC59A5E8D904A6C7F749 /* WorkspaceView.swift in Sources */,
-				F97F716EC561E0F04467DF86 /* ComputerLibrary.swift in Sources */,
-				7CA378EFF53B44495F2FC270 /* ComputersView.swift in Sources */,
+				3E0636CA26BD9C88A9C9ECA6 /* APIClient.swift in Sources */,
+				5B570039D14991E3FB62CBC7 /* AppStore.swift in Sources */,
+				06EC48F7F2F084CB5C60400C /* ComputerLibrary.swift in Sources */,
+				0499284CE837B6A980CC271C /* ComputerView.swift in Sources */,
+				DDC888C4661E5C6A124BF9A7 /* ComputersView.swift in Sources */,
+				7F62C1CB7963E4B738DEFD3F /* Models.swift in Sources */,
+				9690B142CDD929F6F79694E4 /* PairingInvitation.swift in Sources */,
+				5C6E4500987465363A3DD9AA /* PairingScanner.swift in Sources */,
+				2692236150212D8001FE9FF2 /* PrivacyView.swift in Sources */,
+				332E74EF5FCF569FA7EE5C7A /* RootView.swift in Sources */,
+				02E610B8101603A19C770899 /* SessionDetailView.swift in Sources */,
+				8727084B33B3DA832813FAD2 /* TerminalConnection.swift in Sources */,
+				A3193E046051FCEB29847E8D /* TerminalViewportRegion.swift in Sources */,
+				4F8ACA5734CB465B0608895D /* WorkspaceView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		DA22775D72A7F520085E4B7C /* Sources */ = {
+		E78C4F266D003E4DA3B7AF3C /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				C72F72D3EAF1935210F0079C /* ModelTests.swift in Sources */,
-				48D3D9AB9A594F879AA601C1 /* SessionBrowserTests.swift in Sources */,
-				D1BDFB2CEDCFB4E4A3505BD9 /* ComputerLibraryTests.swift in Sources */,
-				81EBA08AA60D5EE61132B495 /* ComputerSwitchingTests.swift in Sources */,
-				90BD496A810019D8DCB1E370 /* WorkspacePreviewTests.swift in Sources */,
-				C626CC6611FAFFF2A9E72471 /* TerminalInputTests.swift in Sources */,
+				D40289EA384ED0FBF3D47DFF /* TrillUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
-		3397B096075EB3244AE91E12 /* PBXTargetDependency */ = {
+		1CBDD9C6BBB64DBABA1182FC /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			name = Trill;
-			target = 2554CA50B12F36EB8E9A7B79 /* Trill */;
-			targetProxy = D33909C84904BF31498F6F82 /* PBXContainerItemProxy */;
+			target = 176083639EA1A282472CD169 /* Trill */;
+			targetProxy = 1FB23BAC54DAADFB77A05FC8 /* PBXContainerItemProxy */;
 		};
-		D1A6A228433CB94EE3FBDD39 /* PBXTargetDependency */ = {
+		5DC6A780398532F2A1D9E31D /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			name = Trill;
-			target = 2554CA50B12F36EB8E9A7B79 /* Trill */;
-			targetProxy = 74E2FF8413CD0DAB007BFD04 /* PBXContainerItemProxy */;
+			target = 176083639EA1A282472CD169 /* Trill */;
+			targetProxy = 980DFC325988BE4CD10FA9D5 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
-		0423D9066A038DCE23A1AC81 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				CLANG_ENABLE_OBJC_WEAK = NO;
-				CODE_SIGN_STYLE = Automatic;
-				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
-				PRODUCT_BUNDLE_IDENTIFIER = io.bcook.trill.tests;
-				SDKROOT = iphoneos;
-				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Trill.app/Trill";
-			};
-			name = Debug;
-		};
-		07FDDAAAC218C160787A19DB /* Debug */ = {
-			isa = XCBuildConfiguration;
-			baseConfigurationReference = F502541500A5AC8A94C8FE73 /* Version.xcconfig */;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CLANG_ENABLE_OBJC_WEAK = NO;
-				CODE_SIGN_STYLE = Automatic;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = Trill/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = Trill;
-				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Trill connects directly to your computer to manage sessions and open terminals.";
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortraitUpsideDown";
-				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-				);
-				PRODUCT_BUNDLE_IDENTIFIER = io.bcook.trill;
-				PRODUCT_NAME = Trill;
-				SDKROOT = iphoneos;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Debug;
-		};
-		481EA5229FABBD64E965E527 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				CLANG_ENABLE_OBJC_WEAK = NO;
-				CODE_SIGN_STYLE = Automatic;
-				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
-				PRODUCT_BUNDLE_IDENTIFIER = io.bcook.trill.tests;
-				SDKROOT = iphoneos;
-				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Trill.app/Trill";
-				VALIDATE_PRODUCT = YES;
-			};
-			name = Release;
-		};
-		64F6BDD788293E82F605CF69 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ALWAYS_SEARCH_USER_PATHS = NO;
-				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
-				CLANG_ANALYZER_NONNULL = YES;
-				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
-				CLANG_CXX_LIBRARY = "libc++";
-				CLANG_ENABLE_MODULES = YES;
-				CLANG_ENABLE_OBJC_ARC = YES;
-				CLANG_ENABLE_OBJC_WEAK = YES;
-				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
-				CLANG_WARN_BOOL_CONVERSION = YES;
-				CLANG_WARN_COMMA = YES;
-				CLANG_WARN_CONSTANT_CONVERSION = YES;
-				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
-				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
-				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
-				CLANG_WARN_EMPTY_BODY = YES;
-				CLANG_WARN_ENUM_CONVERSION = YES;
-				CLANG_WARN_INFINITE_RECURSION = YES;
-				CLANG_WARN_INT_CONVERSION = YES;
-				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
-				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
-				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
-				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
-				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
-				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
-				CLANG_WARN_STRICT_PROTOTYPES = YES;
-				CLANG_WARN_SUSPICIOUS_MOVE = YES;
-				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
-				CLANG_WARN_UNREACHABLE_CODE = YES;
-				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
-				COPY_PHASE_STRIP = NO;
-				DEAD_CODE_STRIPPING = YES;
-				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				ENABLE_NS_ASSERTIONS = NO;
-				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				GCC_C_LANGUAGE_STANDARD = gnu11;
-				GCC_NO_COMMON_BLOCKS = YES;
-				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
-				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
-				GCC_WARN_UNDECLARED_SELECTOR = YES;
-				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
-				GCC_WARN_UNUSED_FUNCTION = YES;
-				GCC_WARN_UNUSED_VARIABLE = YES;
-				MTL_ENABLE_DEBUG_INFO = NO;
-				MTL_FAST_MATH = YES;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SWIFT_COMPILATION_MODE = wholemodule;
-				SWIFT_OPTIMIZATION_LEVEL = "-O";
-				SWIFT_VERSION = 5.0;
-			};
-			name = Release;
-		};
-		82868787E00FE896C587BCE3 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CLANG_ENABLE_OBJC_WEAK = NO;
-				CODE_SIGN_STYLE = Automatic;
-				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
-				PRODUCT_BUNDLE_IDENTIFIER = io.bcook.trill.uitests;
-				SDKROOT = iphoneos;
-				SWIFT_VERSION = 5.0;
-				TEST_TARGET_NAME = Trill;
-			};
-			name = Debug;
-		};
-		84EC61991E8D5D87B54C07B9 /* Release */ = {
-			isa = XCBuildConfiguration;
-			baseConfigurationReference = F502541500A5AC8A94C8FE73 /* Version.xcconfig */;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CLANG_ENABLE_OBJC_WEAK = NO;
-				CODE_SIGN_STYLE = Automatic;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = Trill/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = Trill;
-				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Trill connects directly to your computer to manage sessions and open terminals.";
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortraitUpsideDown";
-				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-				);
-				PRODUCT_BUNDLE_IDENTIFIER = io.bcook.trill;
-				PRODUCT_NAME = Trill;
-				SDKROOT = iphoneos;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				VALIDATE_PRODUCT = YES;
-			};
-			name = Release;
-		};
-		B71E511E7778B00813E126CF /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CLANG_ENABLE_OBJC_WEAK = NO;
-				CODE_SIGN_STYLE = Automatic;
-				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
-				PRODUCT_BUNDLE_IDENTIFIER = io.bcook.trill.uitests;
-				SDKROOT = iphoneos;
-				SWIFT_VERSION = 5.0;
-				TEST_TARGET_NAME = Trill;
-				VALIDATE_PRODUCT = YES;
-			};
-			name = Release;
-		};
-		B8AD5D1C49E86E11B206253A /* Debug */ = {
+		0FCBD46BFF014C52D4EDDE81 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -628,41 +453,209 @@
 			};
 			name = Debug;
 		};
+		5D08F7A86DFFCE2C5184C7C0 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				PRODUCT_BUNDLE_IDENTIFIER = io.bcook.trill.uitests;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = Trill;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		A0BB2C3F4692B25D751C185A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				PRODUCT_BUNDLE_IDENTIFIER = io.bcook.trill.tests;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Trill.app/Trill";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		B06ED98A0DA29FA04AA314B1 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = E7CD470FD1FFB8B63D0F53F5 /* Version.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Trill/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Trill;
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Trill connects directly to your computer to manage sessions and open terminals.";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortraitUpsideDown";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				PRODUCT_BUNDLE_IDENTIFIER = io.bcook.trill;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		D7584280BC3DC98A5F2622B0 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				PRODUCT_BUNDLE_IDENTIFIER = io.bcook.trill.tests;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Trill.app/Trill";
+			};
+			name = Debug;
+		};
+		E92558E92216BC1C1284D77A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		EB9026A6B61140551B0C5046 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				PRODUCT_BUNDLE_IDENTIFIER = io.bcook.trill.uitests;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = Trill;
+			};
+			name = Debug;
+		};
+		FEC1279B698F98B6A2341B67 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = E7CD470FD1FFB8B63D0F53F5 /* Version.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Trill/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Trill;
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Trill connects directly to your computer to manage sessions and open terminals.";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortraitUpsideDown";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				PRODUCT_BUNDLE_IDENTIFIER = io.bcook.trill;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		0F41C937A6180A21961EE1DA /* Build configuration list for PBXNativeTarget "Trill" */ = {
+		61AEA78EFDE17D12B1451C0C /* Build configuration list for PBXProject "Trill" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				84EC61991E8D5D87B54C07B9 /* Release */,
-				07FDDAAAC218C160787A19DB /* Debug */,
+				0FCBD46BFF014C52D4EDDE81 /* Debug */,
+				E92558E92216BC1C1284D77A /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		1E347A2113E5709A63A5AF04 /* Build configuration list for PBXProject "Trill" */ = {
+		6FC2A6B8F99102FAC90BDB19 /* Build configuration list for PBXNativeTarget "TrillUITests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				B8AD5D1C49E86E11B206253A /* Debug */,
-				64F6BDD788293E82F605CF69 /* Release */,
+				5D08F7A86DFFCE2C5184C7C0 /* Release */,
+				EB9026A6B61140551B0C5046 /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		93687941FC23620A74EFC734 /* Build configuration list for PBXNativeTarget "TrillUITests" */ = {
+		A2F7FA1C91EF757006D67A31 /* Build configuration list for PBXNativeTarget "Trill" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				B71E511E7778B00813E126CF /* Release */,
-				82868787E00FE896C587BCE3 /* Debug */,
+				B06ED98A0DA29FA04AA314B1 /* Release */,
+				FEC1279B698F98B6A2341B67 /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		BC38EBEFFCF116CBDAD8DBDF /* Build configuration list for PBXNativeTarget "TrillTests" */ = {
+		B4CA7CA820B4E03784B56359 /* Build configuration list for PBXNativeTarget "TrillTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				481EA5229FABBD64E965E527 /* Release */,
-				0423D9066A038DCE23A1AC81 /* Debug */,
+				A0BB2C3F4692B25D751C185A /* Release */,
+				D7584280BC3DC98A5F2622B0 /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -670,28 +663,19 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		2014D66EFE7F2DC60B52C1F8 /* XCLocalSwiftPackageReference "../vendor/swift-mosh" */ = {
-			isa = XCLocalSwiftPackageReference;
-			relativePath = "../vendor/swift-mosh";
-		};
-		491D6702877C1639B9428157 /* XCLocalSwiftPackageReference "../vendor/SwiftTerm" */ = {
+		C385785F8C6727D712E9788F /* XCLocalSwiftPackageReference "SwiftTerm" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = ../vendor/SwiftTerm;
 		};
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		49556EE0D4111647A32ED469 /* MoshCore */ = {
+		C9294CCACBAD12D1FC37A842 /* SwiftTerm */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 2014D66EFE7F2DC60B52C1F8 /* XCLocalSwiftPackageReference "../vendor/swift-mosh" */;
-			productName = MoshCore;
-		};
-		56D2B3BC25CC13E5623E11B3 /* SwiftTerm */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 491D6702877C1639B9428157 /* XCLocalSwiftPackageReference "../vendor/SwiftTerm" */;
+			package = C385785F8C6727D712E9788F /* XCLocalSwiftPackageReference "SwiftTerm" */;
 			productName = SwiftTerm;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
-	rootObject = D38FCCBB32D34BF1929C9B8B /* Project object */;
+	rootObject = EEFD4D2BAE146A39181E1D52 /* Project object */;
 }

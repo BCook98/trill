@@ -258,7 +258,7 @@ def validate_status(value):
         raise Blocked("Demo address is invalid") from None
     if url.scheme != "https" or not loopback or not port or url.username or url.password or url.path not in ("", "/") or url.query or url.fragment:
         raise Blocked("Local smoke backend must advertise loopback HTTPS")
-    if value.get("profile") not in ("mixed", "xirp", "herdr"):
+    if value.get("profile") not in ("herdr",):
         raise Blocked("Unknown demo capability profile")
     if not isinstance(value.get("fingerprint"), str):
         raise Blocked("Demo certificate identity is invalid")
@@ -298,8 +298,7 @@ class StateView:
                    and (provider is None or x.get("provider") == provider)]
         if not matches:
             raise Blocked("No attachable fixture session is exposed in safe state")
-        # Prefer the synthetic Xirp capability group for lifecycle coverage.
-        return sorted(matches, key=lambda x: (x.get("provider") != "xirp", x.get("id") not in ("demo-xirp-1", "demo-herdr-1"), str(x.get("id", ""))))[0]
+        return sorted(matches, key=lambda x: (x.get("provider") != "herdr", x.get("id") != "demo-herdr-1", str(x.get("id", ""))))[0]
 
     def heading(self, session_id):
         session = self.session(session_id)
@@ -355,7 +354,7 @@ class Backend:
         # terminal state are read. Unknown/new session directories stay unsupported.
         for session in sessions:
             identifier, project = session.get("id", ""), session.get("projectId", "")
-            if "heading" not in session and re.fullmatch(r"demo-(xirp|herdr)-[1-6]", identifier) and project in ("demo-xirp", "demo-herdr"):
+            if "heading" not in session and re.fullmatch(r"demo-(herdr)-[1-6]", identifier) and project in ("demo-herdr",):
                 path = self.path / "fixtures" / project / "web" / "index.html"
                 if path.resolve() != path or not path.is_file() or path.stat().st_size > 1_048_576:
                     raise Blocked("Owned fixture HTML receipt is missing or redirected")
@@ -1101,7 +1100,6 @@ class Journey:
 
     def open_terminal(self):
         self.ui.tap(session_label(self.session))
-        self.ui.tap(selector("open-terminal"))
         self.ui.tap(label("Allow once"))
         self.ui.wait(selector("terminal-return", role="AXButton"))
         self.ui.wait(selector("remote-terminal", role="AXTextArea"))
@@ -1184,7 +1182,7 @@ class Journey:
             self.session = self.pair(self.backend)
             return self.ui.receipt("paired-catalog")
         self.assertion("normal TLS invitation redemption and native catalog", pairing)
-        self.assertion("terminal consent and real Mosh connected", self.open_terminal)
+        self.assertion("terminal consent and HTTPS stream connected", self.open_terminal)
         self.assertion("verified draft Insert then deliberate Return changes backend heading",
                        lambda: self.command("smoke heading " + visual_nonce(), "heading-command"))
         self.assertion("live proxy visibly renders changed heading", self.live_preview)
@@ -1226,16 +1224,14 @@ class Journey:
         before = {x["id"] for x in self.backend.view().records("sessions")}
         def create():
             self.ui.tap(label("New session"))
-            self.ui.tap_observed_prefix("Project,")
-            self.ui.tap_observed_prefix("Demo · Xirp")
-            if self.ui.exists(selector("new-session-type")):
-                self.ui.tap(label("Terminal", role="AXRadioButton"))
+            self.ui.tap_observed_prefix("Space,")
+            self.ui.tap_observed_prefix("Demo · Herdr")
             self.ui.tap(selector("new-session-submit"))
             self.backend.wait(lambda state: len({x["id"] for x in state.records("sessions")} - before) == 1)
             created = [x for x in self.backend.view().records("sessions") if x["id"] not in before]
             self.session = created[0]
-            if self.session.get("provider") != "xirp":
-                raise SmokeError("Native creation did not use the selected Xirp-capability fixture project")
+            if self.session.get("provider") != "herdr":
+                raise SmokeError("Native creation did not use the selected Herdr fixture space")
             self.ui.wait(label("New session"))  # The form dismisses to Sessions; it does not auto-open the new terminal.
             self.search_sessions(self.session["name"])
             self.ui.wait(session_label(self.session))
@@ -1264,28 +1260,6 @@ class Journey:
             self.ui.wait(session_label(self.session))
             return self.ui.receipt("renamed-terminal")
         self.assertion("rename through native persistent confirmation and backend receipt", rename)
-        def archive():
-            self.ui.tap(session_label(self.session), duration=1)
-            self.ui.tap(label("Archive session…"))
-            self.ui.tap(label("Archive session"))
-            self.backend.wait(lambda state: state.session(self.session["id"]).get("archived") is True)
-            self.ui.wait(session_label(self.session), absent=True)
-            self.ui.wait(label("No matching sessions", role=None))
-            return self.ui.receipt("archived-absent-current")
-        self.assertion("archive confirmation and exclusion from current sessions", archive)
-        def reopen():
-            self.ui.tap(selector("open-projects"))
-            project = next((x for x in self.backend.view().records("projects") if x.get("id") == self.session["projectId"]), None)
-            if project is None:
-                raise Blocked("Safe state needs the created session's project")
-            self.ui.tap(label(project["name"], prefix=True))
-            self.search_sessions(self.session["name"], projects=True)
-            self.ui.tap(session_label(self.session))
-            self.ui.tap(selector("reopen-session-" + self.session["id"]))
-            self.backend.wait(lambda state: state.session(self.session["id"]).get("archived") is False)
-            return self.ui.receipt("reopened-session")
-        self.assertion("find archived session in Projects and reopen", reopen)
-
     def computer_row(self, address):
         matches = [x for x in elements(self.ui.tree()) if x.get("role") == "AXButton"
                    and str(x.get("AXUniqueId", "")).startswith("computer-")
@@ -1385,7 +1359,7 @@ class Journey:
             self.ui.tap(label("Close workspace"))
         self.ui.overflow()
         self.ui.tap(label("Disconnect"))
-        self.ui.wait(selector("open-terminal"))
+        self.ui.wait(label("Reconnect"))
 
     def fault(self, name):
         if name not in ("capacity", "busy", "drop-leases", "preview-expired"):
@@ -1394,9 +1368,9 @@ class Journey:
             if name in ("capacity", "busy"):
                 self.disconnect()
                 self.backend.fault(name)
-                self.ui.tap(selector("open-terminal"))
+                self.ui.tap(label("Reconnect"))
                 self.ui.tap(label("Allow once"))
-                message = "mosh capacity reached" if name == "capacity" else "terminal is already attached; disconnect its current direct client before retrying"
+                message = "terminal capacity reached" if name == "capacity" else "terminal is already attached; disconnect its current direct client before retrying"
                 evidence = self.ui.observe_error(message, name + "-native-error")
                 if name in self.backend.status().get("state", {}).get("faults", []):
                     raise SmokeError("One-shot attach fault was not consumed")
@@ -1409,7 +1383,7 @@ class Journey:
                 return evidence
             if name == "drop-leases":
                 self.backend.fault(name)
-                return self.reconnect()  # Resume watchdog must obtain a new real Mosh child.
+                return self.reconnect()  # Resume watchdog must obtain a new HTTPS stream child.
             self.live_preview()
             self.backend.fault(name)
             # Produce a nonce after grant expiry through the real terminal. The old
@@ -1676,7 +1650,7 @@ def run_one(commands, root, marker, args, app, backend, secondary, profile, appe
     manifest = {"schema": OWNER, "startedAt": now(), "outcome": "running", "execution": "live-idb",
                 "suite": "synthetic-backend-app-e2e", "app": app, "appearance": appearance,
                 "runner_sha256": sha256(Path(__file__)), "backend": {**backend.identity, "binary_sha256": backend.binary_sha256},
-                "scenarios": [], "manual_gaps": ["physical TestFlight binary", "real Herdr/Xirp integration", "dictation/camera/roaming", "transport loss/lease expiry", "video/metadata/accessibility", "visual HIG/layout across Duo poses"]}
+                "scenarios": [], "manual_gaps": ["physical TestFlight binary", "real Herdr integration", "dictation/camera/roaming", "transport loss/lease expiry", "video/metadata/accessibility", "visual HIG/layout across Duo poses"]}
     record, ui = None, None
     event_start = len(commands.events)
     try:
@@ -1760,7 +1734,7 @@ def run_one(commands, root, marker, args, app, backend, secondary, profile, appe
                 if manifest["outcome"] == "pass":
                     manifest["outcome"] = "blocked"
         # This harness root is exclusive and may own hidden terminal tabs too.
-        # Drop only these explicitly verified demo processes' tracked Mosh children,
+        # Drop only these explicitly verified demo processes' tracked terminal streams,
         # so later fresh simulators cannot inherit an occupied controller/capacity.
         lease_cleanup = []
         for fixture in [backend] + ([secondary] if secondary else []):

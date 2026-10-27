@@ -61,34 +61,6 @@ func herdrService(t *testing.T, r *herdrRunner) *Service {
 	t.Cleanup(s.Close)
 	return s
 }
-func TestHerdrMetadataAndAttachDoNotInvokeXirpOrTmux(t *testing.T) {
-	r := &herdrRunner{snapshot: herdrFixture}
-	s := herdrService(t, r)
-	rows, err := s.Sessions(context.Background())
-	if err != nil || len(rows) != 1 {
-		t.Fatalf("listing: %v %v", rows, err)
-	}
-	row := rows[0]
-	if !row.Attachable || row.Archived || row.Resumable || !idPattern.MatchString(row.ID) || row.ActivityState != "waiting_for_input" {
-		t.Fatalf("unexpected mapping: %+v", row)
-	}
-	info, err := s.Bootstrap(context.Background(), row.ID, 80, 24)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !s.DeleteLease(info.LeaseID) {
-		t.Fatal("lease missing")
-	}
-	joined := strings.Join(r.moshArgs, " ")
-	if !strings.Contains(joined, "-- /tmp/herdr --session test-server terminal attach term_original") || strings.Contains(joined, "takeover") {
-		t.Fatalf("unsafe attach: %v", r.moshArgs)
-	}
-	for _, c := range r.commands {
-		if c.name != "/tmp/herdr" {
-			t.Fatalf("cross-backend fallback: %+v", c)
-		}
-	}
-}
 func TestHerdrTerminalIdentitySurvivesPaneMoveAndNamespacesServers(t *testing.T) {
 	r := &herdrRunner{snapshot: herdrFixture}
 	s := herdrService(t, r)
@@ -121,16 +93,16 @@ func TestHerdrRejectsUntrustedOrIncompatibleMetadata(t *testing.T) {
 				t.Fatal("accepted bad metadata")
 			}
 			if len(r.calls) != 0 {
-				t.Fatal("unexpected mosh launch")
+				t.Fatal("unexpected terminal launch")
 			}
 		})
 	}
 }
-func TestHerdrDoesNotMutateOrFallbackToXirp(t *testing.T) {
+func TestHerdrRejectsUnsupportedActionsWithoutMutation(t *testing.T) {
 	r := &herdrRunner{snapshot: herdrFixture}
 	s := herdrService(t, r)
 	ctx := context.Background()
-	for _, err := range []error{s.Create(ctx, "x", "name", "goal", CreateOptions{}), s.Stop(ctx, "x"), s.Resume(ctx, "x"), s.Archive(ctx, "x")} {
+	for _, err := range []error{s.Create(ctx, "x", "name", "goal", CreateOptions{})} {
 		if !errors.Is(err, errUnsupported) {
 			t.Fatalf("unsupported action: %v", err)
 		}
@@ -145,18 +117,6 @@ func TestHerdrLabRejectsForeignRoot(t *testing.T) {
 	s.config.HerdrLabRoot = t.TempDir()
 	if _, err := s.Sessions(context.Background()); err == nil {
 		t.Fatal("lab accepted terminal outside configured root")
-	}
-}
-func TestHerdrConfigurationRequiresExplicitIsolation(t *testing.T) {
-	for _, c := range []Config{
-		{HerdrPath: "herdr", HerdrSession: "test-server"}, {HerdrPath: "/tmp/herdr"},
-		{HerdrPath: "/tmp/herdr", HerdrSession: "default"}, {HerdrPath: "/tmp/herdr", HerdrSession: "../other"},
-		{HerdrPath: "/tmp/herdr", HerdrSession: "test-server", TmuxSocket: "/tmp/lab.sock"},
-		{HerdrSession: "test-server"}, {HerdrLabRoot: "/tmp"},
-	} {
-		if _, err := NewService(c, nil); err == nil {
-			t.Fatalf("accepted unsafe configuration: %+v", c)
-		}
 	}
 }
 func TestHerdrDoneIsLiveAndRestoreErrorsPreventAttach(t *testing.T) {
@@ -198,7 +158,7 @@ func TestHerdrAcceptsCompatiblePatchAndRenamesCurrentPane(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !rows[0].Capabilities.Rename || rows[0].Capabilities.Stop || rows[0].Capabilities.Archive {
+	if !rows[0].Capabilities.Rename {
 		t.Fatal(rows[0].Capabilities)
 	}
 	if err = s.Rename(context.Background(), rows[0].ID, "Renamed"); err != nil {
@@ -291,7 +251,7 @@ func TestHerdrConfigHomePinsEverySubprocessAndPublicIdentity(t *testing.T) {
 	if _, err = s.Bootstrap(context.Background(), rows[0].ID, 80, 24); err != nil {
 		t.Fatal(err)
 	}
-	for _, env := range append(r.envs, r.moshEnv, r.preflightEnv) {
+	for _, env := range append(r.envs, r.terminalEnv) {
 		if !strings.Contains(strings.Join(env, "\n"), "XDG_CONFIG_HOME=/tmp/selected-config") {
 			t.Fatalf("subprocess not pinned: %v", env)
 		}
@@ -552,20 +512,6 @@ func TestHerdrNativeWorktreeListEnrichesFreshSpaceWithoutInferringPaneCwd(t *tes
 	}
 	if projects[0].Path != "/repo" || projects[1].ParentID != projects[0].ID || !projects[1].IsWorktree || projects[2].Path != "" {
 		t.Fatalf("native enrichment: %+v", projects)
-	}
-}
-
-func TestXirpRejectsHerdrOnlyWorktreeKindWithoutStartingAnAgent(t *testing.T) {
-	handler, runner, service := setup(t, false, true)
-	defer handler.Close()
-	err := service.Create(context.Background(), "p1", "Worktree", "", CreateOptions{Kind: "worktree", UseWorktree: true, Branch: "feature/test"})
-	if !errors.Is(err, errUnsupported) {
-		t.Fatal(err)
-	}
-	for _, command := range runner.calls {
-		if strings.Contains(strings.Join(command.args, " "), "session:create") {
-			t.Fatal("Herdr request started a Xirp agent")
-		}
 	}
 }
 

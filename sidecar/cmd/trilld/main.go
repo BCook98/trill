@@ -36,10 +36,10 @@ func run() error {
 	if len(os.Args) == 2 && os.Args[1] == "--version" {
 		return buildinfo.Write(os.Stdout)
 	}
-	var listen, cert, key, tokenFile, pairingFile, tmuxSocket, labFilesRoot, moshHost, moshBind, ports string
+	var listen, cert, key, tokenFile, pairingFile string
 	var insecure, allowControl bool
 	var backends, herdrPath, herdrSessions, herdrLabRoot, herdrConfigHome string
-	var tsnetStateDirectory, tsnetHostname string
+	var tsnetStateDirectory, tsnetHostname, tsnetIP string
 	var leaseTTL time.Duration
 	flag.StringVar(&listen, "listen", "127.0.0.1:7443", "HTTP bind address")
 	flag.StringVar(&cert, "cert", "", "TLS certificate PEM")
@@ -47,35 +47,31 @@ func run() error {
 	flag.StringVar(&tokenFile, "token-file", "", "bearer token file (default ~/.config/trill/token)")
 	flag.StringVar(&pairingFile, "pairing-store", "", "device state file (pairing only unless --token-file is also supplied)")
 	flag.BoolVar(&insecure, "insecure-loopback", false, "allow HTTP only on loopback for development")
-	flag.BoolVar(&allowControl, "allow-control", false, "enable session control and mosh bootstrap")
-	flag.StringVar(&tmuxSocket, "tmux-socket", "", "absolute isolated tmux socket; enables terminal lab backend")
-	flag.StringVar(&labFilesRoot, "lab-files-root", "", "opt in to file browsing in terminal lab: absolute existing directory; requires --tmux-socket")
-	flag.StringVar(&moshHost, "mosh-host", "127.0.0.1", "mosh advertised IP address, also bound unless --mosh-bind is set")
-	flag.StringVar(&moshBind, "mosh-bind", "", "local IP address mosh-server binds when it differs from --mosh-host")
-	flag.StringVar(&ports, "udp-ports", "60000:60010", "mosh UDP port range")
-	flag.DurationVar(&leaseTTL, "lease-ttl", 12*time.Hour, "maximum mosh lease lifetime")
-	flag.StringVar(&backends, "backends", "", "session providers: xirp (default), herdr, or xirp,herdr")
+	flag.BoolVar(&allowControl, "allow-control", false, "enable Herdr session control and terminal streams")
+	flag.DurationVar(&leaseTTL, "lease-ttl", 12*time.Hour, "maximum terminal lease lifetime")
+	flag.StringVar(&backends, "backends", "", "session provider (herdr only)")
 	flag.StringVar(&herdrPath, "herdr-path", "", "Herdr executable (default herdr on PATH)")
 	flag.StringVar(&herdrSessions, "herdr-sessions", "", "comma-separated existing Herdr servers (default default)")
 	flag.StringVar(&herdrLabRoot, "herdr-lab-root", "", "disposable probe directory; requires exactly one Herdr backend")
 	flag.StringVar(&herdrConfigHome, "herdr-config-home", "", "absolute XDG config base containing herdr/ (pins server identity)")
 	flag.StringVar(&tsnetStateDirectory, "tsnet-state-dir", "", "private enrolled tsnet state directory; enables embedded Tailscale")
+	flag.StringVar(&tsnetIP, "tsnet-ip", "", "saved embedded Tailscale node IP")
 	flag.StringVar(&tsnetHostname, "tsnet-hostname", "", "embedded Tailscale hostname selected during setup")
-	flag.Parse()
+	if err := flag.CommandLine.Parse(os.Args[1:]); err != nil {
+		return err
+	}
 	if flag.NArg() != 0 {
 		return fmt.Errorf("unexpected arguments")
 	}
-	if err := validateNetwork(listen, cert, key, insecure, moshHost, moshBind); err != nil {
+	if err := validateNetwork(listen, cert, key, insecure); err != nil {
 		return err
 	}
 	if tsnetStateDirectory != "" {
-		if !filepath.IsAbs(tsnetStateDirectory) || filepath.Clean(tsnetStateDirectory) != tsnetStateDirectory || setup.ValidateTSNetHostname(tsnetHostname) != nil || insecure || moshBind != "127.0.0.1" || listen != "127.0.0.1:7443" {
-			return errors.New("embedded Tailscale requires private absolute state, a valid hostname, HTTPS and loopback HTTP/Mosh listeners")
+		if !filepath.IsAbs(tsnetStateDirectory) || filepath.Clean(tsnetStateDirectory) != tsnetStateDirectory || setup.ValidateTSNetHostname(tsnetHostname) != nil || net.ParseIP(tsnetIP) == nil || insecure || listen != "127.0.0.1:7443" {
+			return errors.New("embedded Tailscale requires private absolute state, a valid hostname, HTTPS and a loopback HTTP listener")
 		}
-		if _, _, err := parseUDPPortRange(ports); err != nil {
-			return err
-		}
-	} else if tsnetHostname != "" {
+
+	} else if tsnetHostname != "" || tsnetIP != "" {
 		return errors.New("--tsnet-hostname requires --tsnet-state-dir")
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -90,7 +86,7 @@ func run() error {
 		}
 		defer unlockNode()
 	}
-	svc, err := sidecar.NewService(sidecar.Config{Backends: backends, HerdrConfigHome: herdrConfigHome, HerdrPath: herdrPath, HerdrSessions: herdrSessions, HerdrLabRoot: herdrLabRoot, AllowControl: allowControl, TmuxSocket: tmuxSocket, LabFilesRoot: labFilesRoot, MoshHost: moshHost, MoshBind: moshBind, UDPPorts: ports, LeaseTTL: leaseTTL}, nil)
+	svc, err := sidecar.NewService(sidecar.Config{Backends: backends, HerdrConfigHome: herdrConfigHome, HerdrPath: herdrPath, HerdrSessions: herdrSessions, HerdrLabRoot: herdrLabRoot, AllowControl: allowControl, LeaseTTL: leaseTTL}, nil)
 	if err != nil {
 		return err
 	}
@@ -122,9 +118,8 @@ func run() error {
 	}
 	defer localListener.Close()
 	listeners := []net.Listener{localListener}
-	var forwarders []*tailnet.UDPForwarder
 	if tsnetStateDirectory != "" {
-		embeddedNode, err := openTSNet(ctx, tsnetStateDirectory, tsnetHostname, moshHost, expectedDNSName)
+		embeddedNode, err := openTSNet(ctx, tsnetStateDirectory, tsnetHostname, tsnetIP, expectedDNSName)
 		if err != nil {
 			return err
 		}
@@ -156,17 +151,7 @@ func run() error {
 		}
 		defer tailnetListener.Close()
 		listeners = append(listeners, tailnetListener)
-		if allowControl {
-			forwarders, err = tsnetUDPForwarders(embeddedNode, moshHost, ports)
-			if err != nil {
-				return err
-			}
-			defer func() {
-				for _, forwarder := range forwarders {
-					forwarder.Close()
-				}
-			}()
-		}
+
 	}
 	if cert != "" {
 		reloader, err := newCertificateReloader(cert, key)
@@ -176,7 +161,7 @@ func run() error {
 		server.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12, GetCertificate: reloader.GetCertificate}
 	}
 
-	serveErrors := make(chan error, len(listeners)+len(forwarders))
+	serveErrors := make(chan error, len(listeners))
 	for _, listener := range listeners {
 		go func() {
 			if cert != "" {
@@ -185,9 +170,6 @@ func run() error {
 				serveErrors <- server.Serve(listener)
 			}
 		}()
-	}
-	for _, forwarder := range forwarders {
-		go func() { serveErrors <- forwarder.Serve() }()
 	}
 	log.Printf("trilld listening on %s (readOnly=%t, embeddedTailscale=%t)", listen, !allowControl, tsnetStateDirectory != "")
 	select {
@@ -204,7 +186,7 @@ func run() error {
 	return err
 }
 
-func validateNetwork(listen, cert, key string, insecure bool, moshHost, moshBind string) error {
+func validateNetwork(listen, cert, key string, insecure bool) error {
 	host, _, err := net.SplitHostPort(listen)
 	if err != nil {
 		return fmt.Errorf("invalid listen address")
@@ -222,16 +204,7 @@ func validateNetwork(listen, cert, key string, insecure bool, moshHost, moshBind
 	if cert == "" && !insecure {
 		return fmt.Errorf("TLS certificate and key required unless --insecure-loopback is set")
 	}
-	moshIP := net.ParseIP(moshHost)
-	if moshIP == nil || moshIP.IsUnspecified() {
-		return fmt.Errorf("mosh host must be a concrete IP address")
-	}
-	if !ip.IsLoopback() && moshIP.IsLoopback() {
-		return fmt.Errorf("non-loopback listener requires an explicit reachable --mosh-host")
-	}
-	if bind := net.ParseIP(moshBind); moshBind != "" && (bind == nil || bind.IsUnspecified()) {
-		return fmt.Errorf("mosh bind must be a concrete IP address")
-	}
+
 	return nil
 }
 

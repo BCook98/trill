@@ -81,7 +81,6 @@ def render_homebrew_cask(manifest):
     skip "Updated from the signed release manifest"
   end
 
-  depends_on formula: %w[mosh tmux]
   depends_on macos: :monterey
 
   binary "trill"

@@ -197,7 +197,7 @@ func TestConcurrentRedemptionAndRevocation(t *testing.T) {
 }
 
 // These subprocesses are only copies of the Go test executable. They never run
-// sessions, servers, tmux, Xirp, or mosh, and never print bearer/invitation values.
+// sessions, servers, Herdr, and never print bearer/invitation values.
 func TestStoreProcessHelper(t *testing.T) {
 	if os.Getenv("TRILL_STORE_HELPER") != "1" {
 		return

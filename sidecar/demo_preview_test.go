@@ -13,7 +13,7 @@ import (
 )
 
 func TestDemoPreviewGrantBindsOwnWorktreeWithoutQuery(t *testing.T) {
-	s, d, _ := demoForTest(t, "mixed", true)
+	s, d, _ := demoForTest(t, "herdr", true)
 	upstream := httptest.NewServer(d.PreviewHandler())
 	defer upstream.Close()
 	store := pairing.NewStore(filepath.Join(d.rootPath, "devices.json"))
@@ -23,7 +23,7 @@ func TestDemoPreviewGrantBindsOwnWorktreeWithoutQuery(t *testing.T) {
 	}
 	defer h.Close()
 	_, token := pairPhone(t, h, store, "Worktree preview phone")
-	w := request(h, "POST", "/v1/sessions", token, `{"projectId":"demo-xirp","kind":"agent","goal":"Build a sample","useWorktree":true}`)
+	w := request(h, "POST", "/v1/sessions", token, `{"projectId":"demo-herdr-empty","kind":"terminal","useWorktree":false}`)
 	if w.Code != 200 {
 		t.Fatal("create worktree", w.Code, w.Body.String())
 	}
@@ -43,15 +43,15 @@ func TestDemoPreviewGrantBindsOwnWorktreeWithoutQuery(t *testing.T) {
 	grant := previewCreate(t, h, token, id, previewPort(t, upstream))
 	for _, test := range []struct{ path, want string }{
 		{"/", heading},
-		{"/?session=demo-xirp-1&colour=purple", heading},
+		{"/?session=demo-herdr-1&colour=purple", heading},
 		{"/about?colour=purple", heading},
-		{"/state?session=demo-xirp-1", heading},
+		{"/state?session=demo-herdr-1", heading},
 		{"/assets/style.css", css},
-		{"/assets/style.css?session=demo-xirp-1", css},
+		{"/assets/style.css?session=demo-herdr-1", css},
 	} {
 		r := httptest.NewRequest("GET", previewTestOrigin+test.path, nil)
 		r.AddCookie(&http.Cookie{Name: previewCookie, Value: grant.Token})
-		r.Header.Set("X-Trill-Demo-Session", "demo-xirp-1") // Public input cannot select the upstream workspace.
+		r.Header.Set("X-Trill-Demo-Session", "demo-herdr-1") // Public input cannot select the upstream workspace.
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, r)
 		if w.Code != 200 || !strings.Contains(w.Body.String(), test.want) {
@@ -59,7 +59,7 @@ func TestDemoPreviewGrantBindsOwnWorktreeWithoutQuery(t *testing.T) {
 		}
 	}
 	// A second grant on the same HTTP instance must retain its own selection.
-	other := previewCreate(t, h, token, "demo-xirp-1", previewPort(t, upstream))
+	other := previewCreate(t, h, token, "demo-herdr-1", previewPort(t, upstream))
 	r := httptest.NewRequest("GET", previewTestOrigin+"/?session="+id, nil)
 	r.AddCookie(&http.Cookie{Name: previewCookie, Value: other.Token})
 	r.Header.Set("X-Trill-Demo-Session", id)

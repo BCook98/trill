@@ -44,7 +44,7 @@ npm --prefix website run check
 
 Python suites currently include `tests/demo_lab`, `tests/demo_runner`, `tests/demo_export`, `tests/tooling`, and `tests/release`. They use temporary files and mocks; they do not start the real demo lab, send input to an agent, or operate a simulator. `demo_export` also exercises generated synthetic video when FFmpeg/ffprobe and lossless WebP support (FFmpeg libwebp or `cwebp`) are available; those cases explicitly skip when the tools are absent. Python CI installs those media tools so the export cases run. No extra Python packages are needed.
 
-The Go real mosh test explicitly skips unless `TRILL_REAL_MOSH_TEST=1` is set and `tmux` and `mosh-server` are installed. If requested, run it separately with `cd sidecar && TRILL_REAL_MOSH_TEST=1 go test -run '^TestRealMoshOnIsolatedTmuxSocket$' -v .`. It owns a temporary tmux socket and does not attach to the default server. Routine checks leave this opt-in unset.
+Real terminal integration uses a separately created Herdr server and an explicit temporary root. See `prototypes/herdr/README.md`. Never attach tests to personal terminals.
 
 See [website/README.md](../website/README.md) for the local browser download, byte-range preview, and full browser test commands. These downloads stay in the checkout, and use isolated browser profiles rather than personal Chrome or Safari data.
 
@@ -96,22 +96,10 @@ Xcode boots the selected simulator for testing and applies ad-hoc simulator sign
 
 ## App E2E demo fixture
 
-[Run the demo server](DEMO_RUNTIME.md) for real HTTPS/Mosh with scripted session workloads, or read its [scope and coverage matrix](DEMO_SERVER.md). The fixture needs no agent or provider installation. Real Xirp/Herdr integration and physical-device validation remain separate test suites.
+[Run the demo server](DEMO_RUNTIME.md) for real HTTPS terminal streams with scripted session workloads, or read its [scope and coverage matrix](DEMO_SERVER.md). The fixture needs no agent or provider installation. Real Herdr integration and physical-device validation remain separate test suites.
 
-## Isolated integration lab (manual)
+## Isolated integration lab
 
-The lab is separate from unit tests and the installed companion. It requires macOS, Go, Python, `tmux`, `mosh-server`, `openssl`, and `/bin/zsh` on PATH/as provided by macOS. It builds private binaries, creates a private tmux socket and synthetic Field Notes workspace, generates a loopback TLS certificate, and starts only its own companion and preview helpers.
+`python3 scripts/demo-lab.py start --state-dir /tmp/NEW-LAB` creates a separate Herdr server, Field Notes workspace, TLS listener and preview server. It needs Herdr, Go, Python and OpenSSL. It never uses the installed companion’s port 7443. `status`, `pair`, `codex` and `stop` require the same owned directory; agent startup remains explicit. Stop only that lab after capture.
 
-Use a fresh, short absolute path. Do not pre-create the final state directory: the lab creates its ownership marker and mode 0700 itself. Ports must be distinct, available, unprivileged, and never 7443. For example, run these commands only when you intend to start integration services:
-
-```sh
-LAB_STATE="/tmp/trill-lab-$UID-$(date +%s)"
-python3 scripts/demo-lab.py start --state-dir "$LAB_STATE" --api-port 19443 --preview-port 18080
-python3 scripts/demo-lab.py status --state-dir "$LAB_STATE"
-# When finished, stop only helpers owned by this state directory:
-python3 scripts/demo-lab.py stop --state-dir "$LAB_STATE"
-```
-
-Keep `LAB_STATE` in the same shell for cleanup. `stop` stops the owned helper processes and preserves the lab's tmux session/workspace; inspect that private socket before any later explicit cleanup. Never run an unqualified `tmux kill-server`, stop a user service, reuse a default tmux socket, or send input to personal sessions. Lab pairing output and credentials are private; do not include them in a pull request.
-
-Starting a coding agent (`demo-lab.py codex`) and simulator capture (`demo.py`) are separate explicit operations. They are not needed for the commands above. Capture additionally requires the installed profile runtime, a prebuilt app, and the reviewed IDB/mise capture environment described in [DEMOS.md](DEMOS.md); the CI setup does not install those tools or claim to validate live recordings.
+For scripted workloads without Herdr or an agent, use [the demo runtime](DEMO_RUNTIME.md). For native-controller input, resize, scrollback, links and retained shell-state verification, use the [Herdr probe](../prototypes/herdr/README.md).

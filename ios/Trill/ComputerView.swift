@@ -44,7 +44,7 @@ struct ComputerView: View {
                         }.accessibilityIdentifier("reset-photo-permission")
                     }
                 } header: { Text("Permissions") } footer: {
-                    Text("These choices apply only to this pairing. You still choose each photo, and new coding sessions ask separately. Resetting a permission does not disconnect terminals or delete photos already uploaded.")
+                    Text("These choices apply only to this pairing. You still choose each photo. Resetting a permission does not disconnect terminals or delete photos already uploaded.")
                 }
             } else {
                 Section {
@@ -59,10 +59,10 @@ struct ComputerView: View {
                 Text("Aa Bb 0123 →").font(.system(size: fontSize, design: .monospaced)).padding(.vertical, 6).accessibilityLabel("Terminal font preview")
             }
             Section("About Trill") {
-                Label { Text("A terminal for your Xirp and Herdr sessions.") } icon: {
+                Label { Text("A terminal for your Herdr sessions.") } icon: {
                     Image("TrillWave").resizable().scaledToFit().frame(width: 22, height: 16).foregroundStyle(Color.accentColor)
                 }
-                Text("Trill is an independent companion for Xirp and Herdr. It uses SwiftTerm and swift-mosh and is not affiliated with Spotify.").font(.footnote).foregroundStyle(.secondary)
+                Text("Trill is an independent companion for Herdr. It uses SwiftTerm and is not affiliated with Herdr.").font(.footnote).foregroundStyle(.secondary)
                 NavigationLink("Privacy policy") { PrivacyPolicyView() }
                 NavigationLink("Support") { SupportView() }
                 NavigationLink("Acknowledgements") { BundledDocumentView(title: "Acknowledgements", resource: "Acknowledgements") }
@@ -234,142 +234,46 @@ struct NewSessionView: View {
     @Environment(AppStore.self) private var store
     @Environment(\.dismiss) private var dismiss
     @State private var projectID = ""
-    @State private var name = ""
-    @State private var goal = ""
-    @State private var terminalOnly = false
-    @State private var useWorktree = true
     @State private var creating = false
     @State private var creationUncertain = false
-    @State private var showAgentConsent = false
     @State private var error: String?
-    @State private var didInitialize = false
-    private var selectedProject: Project? { store.creatableProjects.first { $0.id == projectID } }
-    private var allowsAgent: Bool { selectedProject.map { $0.capabilities?.createAgent ?? true } ?? false }
-    private var allowsTerminal: Bool { selectedProject.map { $0.capabilities?.createTerminal ?? true } ?? false }
-    private var providerName: String { selectedProject?.providerName ?? "Xirp" }
-    @AccessibilityFocusState private var errorFocused: Bool
     var body: some View {
         NavigationStack {
             Form {
-                Section("Project") {
-                    Picker("Project", selection: $projectID) {
-                        Text("Select a project").tag("")
-                        ForEach(store.creatableProjects) { Text($0.name + ($0.providerName.map { " · " + $0 } ?? "")).tag($0.id) }
+                Section("Space") {
+                    Picker("Space", selection: $projectID) {
+                        Text("Select a space").tag("")
+                        ForEach(store.creatableProjects) { Text($0.displayName).tag($0.id) }
                     }
+                    Text("Opens a shell in this Herdr space. Start your coding agent in its terminal.")
+                        .font(.footnote).foregroundStyle(.secondary)
                 }
-                Section("Session type") {
-                    if allowsAgent && allowsTerminal {
-                        Picker("Session type", selection: $terminalOnly) {
-                            Text("Coding agent").tag(false)
-                            Text("Terminal").tag(true)
-                        }.pickerStyle(.segmented).accessibilityIdentifier("new-session-type")
-                    } else if selectedProject != nil {
-                        LabeledContent("Session type", value: allowsAgent ? "Coding agent" : "Terminal")
-                    } else { Text("Choose a project first.").foregroundStyle(.secondary) }
-                }
-                if !terminalOnly {
-                    Section {
-                        Picker("Location", selection: $useWorktree) {
-                            Text("New worktree").tag(true).disabled(!(selectedProject?.capabilities?.worktree ?? true))
-                            Text("Project folder").tag(false)
-                        }.accessibilityIdentifier("new-session-location")
-                    } footer: {
-                        Text(useWorktree ? "Xirp creates a separate worktree and branch for this session." : "The session uses the project folder and shares its current branch and files.")
-                    }
-                } else {
-                    Section {
-                        LabeledContent("Location", value: "Project folder")
-                    } footer: {
-                        Text(selectedProject?.provider == "herdr" ? "Open a shell in this Herdr workspace’s default directory. You can start your coding agent in its terminal." : "Open a shell in your project folder without starting an agent. You can rename it later.")
-                    }
-                }
-                Section {
-                    Label("Starts in \(providerName) on your computer", systemImage: "laptopcomputer")
-                    if !terminalOnly {
-                        Text("Xirp starts the coding agent configured for this project. You can then open its terminal.").font(.subheadline).foregroundStyle(.secondary)
-                    }
-                }
-                if !terminalOnly {
-                    Section("Session") {
-                        TextField("Name (optional)", text: $name)
-                            .accessibilityIdentifier("new-session-name")
-                        TextField("What would you like to work on?", text: $goal, axis: .vertical)
-                            .lineLimit(5...10).accessibilityLabel("Session goal")
-                            .accessibilityIdentifier("new-session-goal")
-                    }
-                }
-                if let error {
-                    Section {
-                        Text(error).foregroundStyle(.red).accessibilityFocused($errorFocused)
-                        if creationUncertain {
-                            Button("Check Sessions", systemImage: "list.bullet") {
-                                Task { await store.refresh(); store.selectedTab = .sessions; dismiss() }
-                            }
+                if let error { Text(error).foregroundStyle(.red) }
+            }
+            .navigationTitle("New terminal")
+            .safeAreaInset(edge: .bottom) {
+                Button(creating ? "Creating…" : "Create terminal") {
+                    guard !creating, !creationUncertain else { return }
+                    creating = true
+                    Task {
+                        do { try await store.createTerminal(projectID: projectID); dismiss() }
+                        catch {
+                            let failure = SessionCreationFailure(error)
+                            self.error = failure.message
+                            creationUncertain = failure.outcomeUncertain
+                            creating = false
                         }
                     }
                 }
+                .buttonStyle(.borderedProminent).controlSize(.large)
+                .disabled(creating || creationUncertain || store.readOnly || !store.canCreateTerminal(projectID: projectID))
+                .accessibilityIdentifier("new-session-submit").padding()
             }
-            .disabled(creating)
-            .navigationTitle("New session").navigationBarTitleDisplayMode(.inline)
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                Button {
-                    if terminalOnly { createSession() } else { showAgentConsent = true }
-                } label: {
-                    HStack {
-                        if creating {
-                            ProgressView().controlSize(.small)
-                        } else {
-                            Image(systemName: terminalOnly ? "plus" : "play.fill")
-                        }
-                        Text(creating ? "Starting…" : (terminalOnly ? "Create terminal" : "Start session"))
-                    }
-                    .frame(maxWidth: .infinity, minHeight: 24)
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-                .disabled(creating || store.busy || creationUncertain || (!terminalOnly && goal.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) || !store.canCreate(projectID: projectID, terminalOnly: terminalOnly, useWorktree: useWorktree) || store.readOnly)
-                .accessibilityIdentifier("new-session-submit")
-                .padding()
-                .background(.bar)
-            }
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel", systemImage: "xmark") { dismiss() }.disabled(creating) }
-            }
-            .sheet(isPresented: $showAgentConsent) {
-                SharingConsentView(title: "Start a coding session", destination: store.computer?.name ?? "Your computer", message: SharingDisclosure.agent, actionTitle: "Allow and start session", allow: createSession)
-            }
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.disabled(creating) } }
             .interactiveDismissDisabled(creating)
-            .onChange(of: selectedProject) { _, _ in revalidateProject() }
-            .onAppear {
-                guard !didInitialize else { return }
-                didInitialize = true
-                projectID = store.creatableProjects.first?.id ?? ""
-                revalidateProject()
-            }
+            .onAppear { if projectID.isEmpty { projectID = store.creatableProjects.first?.id ?? "" } }
         }
     }
-    private func revalidateProject() {
-        showAgentConsent = false
-        guard selectedProject != nil else { projectID = ""; return }
-        if !allowsAgent { terminalOnly = true }
-        else if !allowsTerminal { terminalOnly = false }
-        if terminalOnly || !(selectedProject?.capabilities?.worktree ?? true) { useWorktree = false }
-    }
-    private func createSession() {
-        guard !creating, !creationUncertain else { return }
-        creating = true; error = nil; errorFocused = false
-        Task {
-            do { try await store.create(projectID: projectID, name: name, goal: goal, terminalOnly: terminalOnly, useWorktree: useWorktree); dismiss() }
-            catch {
-                let failure = SessionCreationFailure(error)
-                creationUncertain = failure.outcomeUncertain
-                self.error = failure.message
-                errorFocused = true
-            }
-            creating = false
-        }
-    }
-
 }
 
 struct NewHerdrItemView: View {

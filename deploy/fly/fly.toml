@@ -11,7 +11,6 @@ kill_timeout = "15s"
   strategy = "immediate"
 
 [env]
-  DEMO_MOSH_HOST = "137.66.44.233"
   GOMEMLIMIT = "160MiB"
 
 [[mounts]]
@@ -54,22 +53,3 @@ kill_timeout = "15s"
     interval = "15s"
     timeout = "2s"
     grace_period = "20s"
-
-# Fly does not translate UDP ports: each external port equals its internal port.
-[[services]]
-  protocol = "udp"
-  internal_port = 60300
-  auto_stop_machines = "off"
-  auto_start_machines = false
-
-  [[services.ports]]
-    port = 60300
-
-[[services]]
-  protocol = "udp"
-  internal_port = 60301
-  auto_stop_machines = "off"
-  auto_start_machines = false
-
-  [[services.ports]]
-    port = 60301

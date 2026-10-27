@@ -73,6 +73,7 @@ class CompanionReleaseTests(unittest.TestCase):
             self.assertIn('--test-requirement "=$requirement"', installer)
             cask = (output / 'trill.rb').read_text()
             self.assertIn('version "0.1.0,100"', cask)
+            self.assertNotRegex(cask, r'\b(?:mosh|tmux)\b')
             self.assertIn('v0.1.0-build.' + 'a' * 12, cask)
             self.assertIn(manifest['artifacts']['arm64']['sha256'], cask)
             self.assertIn(manifest['artifacts']['amd64']['sha256'], cask)

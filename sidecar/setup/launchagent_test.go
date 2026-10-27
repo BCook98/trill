@@ -16,7 +16,6 @@ import (
 func TestLaunchAgentXMLAndRenewalIsolation(t *testing.T) {
 	dir := testDir(t)
 	c := testConfig(dir)
-	c.TmuxSocket = "/tmp/lab<&>.sock"
 	for _, renew := range []bool{false, true} {
 		b, err := LaunchAgent(c, dir, renew)
 		if err != nil {
@@ -51,7 +50,7 @@ func TestLaunchAgentXMLAndRenewalIsolation(t *testing.T) {
 				t.Fatal("missing renewal interval")
 			}
 		} else {
-			for _, want := range []string{c.Daemon, c.TmuxSocket, c.Path, filepath.Join(dir, "devices.json")} {
+			for _, want := range []string{c.Daemon, c.Path, filepath.Join(dir, "devices.json")} {
 				if !contains(values, want) {
 					t.Fatalf("lost argument %q: %v", want, values)
 				}

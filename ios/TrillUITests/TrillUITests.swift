@@ -106,8 +106,7 @@ extension TrillUITests {
             XCTFail("The owned Herdr agent row was not visible"); return
         }
         herdrTap(app, session)
-        let openTerminal = app.buttons["open-terminal"]
-        if openTerminal.waitForExistence(timeout: 5) { herdrTap(app, openTerminal) }
+        XCTAssertFalse(app.buttons["open-terminal"].exists, "Selecting a live session opens it directly")
         let consent = app.buttons["Allow once"]
         if consent.waitForExistence(timeout: 10) { herdrTap(app, consent) }
         let terminal = app.descendants(matching: .any)["remote-terminal"].firstMatch

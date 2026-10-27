@@ -36,19 +36,15 @@ Manual daemon operation also supports a legacy shared token, including alongside
 
 Run `trill devices` and `trill revoke DEVICE_ID` on the Mac, selecting the same `--state-dir` used for setup when applicable. Each later paired API request checks the persisted credential state without an authentication cache.
 
-Background watchers poll approximately every 100 ms to retire revoked devices' Mosh leases and browser grants, including active proxied connections. Store errors fail closed for paired authentication and tracked streams. Polling and process teardown are asynchronous; the interval is not a guaranteed maximum disconnect time.
+Background watchers poll approximately every 100 ms to retire revoked devices' terminal leases and browser grants, including active proxied connections. Store errors fail closed for paired authentication and tracked streams. Polling and process teardown are asynchronous; the interval is not a guaranteed maximum disconnect time.
 
-Revocation is not a transaction barrier for all work already authorized. Ordinary in-flight reads, video transfers, and provider mutations are not universally cancelled or reauthorized when the store changes. Mosh bootstrap, preview creation, and photo upload have additional credential checks, but revocation cannot undo completed commands, downloaded content, uploaded photos, or data already sent to a development server.
+Revocation is not a transaction barrier for all work already authorized. Ordinary in-flight reads, video transfers, and provider mutations are not universally cancelled or reauthorized when the store changes. Terminal attachment, preview creation, and photo upload have additional credential checks, but revocation cannot undo completed commands, downloaded content, uploaded photos, or data already sent to a development server.
 
 Forgetting a computer on the phone removes local credentials/consents and closes its local transports; it does not revoke the Mac's device record. Revoke a lost device on the Mac. Disabling control through managed setup restarts the owned daemon when loaded and disconnects its transports; underlying provider sessions remain alive. Neither disconnect nor revocation stops arbitrary processes previously started through the terminal.
 
 ## Terminal transport resource limits
 
-The native Mosh transport retains at most 64 queued UDP datagrams before
-authentication, discarding the oldest queued packet when a newer one arrives
-at capacity. Connected UDP limits incoming traffic to the configured peer;
-this queue limit also bounds memory when packets arrive faster than the app
-can authenticate and consume them.
+The terminal stream bounds each frame to 4 MiB, its native relay queue to eight frames and input chunks to 8192 decoded bytes. Stalled receivers close rather than accumulate an unbounded transcript. WebSocket closure releases the controller. HTTPS trust and the paired device credential apply to both lease creation and stream upgrade.
 
 Fragment reassembly resets an instruction if retained contents would exceed
 16 MiB, including incomplete instructions. Decompression rejects output above

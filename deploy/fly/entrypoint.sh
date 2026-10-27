@@ -7,7 +7,6 @@ fail() { printf '%s\n' "$1" >&2; exit 1; }
 [ "$(id -u)" = 0 ] || fail 'bootstrap must start as root before dropping privileges'
 [ "${FLY_APP_NAME:-}" = trill-demo ] || fail 'unexpected or missing Fly app identity'
 [ -n "${FLY_MACHINE_ID:-}" ] || fail 'Fly Machine identity is required'
-[ "${DEMO_MOSH_HOST:-}" = 137.66.44.233 ] || fail 'dedicated demo IPv4 is required'
 
 # Touch only the mount itself, never recursively chown existing demo state.
 [ -d /data ] && [ ! -L /data ] || fail 'unsafe data mount'
@@ -29,15 +28,6 @@ chown 10001:10001 /run/trill /run/trill/review-password
 # Fly injects secrets into the environment too; exclude this copy from the service/children.
 unset DEMO_REVIEW_PASSWORD_B64
 
-# Resolve the special IPv4 source before restricting the service's egress.
-# getent runs only in this owned VM bootstrap; the parent also resolves its bind.
-mosh_bind_ip=$(getent ahostsv4 fly-global-services | awk 'NR == 1 {print $1}')
-printf '%s\n' "$mosh_bind_ip" | awk -F. '
-    NF == 4 { valid = 1; for (i = 1; i <= 4; i++)
-        if ($i !~ /^[0-9]+$/ || $i > 255) valid = 0 }
-    END { exit !valid }
-' || fail 'fly-global-services did not resolve to IPv4'
-
 # Native nftables socket UID matching works without the xt_owner kernel module.
 # Recreate only our table, atomically; other UID traffic and Fly operator access
 # remain untouched. No service process runs before this transaction succeeds.
@@ -49,7 +39,6 @@ add table inet trill_demo
    ct state established,related accept
    oifname "lo" accept
    ip daddr { 0.0.0.0/8, 10.0.0.0/8, 100.64.0.0/10, 127.0.0.0/8, 169.254.0.0/16, 172.16.0.0/12, 192.0.0.0/24, 192.0.2.0/24, 192.168.0.0/16, 198.18.0.0/15, 198.51.100.0/24, 203.0.113.0/24, 224.0.0.0/4, 240.0.0.0/4 } reject
-   ip saddr $mosh_bind_ip udp sport 60300-60301 accept
    counter reject
   }
   chain output {
@@ -66,9 +55,6 @@ exec setpriv --reuid=10001 --regid=10001 --clear-groups --no-new-privs \
     --listen 0.0.0.0:8080 \
     --fly-edge-tls \
     --address "https://${FLY_APP_NAME}.fly.dev" \
-    --mosh-bind fly-global-services \
-    --mosh-host "$DEMO_MOSH_HOST" \
-    --udp-ports 60300:60301 \
     --max-leases 2 \
     --review-password-file /run/trill/review-password \
     --retention 24h

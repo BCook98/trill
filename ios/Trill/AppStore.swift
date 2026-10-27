@@ -29,14 +29,10 @@ final class AppStore {
     }
     var hasHerdr: Bool { projects.contains { $0.provider == "herdr" } || !spaceProviders.isEmpty }
     var creatableProjects: [Project] { projects.filter(\.canCreate) }
-    var sessionManagementAvailable: Bool { health?.sessionManagement ?? true }
     func supports(_ action: String, session: RemoteSession) -> Bool {
-        guard let caps = session.capabilities else { return sessionManagementAvailable }
+        guard let caps = session.capabilities else { return false }
         switch action {
         case "rename": return caps.rename
-        case "stop": return caps.stop
-        case "archive": return caps.archive
-        case "resume": return caps.resume
         default: return false
         }
     }
@@ -69,7 +65,7 @@ final class AppStore {
     private let checkHealth: (APIClient) async throws -> Health
     private let fetchSessions: (APIClient) async throws -> [RemoteSession]
     private let fetchProjects: (APIClient) async throws -> [Project]
-    private let performAction: (APIClient, String, String) async throws -> Void
+    private let performRename: (APIClient, String, String) async throws -> Void
 
     init(loadSavedPairing: Bool = true,
          savePairing: @escaping (Computer, String) throws -> Void = { try PairingStore.save($0, account: $1) },
@@ -80,14 +76,14 @@ final class AppStore {
          checkHealth: @escaping (APIClient) async throws -> Health = { try await $0.health() },
          fetchSessions: @escaping (APIClient) async throws -> [RemoteSession] = { try await $0.sessions() },
          fetchProjects: @escaping (APIClient) async throws -> [Project] = { try await $0.projects() },
-         performAction: @escaping (APIClient, String, String) async throws -> Void = { try await $0.action($1, id: $2) }) {
+         performRename: @escaping (APIClient, String, String) async throws -> Void = { try await $0.rename(id: $1, name: $2) }) {
         self.saveLibrary = saveLibrary
         self.savePairing = savePairing
         self.deletePairing = deletePairing
         self.checkHealth = checkHealth
         self.fetchSessions = fetchSessions
         self.fetchProjects = fetchProjects
-        self.performAction = performAction
+        self.performRename = performRename
         guard loadSavedPairing else { return }
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("--test-onboarding") { return }
@@ -318,6 +314,20 @@ final class AppStore {
         guard !changingComputer else { return false }
         return await refreshCurrentComputer()
     }
+    func watchHerdrChanges() async {
+        guard let api else { return }
+        while !Task.isCancelled, self.api === api {
+            guard sessions.contains(where: { $0.provider == "herdr" }) || spaceProviders.contains(where: { $0.id.hasPrefix("herdr") }) else { return }
+            do {
+                if try await api.waitForHerdrChange(), !Task.isCancelled, self.api === api {
+                    _ = await refresh()
+                }
+                // Bound refresh pressure and retry unavailable servers without
+                // spinning; the regular poll remains authoritative fallback.
+                try await Task.sleep(for: .seconds(1))
+            } catch { return }
+        }
+    }
     private func refreshCurrentComputer() async -> Bool {
         if let refreshTask { return await refreshTask.value }
         guard let api else { return false }
@@ -354,61 +364,23 @@ final class AppStore {
     func canConfirm(_ prompt: SessionPrompt) -> Bool {
         guard prompt.computerID == activeComputerID, !busy, !readOnly, !changingComputer,
               let latest = sessions.first(where: { $0.id == prompt.sessionID }), !latest.isArchived, supports(prompt.action.rawValue, session: latest) else { return false }
-        return prompt.action != .stop || latest.attachable
+        return true
     }
     func confirm(_ prompt: SessionPrompt, name: String) async {
         guard canConfirm(prompt), let latest = sessions.first(where: { $0.id == prompt.sessionID }) else { return }
-        if prompt.action == .rename {
-            let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty else { return }
-            await rename(latest, name: trimmed)
-        } else { await action(prompt.action.rawValue, session: latest) }
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        await rename(latest, name: trimmed)
     }
 
-    @discardableResult
-    func action(_ action: String, session: RemoteSession) async -> Bool {
-        guard supports(action, session: session), let api, !busy, !readOnly, !changingComputer else { return false }
-        let generation = refreshGeneration
-        busy = true; defer { busy = false }
-        do {
-            try await performAction(api, action, session.id)
-            guard generation == refreshGeneration else { return false }
-            if action == "stop" || action == "archive" { await connections[session.id]?.disconnect() }
-            if action == "archive", selectedID == session.id { selectedID = nil }
-            // Do not mistake a poll started before the action for its resulting state.
-            if let refreshTask { _ = await refreshTask.value }
-            guard generation == refreshGeneration else { return false }
-            let refreshed = await refresh()
-            guard generation == refreshGeneration else { return false }
-            guard refreshed else {
-                actionError = "The \(action) request for “\(session.name)” was sent, but Trill couldn’t refresh its status. " + (error ?? "Check the connection and refresh Sessions.")
-                return false
-            }
-            if action == "resume", !selectSession(id: session.id) {
-                error = "The reopened session has not appeared in Sessions yet. Refresh Projects to check it."
-                return false
-            }
-            return true
-        } catch {
-            if generation == refreshGeneration {
-                self.error = error.localizedDescription
-                actionError = "Couldn’t \(action) “\(session.name)”. " + error.localizedDescription
-            }
-            return false
-        }
+    func canCreateTerminal(projectID: String) -> Bool {
+        projects.contains { $0.id == projectID && $0.capabilities?.createTerminal == true }
     }
-    func canCreate(projectID: String, terminalOnly: Bool, useWorktree: Bool) -> Bool {
-        guard let project = projects.first(where: { $0.id == projectID }), project.canCreate else { return false }
-        return (terminalOnly ? (project.capabilities?.createTerminal ?? true) : (project.capabilities?.createAgent ?? true)) &&
-            (terminalOnly || !useWorktree || (project.capabilities?.worktree ?? true))
-    }
-    func create(projectID: String, name: String, goal: String, terminalOnly: Bool, useWorktree: Bool) async throws {
-        guard canCreate(projectID: projectID, terminalOnly: terminalOnly, useWorktree: useWorktree) else {
-            throw SessionCreationPreflightError.unsupportedProject
-        }
+    func createTerminal(projectID: String) async throws {
+        guard canCreateTerminal(projectID: projectID) else { throw SessionCreationPreflightError.unsupportedProject }
         guard let api, !busy, !readOnly, !changingComputer else { throw SessionCreationPreflightError.unavailable }
         busy = true; defer { busy = false }
-        try await api.create(projectId: projectID, name: name, goal: goal, terminalOnly: terminalOnly, useWorktree: useWorktree)
+        try await api.createTerminal(projectID: projectID)
         if let refreshTask { _ = await refreshTask.value }
         await refresh()
     }
@@ -417,7 +389,7 @@ final class AppStore {
         let generation = refreshGeneration
         busy = true; defer { busy = false }
         do {
-            try await api.rename(id: session.id, name: name)
+            try await performRename(api, session.id, name)
             guard generation == refreshGeneration else { return }
             let refreshed = await refresh()
             if generation == refreshGeneration, !refreshed {
@@ -468,6 +440,10 @@ struct TrillApp: App {
     var body: some Scene {
         WindowGroup {
             RootView().environment(store).tint(Color("AccentColor"))
+                .task(id: "\(store.activeComputerID?.uuidString ?? "")-\(scenePhase)-\(store.sessions.contains(where: { $0.provider == "herdr" }))") {
+                    guard scenePhase == .active else { return }
+                    await store.watchHerdrChanges()
+                }
                 .task {
                     while !Task.isCancelled {
                         await store.refresh()

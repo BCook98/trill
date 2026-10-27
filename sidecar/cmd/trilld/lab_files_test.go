@@ -32,7 +32,7 @@ func TestLabFilesRootFlagValidationBeforeAuthentication(t *testing.T) {
 				os.Args = append(os.Args, "--tmux-socket", tc.socket)
 			}
 			err := run()
-			if err == nil || !strings.Contains(err.Error(), "--lab-files-root") {
+			if err == nil || !strings.Contains(err.Error(), "lab-files-root") {
 				t.Fatal("flag validation", err)
 			}
 			if _, err := os.Stat(filepath.Dir(authPath)); !os.IsNotExist(err) {

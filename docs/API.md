@@ -1,33 +1,46 @@
-# Trill API v1: implementation contract
+# Trill API v1
 
-The API uses HTTPS with bearer authentication. GET /v1/health returns {name, version, readOnly: Bool}.
-GET /v1/sessions returns {sessions: [Session]}.
-Session: id, name, projectId, projectName, status, activityState, agent, branch, updatedAt (strings; optional metadata may be empty); attachable (Bool); resumable (Bool); archived (Bool).
-GET /v1/projects returns {projects: [{id,name,path}]}.
-POST /v1/sessions body {projectId,name,goal,kind,useWorktree,branch}. `kind` is `agent` (default) or `terminal`; `useWorktree` is a boolean (default true). Agent creation requires a nonblank goal (newlines allowed); name is optional. Agent `useWorktree:true` creates a new worktree on `branch`, or a generated `session/trill-<random>` branch. Agent `useWorktree:false` runs at the selected project's root. `branch` is optional and valid only for agent worktrees. Terminal creation requires `{projectId,kind:"terminal",useWorktree:false}` and rejects name, goal, or branch options; it creates a standalone shell at the project root using configured shell defaults. Returns {ok:true}; app refreshes list.
-PATCH /v1/sessions/{id} body {name} renames. Returns {ok:true}.
-POST /v1/sessions/{id}/stop or /resume returns {ok:true}.
-POST /v1/sessions/{id}/archive returns {ok:true}. This idempotently sets Xirp's `hiddenFromSidebar` via `session-sidebar:set` and confirms metadata readback. It hides the session from ambient Xirp lists without stopping/deleting it, changing its status, or closing tmux/mosh leases. Trill's full metadata list continues to include archived sessions.
-`archived` is true when `hiddenFromSidebar` is true or status is completed/failed/stopped. Raw status is unchanged. `resumable` is true for a hidden session with a recognized active status (running/waiting/idle/finished), or an ended session with an original/fallback CLI history ID. Hidden active sessions reopen through /resume by unhiding only, without restarting the agent. Ended sessions resume history first, then unhide if necessary; success confirms the same target/project is active and visible. If resuming succeeds but unhiding fails, return 409 and refresh before any manual retry. Unknown statuses remain visible in metadata; a hidden unknown status is archived but not resumable until a recognized status is reported. An ended shell without a CLI history ID cannot be resumed.
-POST /v1/sessions/{id}/mosh body {cols:Int,rows:Int} returns {host:String,port:Int,key:String,leaseId:String}. This starts mosh-server attached to the exact authoritative tmux session. It never detaches existing clients. Terminal traffic does not travel over HTTP.
-DELETE /v1/leases/{id} kills only the mosh-server owned by this lease, not tmux/session; returns {ok:true}.
-Mutation replies are verified with target metadata readback. The mutation is sent once; only readback is retried. HTTP 409 with "operation outcome unconfirmed; refresh sessions before retrying" means the action may already have been accepted. Clients must not automatically retry it.
-Creation uses fixed Xirp APIs: `session:create` with `useTerminal:true` and either `newBranch` or the server-derived `Project.Path` as `worktreePath`; standalone shells use `project:create-terminal` with `projectId`. Coding-session creation uses a random supported `trill-…` tag for exact metadata correlation because Xirp 0.60’s CLI rejects `requestId` on this operation. Terminal creation uses its supported server-generated `requestId` and verifies the echoed ID. Neither path retries the mutation. Trill requests a new worktree with `newBranch`, or explicitly selects the project root with `worktreePath`. Readback checks target/project, terminal mode, live terminal, active status, visibility, and requested root/worktree path; agent readback also checks goal, requested name, and worktree branch. Shell readback requires `source:"terminal"`. No caller-controlled path, ambient CLI parent, or fallback mutation is used. Readback makes four attempts over 0.7 seconds (plus command time); metadata that arrives later produces an unconfirmed outcome, never a repeated create.
-Errors return non-2xx responses with JSON {error:String}. Errors and logs contain no raw command output or secrets.
+All endpoints use HTTPS and bearer authentication except `POST /v1/pair`. The companion defaults to read-only. Terminal attachment, mutations, files, media, uploads and preview grants require control enabled on the Mac.
 
-The sidecar defaults to read-only: mutations and mosh bootstrap stay disabled until explicitly enabled through the CLI. TLS is required off loopback; an explicit switch permits insecure development only on loopback. The long random bearer token is stored with mode 0600. Operations use a fixed allowlist; there is no arbitrary daemon API proxy or remote command endpoint. The installed CLI supplies read-only Xirp metadata without transcript parsing. Test only against runner fakes and isolated tmux. Limit access to existing user sessions to read-only metadata.
+## Catalog and native operations
 
-## Provider catalogs and capabilities
+| Endpoint | Contract |
+| --- | --- |
+| `GET /v1/health` | `{name,version,readOnly,backend:"herdr",terminalLab,sessionManagement:false}` |
+| `GET /v1/projects` | `{projects,providers}`; Herdr spaces and linked worktrees |
+| `GET /v1/sessions` | `{sessions,providers}`; current Herdr terminal metadata |
+| `GET /v1/changes` | Bounded long poll returning `{changed}` after a native event or timeout |
+| `PATCH /v1/sessions/{id}` | `{name}`; rename the current native pane label |
+| `POST /v1/sessions` | `{projectId,kind:"terminal",useWorktree:false}`; create a terminal tab |
+| `POST /v1/sessions` | `{projectId,kind:"worktree",useWorktree:true,branch,name?}`; native linked worktree |
+| `POST /v1/spaces` | `{providerId,name,directory}`; space in an existing absolute directory |
 
-`GET /v1/health` also returns `backend` (`xirp`, `herdr`, `mixed`, or `terminal-lab`), `terminalLab`, and the legacy aggregate `sessionManagement` flag. New clients use item capabilities instead of that aggregate flag.
+Per-item capabilities include `terminalStream`, `rename`, `createTerminal`, `worktree`, and `files`. Provider records carry `id`, `name`, `available`, optional `message`, and `createSpace`. The client does not infer support when capabilities are absent. Unavailable named servers do not hide healthy ones; all unavailable is an error.
 
-Both listing envelopes also return `providers: [{id,name,available,message?}]`. Sessions and projects include `provider`, `providerName`, and `capabilities: {rename,stop,archive,resume,createAgent,createTerminal,worktree,files}` (booleans). Old clients can ignore these additions. New clients use their legacy Xirp behavior only when the capabilities object is absent. A healthy provider still returns data when another fails; all providers failing returns an error instead of a successful empty catalog.
+Session identities bind the pinned configuration home, named server and stable terminal ID. `done` is a live idle terminal. Native mutations are issued once then checked by metadata readback. HTTP 409 with an unconfirmed-outcome message requires inspection before a manual retry. No generic Herdr API or remote command proxy is exposed.
 
-Existing Xirp IDs and action contracts remain unchanged. Herdr sessions have namespaced IDs tied to the pinned configuration location, server and stable terminal; workspace IDs are separately namespaced. Herdr `done` is a live idle terminal, not an ended session. Rename resolves the current pane and confirms its new label. Terminal creation creates a native workspace tab and confirms exactly the returned terminal ID. Herdr does not support Trill stop/archive/resume or direct coding-agent/worktree creation. Those requests return 409 without invoking Xirp.
+## Terminal stream
 
-Herdr mosh bootstrap validates the terminal and compatible CLI/server protocol, checks direct-controller ownership without takeover, and uses `herdr --session NAME terminal attach TERMINAL_ID` as its fixed mosh payload. HTTP 409 reports an occupied terminal, including an already active Trill lease. Existing read-only/authentication/device lease ownership rules apply to every provider. Herdr’s actual terminal survives disconnect; no terminal input or mosh keys appear in catalog responses.
+`POST /v1/sessions/{id}/terminal` accepts `{cols,rows}` and returns only `{leaseId}`. Dimensions are bounded to 20–500 columns and 5–200 rows. An occupied direct controller returns 409; no takeover is attempted.
 
-See [provider configuration and semantics](PROVIDERS.md) for the action matrix and remaining release testing.
+Connect a WebSocket to `GET /v1/leases/{leaseId}/terminal` on the same authenticated HTTPS origin (`wss`). Each lease accepts one connection. Only its authenticated device may connect or release it. `DELETE /v1/leases/{leaseId}` releases the controller; the Herdr terminal and its program survive. Revocation, expiry, socket closure and companion shutdown use the same cleanup path. An unclaimed production stream is released after 15 seconds.
+
+Server text messages are native JSON `terminal.frame` records with `seq`, `width`, `height`, `full`, and base64 `bytes`. Frames are capped at 4 MiB and retained in a bounded queue. OSC 8 links reach SwiftTerm intact.
+
+Client text messages use a fixed allowlist:
+
+```json
+{"type":"terminal.input","bytes":"BASE64"}
+{"type":"terminal.resize","cols":90,"rows":28}
+{"type":"terminal.scroll","direction":"up","lines":3,"column":7,"row":5}
+{"type":"terminal.release"}
+```
+
+Input chunks are at most 8192 decoded bytes. Scroll lines are 1–200; zero-based column/row preserve hit location for mouse-aware apps. Unknown fields and command types are rejected. Heartbeats detect idle connection failure. There are no separate terminal ports or connection keys. Removed transport/lifecycle routes are unregistered.
+
+The same paired device may replace its own tracked controller for the same terminal. Other paired devices and external controllers receive a busy error. Authentication comes from the credential, never request fields. Input is never replayed during recovery.
+
+Errors use non-2xx JSON `{error}` and exclude raw command output and secrets. TLS is required outside explicitly enabled development loopback. Legacy shared-token mode is available only when explicitly configured; managed pairing uses per-device credentials.
 
 ## Device pairing
 
@@ -37,7 +50,7 @@ Managed setup passes `--pairing-store /absolute/path/devices.json`. Without an e
 
 The invitation payload is `{version:1,address,name,fingerprint,code,expiresAt}` with an RFC3339 expiry. `fingerprint` is empty for a system-trusted certificate, or the SHA-256 leaf certificate fingerprint for LAN pairing. QR data uses raw JSON; paste links use `trill://pair?data=<base64url JSON>`. Importing a code never sends a request until the user reviews the computer and confirms pairing.
 
-A device can delete only its own mosh leases. Local revocation denies subsequent API calls and closes that device’s owned mosh processes; tmux sessions and other devices’ leases survive. See [pairing storage and lifecycle](../sidecar/pairing/README.md).
+A device can delete only its own terminal leases. Local revocation denies subsequent API calls and closes that device’s owned terminal controllers; Herdr terminals and other devices’ leases survive. See [pairing storage and lifecycle](../sidecar/pairing/README.md).
 
 ## Files and page previews
 

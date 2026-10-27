@@ -4,25 +4,7 @@ import UIKit
 @testable import Trill
 
 final class SessionBrowserTests: XCTestCase {
-    @MainActor func testHerdrCapabilitiesDisableManagementWithoutDisablingTerminalAccess() async throws {
-        let store = AppStore(loadSavedPairing: false)
-        store.health = Health(name: "Herdr lab", version: "1", readOnly: false, sessionManagement: false)
-        let row = session("herdr-session")
-        store.sessions = [row]
-        XCTAssertFalse(store.readOnly)
-        XCTAssertFalse(store.sessionManagementAvailable)
-        XCTAssertTrue(store.selectSession(id: row.id))
-        for action in [SessionPrompt.Action.rename, .stop, .archive] {
-            store.requestSessionPrompt(action, sessionID: row.id)
-            XCTAssertNil(store.sessionPrompt)
-        }
-        let stopped = await store.action("stop", session: row)
-        XCTAssertFalse(stopped)
-        do {
-            try await store.create(projectID: "p1", name: "", goal: "", terminalOnly: true, useWorktree: false)
-            XCTFail("Unsupported creation must be rejected")
-        } catch { XCTAssertTrue(error.localizedDescription.contains("does not support")) }
-    }
+
 
     func testHealthCapabilityDecodesLegacyAndHerdrResponses() throws {
         let legacy = try JSONDecoder().decode(Health.self, from: Data(#"{"name":"trilld","version":"1","readOnly":false}"#.utf8))
@@ -31,25 +13,7 @@ final class SessionBrowserTests: XCTestCase {
         XCTAssertEqual(herdr.sessionManagement, false)
     }
 
-    @MainActor func testMixedProviderCapabilitiesOverrideGlobalManagementFlag() {
-        let store = AppStore(loadSavedPairing: false)
-        store.health = Health(name: "Mixed", version: "1", readOnly: false, sessionManagement: true)
-        var herdr = session("herdr")
-        var caps = SessionCapabilities(); caps.rename = true; caps.createTerminal = true
-        herdr.capabilities = caps
-        store.sessions = [herdr, session("xirp")]
-        XCTAssertTrue(store.supports("rename", session: herdr))
-        XCTAssertFalse(store.supports("stop", session: herdr))
-        XCTAssertFalse(store.supports("archive", session: herdr))
-        XCTAssertFalse(store.supports("resume", session: herdr))
-        store.requestSessionPrompt(.stop, sessionID: herdr.id)
-        XCTAssertNil(store.sessionPrompt)
-        store.requestSessionPrompt(.rename, sessionID: herdr.id)
-        XCTAssertEqual(store.sessionPrompt?.sessionID, herdr.id)
-        store.sessionPrompt = nil
-        store.requestSessionPrompt(.stop, sessionID: "xirp")
-        XCTAssertEqual(store.sessionPrompt?.sessionID, "xirp")
-    }
+
 
     @MainActor func testCreationCatalogSupportsHerdrTerminalsWithoutInventingAgentOrWorktreeSupport() {
         let store = AppStore(loadSavedPairing: false)
@@ -58,9 +22,8 @@ final class SessionBrowserTests: XCTestCase {
         herdr.capabilities = caps
         var unsupported = Project(id: "none", name: "Unavailable", path: "")
         unsupported.capabilities = SessionCapabilities()
-        store.projects = [Project(id: "x", name: "Xirp", path: "/repo"), herdr, unsupported]
-        XCTAssertEqual(store.creatableProjects.map(\.id), ["x", "h"])
-        XCTAssertFalse(herdr.capabilities!.createAgent)
+        store.projects = [Project(id: "x", name: "No capabilities", path: "/repo"), herdr, unsupported]
+        XCTAssertEqual(store.creatableProjects.map(\.id), ["h"])
         XCTAssertFalse(herdr.capabilities!.worktree)
     }
 
@@ -94,54 +57,49 @@ final class SessionBrowserTests: XCTestCase {
         var herdr = Project(id: "h", name: "Herdr", path: "")
         var caps = SessionCapabilities(); caps.createTerminal = true
         herdr.capabilities = caps
-        let xirp = Project(id: "x", name: "Xirp", path: "/repo")
-        store.projects = [herdr, xirp]
-        XCTAssertTrue(store.canCreate(projectID: "h", terminalOnly: true, useWorktree: false))
+        var second = Project(id: "x", name: "Another space", path: "/repo")
+        second.capabilities = caps
+        store.projects = [herdr, second]
+        XCTAssertTrue(store.canCreateTerminal(projectID: "h"))
 
         // A successful partial refresh removes the unavailable provider's catalog.
-        store.projects = [xirp]
-        XCTAssertFalse(store.canCreate(projectID: "h", terminalOnly: true, useWorktree: false))
+        store.projects = [second]
+        XCTAssertFalse(store.canCreateTerminal(projectID: "h"))
         do {
-            try await store.create(projectID: "h", name: "", goal: "", terminalOnly: true, useWorktree: false)
+            try await store.createTerminal(projectID: "h")
             XCTFail("A stale selection must be rejected before dispatch")
         } catch {
             XCTAssertEqual(error as? SessionCreationPreflightError, .unsupportedProject)
             XCTAssertFalse(SessionCreationFailure(error).outcomeUncertain)
         }
         XCTAssertFalse(store.busy)
-        XCTAssertTrue(store.canCreate(projectID: "x", terminalOnly: true, useWorktree: false))
-        XCTAssertFalse(store.canCreate(projectID: "", terminalOnly: true, useWorktree: false))
+        XCTAssertTrue(store.canCreateTerminal(projectID: "x"))
+        XCTAssertFalse(store.canCreateTerminal(projectID: ""))
     }
 
     @MainActor func testCreationRevalidatesCapabilitiesForSameProjectID() async {
         let store = AppStore(loadSavedPairing: false)
-        var project = Project(id: "p", name: "Project", path: "/repo")
+        var project = Project(id: "p", name: "Space", path: "/repo")
         store.projects = [project]
-        XCTAssertTrue(store.canCreate(projectID: "p", terminalOnly: false, useWorktree: true))
-        XCTAssertTrue(store.canCreate(projectID: "p", terminalOnly: true, useWorktree: false))
-
-        var caps = SessionCapabilities(); caps.createAgent = true
-        project.capabilities = caps
+        XCTAssertFalse(store.canCreateTerminal(projectID: project.id))
+        var capabilities = SessionCapabilities(); capabilities.createTerminal = true
+        project.capabilities = capabilities
         store.projects = [project]
-        XCTAssertFalse(store.canCreate(projectID: "p", terminalOnly: true, useWorktree: false))
-        XCTAssertFalse(store.canCreate(projectID: "p", terminalOnly: false, useWorktree: true))
-        XCTAssertTrue(store.canCreate(projectID: "p", terminalOnly: false, useWorktree: false))
+        XCTAssertTrue(store.canCreateTerminal(projectID: project.id))
         do {
-            try await store.create(projectID: "p", name: "", goal: "Goal", terminalOnly: false, useWorktree: true)
-            XCTFail("Unsupported worktrees must be rejected before dispatch")
-        } catch { XCTAssertEqual(error as? SessionCreationPreflightError, .unsupportedProject) }
-
-        // A supported request with no API is also a known local failure.
-        do {
-            try await store.create(projectID: "p", name: "", goal: "Goal", terminalOnly: false, useWorktree: false)
-            XCTFail("A missing API must be rejected before dispatch")
+            try await store.createTerminal(projectID: project.id)
+            XCTFail("No API must fail before dispatch")
         } catch {
             XCTAssertEqual(error as? SessionCreationPreflightError, .unavailable)
             XCTAssertFalse(SessionCreationFailure(error).outcomeUncertain)
         }
         project.capabilities = SessionCapabilities()
         store.projects = [project]
-        XCTAssertFalse(store.canCreate(projectID: "p", terminalOnly: false, useWorktree: false))
+        XCTAssertFalse(store.canCreateTerminal(projectID: project.id))
+        do {
+            try await store.createTerminal(projectID: project.id)
+            XCTFail("Stale capability must fail before dispatch")
+        } catch { XCTAssertEqual(error as? SessionCreationPreflightError, .unsupportedProject) }
     }
 
     private func session(_ id: String, projectID: String = "p1", projectName: String = "Shared name",
@@ -259,7 +217,7 @@ final class SessionBrowserTests: XCTestCase {
                 }
                 return self.rows
             }, fetchProjects: { _ in [Project(id: "p1", name: "Shared name", path: "/fixture")] },
-                                 performAction: { _, action, id in
+                                 performRename: { _, action, id in
                 self.actionRequests.append("\(action):\(id)")
                 if self.failAction { throw TrillError.message("Fixture resume failed") }
                 self.onAction?()
@@ -332,170 +290,23 @@ final class SessionBrowserTests: XCTestCase {
         XCTAssertEqual(store.selectedTab, .projects)
     }
 
-    @MainActor func testSuccessfulReopenLoadsLatestModelBeforeSelectingMainTab() async throws {
-        let fixture = Fixture()
-        let archived = session("archive", status: "completed", attachable: false, resumable: true)
-        fixture.rows = [archived]
-        let store = try await fixture.makeStore()
-        var reopened = session("archive")
-        reopened.name = "Latest name"
-        fixture.rows = [reopened]
-        let result = await store.action("resume", session: archived)
-        XCTAssertTrue(result)
-        XCTAssertEqual(fixture.actionRequests, ["resume:archive"])
-        XCTAssertEqual(store.currentSessions, [reopened])
-        XCTAssertTrue(store.archiveSessions.isEmpty)
-        XCTAssertEqual(store.selectedID, "archive")
-        XCTAssertEqual(store.selectedTab, .sessions)
-        XCTAssertFalse(store.busy)
-    }
 
-    @MainActor func testFailedReopenPreservesNavigationAndArchive() async throws {
-        let fixture = Fixture()
-        let archived = session("archive", status: "completed", attachable: false, resumable: true)
-        fixture.rows = [session("current"), archived]
-        fixture.failAction = true
-        let store = try await fixture.makeStore()
-        store.selectedID = "current"
-        let result = await store.action("resume", session: archived)
-        XCTAssertFalse(result)
-        XCTAssertEqual(store.selectedID, "current")
-        XCTAssertEqual(store.selectedTab, .projects)
-        XCTAssertEqual(store.archiveSessions, [archived])
-        XCTAssertEqual(store.error, "Fixture resume failed")
-        XCTAssertFalse(store.busy)
-    }
 
-    @MainActor func testSessionPromptFreezesIdentityAndRevalidatesBeforeMutation() async throws {
-        let fixture = Fixture()
-        let current = session("current")
-        fixture.rows = [current]
-        let store = try await fixture.makeStore()
-        store.requestSessionPrompt(.archive, sessionID: current.id)
-        let prompt = try XCTUnwrap(store.sessionPrompt)
-        XCTAssertTrue(store.canConfirm(prompt))
-        fixture.rows[0].name = "Changed remotely"
-        _ = await store.refresh()
-        XCTAssertEqual(store.sessionPrompt?.sessionName, current.name)
-        fixture.readOnly = true
-        _ = await store.refresh()
-        XCTAssertFalse(store.canConfirm(prompt))
-        await store.confirm(prompt, name: "")
-        XCTAssertTrue(fixture.actionRequests.isEmpty)
-        fixture.readOnly = false
-        fixture.rows = []
-        _ = await store.refresh()
-        XCTAssertFalse(store.canConfirm(prompt))
-        await store.confirm(prompt, name: "")
-        XCTAssertTrue(fixture.actionRequests.isEmpty)
-    }
 
-    @MainActor func testChangingComputerClearsPromptAndCannotRetargetOldConfirmation() async throws {
-        let fixture = Fixture()
-        let current = session("same-id")
-        fixture.rows = [current]
-        let store = try await fixture.makeStore()
-        store.requestSessionPrompt(.stop, sessionID: current.id)
-        let prompt = try XCTUnwrap(store.sessionPrompt)
-        store.actionError = "Old computer error"
-        try await store.pair(Computer(name: "Other fixture", address: "https://other.invalid", token: String(repeating: "u", count: 64), fingerprint: ""))
-        XCTAssertNil(store.sessionPrompt)
-        XCTAssertNil(store.actionError)
-        XCTAssertFalse(store.canConfirm(prompt))
-        await store.confirm(prompt, name: "")
-        XCTAssertTrue(fixture.actionRequests.isEmpty)
-    }
 
-    @MainActor func testActionFailureSurvivesSuccessfulBackgroundRefresh() async throws {
-        let fixture = Fixture()
-        let current = session("current")
-        fixture.rows = [current]
-        fixture.failAction = true
-        let store = try await fixture.makeStore()
-        store.selectedID = current.id
-        let succeeded = await store.action("archive", session: current)
-        XCTAssertFalse(succeeded)
-        let message = try XCTUnwrap(store.actionError)
-        XCTAssertTrue(message.contains(current.name))
-        XCTAssertTrue(message.contains("archive"))
-        let refreshed = await store.refresh()
-        XCTAssertTrue(refreshed)
-        XCTAssertNil(store.error)
-        XCTAssertEqual(store.actionError, message)
-        XCTAssertEqual(store.selectedID, current.id)
-    }
 
-    @MainActor func testReopenWithFailedRefreshDoesNotNavigateUsingStaleData() async throws {
-        let fixture = Fixture()
-        let archived = session("archive", status: "stopped", attachable: false, resumable: true)
-        fixture.rows = [archived]
-        let store = try await fixture.makeStore()
-        fixture.failRefresh = true
-        let result = await store.action("resume", session: archived)
-        XCTAssertFalse(result)
-        XCTAssertNil(store.selectedID)
-        XCTAssertEqual(store.selectedTab, .projects)
-        XCTAssertEqual(store.archiveSessions, [archived])
-        XCTAssertEqual(store.error, "Fixture refresh failed")
-        XCTAssertFalse(store.loading)
-    }
 
-    @MainActor func testReopenRequiresConfirmedCurrentSession() async throws {
-        let fixture = Fixture()
-        let archived = session("archive", status: "failed", attachable: false, resumable: true)
-        fixture.rows = [archived]
-        let store = try await fixture.makeStore()
-        let result = await store.action("resume", session: archived)
-        XCTAssertFalse(result)
-        XCTAssertNil(store.selectedID)
-        XCTAssertEqual(store.selectedTab, .projects)
-        XCTAssertNotNil(store.error)
-        XCTAssertEqual(store.archiveSessions, [archived])
-    }
 
-    @MainActor func testReadOnlyReopenDoesNotSendActionOrNavigate() async throws {
-        let fixture = Fixture()
-        fixture.readOnly = true
-        let archived = session("archive", status: "completed", attachable: false, resumable: true)
-        fixture.rows = [archived]
-        let store = try await fixture.makeStore()
-        let result = await store.action("resume", session: archived)
-        XCTAssertFalse(result)
-        XCTAssertTrue(fixture.actionRequests.isEmpty)
-        XCTAssertEqual(store.selectedTab, .projects)
-        XCTAssertNil(store.selectedID)
-    }
 
-    @MainActor func testReopenWaitsForOldPollThenFetchesResultingState() async throws {
-        let fixture = Fixture()
-        let archived = session("archive", status: "completed", attachable: false, resumable: true)
-        fixture.rows = [archived]
-        let store = try await fixture.makeStore()
-        fixture.holdNextFetch = true
-        let started = expectation(description: "Pre-action poll started")
-        fixture.onFetchStarted = { started.fulfill() }
-        let poll = Task { await store.refresh() }
-        await fulfillment(of: [started], timeout: 2)
-        guard fixture.pendingFetch != nil else {
-            fixture.holdNextFetch = false
-            poll.cancel()
-            XCTFail("Pre-action poll did not reach the fixture gate")
-            return
-        }
-        fixture.onAction = {
-            fixture.rows = [self.session("archive")]
-            fixture.pendingFetch?.resume(returning: [archived])
-            fixture.pendingFetch = nil
-        }
-        let result = await store.action("resume", session: archived)
-        _ = await poll.value
-        XCTAssertTrue(result)
-        XCTAssertEqual(fixture.fetchCount, 3, "Pairing, pre-action poll, and post-action refresh")
-        XCTAssertEqual(store.currentSessions.map(\.id), ["archive"])
-        XCTAssertTrue(store.archiveSessions.isEmpty)
-        XCTAssertEqual(store.selectedTab, .sessions)
-        XCTAssertEqual(store.selectedID, "archive")
-    }
+
+
+
+
+
+
+
+
+
 
     @MainActor func testExplicitlyArchivedRunningSessionIsOnlyInProjectArchive() throws {
         var hidden = session("hidden", resumable: true)
@@ -510,58 +321,11 @@ final class SessionBrowserTests: XCTestCase {
         XCTAssertFalse(store.selectSession(id: "hidden"))
     }
 
-    @MainActor func testArchiveClosesOnlyTrillConnectionAndClearsSelection() async throws {
-        let fixture = Fixture()
-        let current = session("current")
-        fixture.rows = [current]
-        let store = try await fixture.makeStore()
-        store.selectSession(id: current.id)
-        let connection = store.connection(for: current.id)
-        connection.draftText = "keep my draft"
-        var hidden = current
-        hidden.archived = true
-        fixture.rows = [hidden]
-        let archived = await store.action("archive", session: current)
-        XCTAssertTrue(archived)
-        XCTAssertEqual(fixture.actionRequests, ["archive:current"])
-        XCTAssertNil(store.selectedID)
-        XCTAssertEqual(store.archiveSessions, [hidden])
-        XCTAssertTrue(store.currentSessions.isEmpty)
-        XCTAssertEqual(connection.phase, .disconnected)
-        XCTAssertEqual(connection.draftText, "keep my draft")
-    }
 
-    @MainActor func testFailedArchiveKeepsCurrentSelectionAndDraft() async throws {
-        let fixture = Fixture()
-        let current = session("current")
-        fixture.rows = [current]
-        fixture.failAction = true
-        let store = try await fixture.makeStore()
-        store.selectSession(id: current.id)
-        store.connection(for: current.id).draftText = "unfinished"
-        let archived = await store.action("archive", session: current)
-        XCTAssertFalse(archived)
-        XCTAssertEqual(store.selectedID, current.id)
-        XCTAssertEqual(store.currentSessions, [current])
-        XCTAssertEqual(store.connection(for: current.id).draftText, "unfinished")
-    }
 
-    @MainActor func testReopenHiddenLiveSessionUsesSameIdentity() async throws {
-        let fixture = Fixture()
-        var hidden = session("hidden", resumable: true)
-        hidden.archived = true
-        fixture.rows = [hidden]
-        let store = try await fixture.makeStore()
-        var restored = hidden
-        restored.archived = false
-        fixture.rows = [restored]
-        let reopened = await store.action("resume", session: hidden)
-        XCTAssertTrue(reopened)
-        XCTAssertEqual(fixture.actionRequests, ["resume:hidden"])
-        XCTAssertEqual(store.selectedID, hidden.id)
-        XCTAssertEqual(store.selectedTab, .sessions)
-        XCTAssertEqual(store.currentSessions, [restored])
-    }
+
+
+
 
 }
 

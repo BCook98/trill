@@ -95,35 +95,27 @@ class FlySmokeTests(unittest.TestCase):
                 smoke.remote('status', '--json')
             self.assertNotIn('private', str(error.exception))
 
-    def test_endpoint_guard_prevents_mosh_client_launch_elsewhere(self):
+    def test_stream_lease_has_no_external_endpoint(self):
         smoke = self.make()
         smoke.session = 'own-session'
-        lease = {'host': '127.0.0.1', 'port': 60300, 'key': 'a' * 22}
-        with mock.patch.object(smoke, 'request', return_value=lease), mock.patch.object(MOD.subprocess, 'Popen') as popen:
-            with self.assertRaises(MOD.SmokeError):
+        with mock.patch.object(smoke, 'request', return_value={'leaseId': 'lease', 'host': 'outside.example'}), mock.patch.object(MOD.BASE, 'TerminalStream') as stream:
+            with self.assertRaises(AssertionError):
                 smoke.connect()
-            popen.assert_not_called()
+            stream.assert_not_called()
 
-    def test_mosh_spawn_failure_closes_both_pty_fds(self):
-        smoke = self.make()
-        smoke.session = 'own-session'
-        lease = {'host': smoke.mosh_host, 'port': 60300, 'key': 'a' * 22}
-        master, slave = os.openpty()
-        with mock.patch.object(smoke, 'request', return_value=lease), mock.patch.object(MOD.pty, 'openpty', return_value=(master, slave)), mock.patch.object(MOD.subprocess, 'Popen', side_effect=OSError('private-key')):
-            with self.assertRaises(OSError):
-                smoke.connect()
-        for fd in (master, slave):
-            with self.assertRaises(OSError):
-                os.fstat(fd)
+    def test_stream_handshake_failure_closes_connection(self):
+        connection = mock.Mock()
+        connection.host, connection.port = 'localhost', 443
+        connection.sock.recv.return_value = b''
+        with self.assertRaises(EOFError):
+            MOD.BASE.TerminalStream(connection, '/v1/leases/owned/terminal', 'synthetic')
+        connection.close.assert_called_once()
 
     def test_cleanup_continues_locally_and_remotely_after_failure(self):
         smoke = self.make()
-        process = mock.Mock()
-        process.poll.return_value = None
-        process.terminate.side_effect = OSError('already exited')
-        master, slave = os.openpty()
-        os.close(slave)
-        smoke.clients = [(process, master)]
+        stream = mock.Mock()
+        stream.close.side_effect = OSError('already closed')
+        smoke.clients = [stream]
         smoke.token, smoke.device_id = 'private-token', 'our-device'
         smoke.faults_armed = True
         smoke.owned_sessions = {'our-session'}
@@ -134,10 +126,8 @@ class FlySmokeTests(unittest.TestCase):
             cli.assert_any_call('fault', 'clear')
             cli.assert_any_call('revoke', 'our-device')
             request.assert_any_call('DELETE', '/v1/leases/our-lease', expected=(200, 404))
-            request.assert_any_call('POST', '/v1/sessions/our-session/archive')
             request.assert_any_call('GET', '/v1/sessions', expected=401)
-        with self.assertRaises(OSError):
-            os.fstat(master)
+        stream.close.assert_called_once()
         self.assertEqual(smoke.clients, [])
         self.assertIsNone(smoke.token)
 
@@ -163,12 +153,12 @@ class FlySmokeTests(unittest.TestCase):
 
     def test_failed_report_is_redacted_and_existing_output_prevents_actions(self):
         smoke = self.make()
-        with mock.patch.object(smoke, 'start', side_effect=RuntimeError('Bearer private-token MOSH_KEY=private')), mock.patch.object(smoke, 'cleanup') as cleanup, contextlib.redirect_stdout(io.StringIO()):
+        with mock.patch.object(smoke, 'start', side_effect=RuntimeError('Bearer private-token SESSION_TOKEN=private')), mock.patch.object(smoke, 'cleanup') as cleanup, contextlib.redirect_stdout(io.StringIO()):
             self.assertFalse(smoke.run())
             cleanup.assert_called_once()
         report = smoke.output.read_text()
         self.assertNotIn('private-token', report)
-        self.assertNotIn('MOSH_KEY', report)
+        self.assertNotIn('SESSION_TOKEN', report)
         self.assertEqual(smoke.output.stat().st_mode & 0o777, 0o600)
         with mock.patch.object(smoke, 'start') as start:
             with self.assertRaises(FileExistsError):
@@ -197,11 +187,8 @@ class FlySmokeTests(unittest.TestCase):
     def test_real_sigterm_clears_fault_and_closes_fd_then_restores_handler(self):
         smoke = self.make()
         previous = signal.getsignal(signal.SIGTERM)
-        master, slave = os.openpty()
-        os.close(slave)
-        child = mock.Mock()
-        child.poll.return_value = 0
-        smoke.clients = [(child, master)]
+        stream = mock.Mock()
+        smoke.clients = [stream]
         def interrupt():
             self.assertIsNot(signal.getsignal(signal.SIGTERM), previous)
             smoke.faults_armed = True
@@ -215,8 +202,7 @@ class FlySmokeTests(unittest.TestCase):
             self.assertFalse(smoke.run())
         cli.assert_called_once_with('fault', 'clear')
         self.assertIs(signal.getsignal(signal.SIGTERM), previous)
-        with self.assertRaises(OSError):
-            os.fstat(master)
+        stream.close.assert_called_once()
         report = json.loads(smoke.output.read_text())
         self.assertEqual(report['failure'], 'interrupted')
         self.assertEqual(report['cleanup'], 'complete')
@@ -240,16 +226,15 @@ class FlySmokeTests(unittest.TestCase):
         self.addCleanup(stack.close)
         first, second = mock.Mock(pid=111111), mock.Mock(pid=222222)
         connect = stack.enter_context(mock.patch.object(smoke, 'connect', side_effect=[
-            (first, 9000, {'leaseId': 'old-lease'}),
-            (second, 9001, {'leaseId': 'old-lease' if same_lease else 'new-lease'})]))
+            (first, {'leaseId': 'old-lease'}),
+            (second, {'leaseId': 'old-lease' if same_lease else 'new-lease'})]))
         stack.enter_context(mock.patch.object(smoke, 'file', side_effect=[
-            'Initial heading', 'Smoke through real Mosh', 'Smoke through real Mosh', 'Reconnected through real Mosh']))
+            'Initial heading', 'Smoke through HTTPS', 'Reconnected through HTTPS']))
         stack.enter_context(mock.patch.object(smoke, 'cli', return_value=json.dumps(status).encode()))
-        stack.enter_context(mock.patch.object(MOD.BASE.fcntl, 'ioctl'))
-        stack.enter_context(mock.patch.object(MOD.BASE.os, 'killpg'))
         stack.enter_context(mock.patch.object(MOD.BASE.time, 'sleep'))
         events = []
-        stack.enter_context(mock.patch.object(MOD.BASE.os, 'write', side_effect=lambda fd, data: events.append(('write', data))))
+        for stream in (first, second):
+            stream.send.side_effect = lambda value: events.append(('send', value))
         request = stack.enter_context(mock.patch.object(smoke, 'request', side_effect=lambda *a, **kw: events.append(('request', a, kw))))
         predicates = []
         def require_true(predicate, **_kwargs):
@@ -292,7 +277,7 @@ class FlySmokeTests(unittest.TestCase):
         smoke.terminal()
         request.assert_any_call('DELETE', '/v1/leases/old-lease', expected=404)
         old = events.index(('request', ('DELETE', '/v1/leases/old-lease'), {'expected': 404}))
-        fresh = events.index(('write', b'demo heading Reconnected through real Mosh\r'))
+        fresh = next(index for index, event in enumerate(events) if event[0] == 'send' and event[1].get('bytes') == MOD.BASE.base64.b64encode(b'demo heading Reconnected through HTTPS\r').decode())
         self.assertLess(old, fresh)
 
 

@@ -42,8 +42,8 @@ boundary excludes malicious processes running as the same user.
 
 `Revoke` is idempotent and takes effect on the next API authentication without
 a credential cache. The HTTP handler polls active paired leases every 100 ms
-to close a revoked device's idle mosh processes, plus filesystem and process
-shutdown time. It never stops tmux or another device's leases. Unreadable state
+to close a revoked device's idle terminal controllers, plus filesystem and process
+shutdown time. It never stops Herdr terminals or another device's leases. Unreadable state
 also closes paired leases. Device callers can delete only their own leases;
 explicit legacy master-token callers retain their existing lease permissions.
 `HTTP.Close` drains paired leases and the watcher; `Service.Close` drains all

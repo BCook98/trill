@@ -4,10 +4,10 @@ import "testing"
 
 func TestSelectionsAndLegacyDefaults(t *testing.T) {
 	c, err := Normalize("", "", "", false)
-	if err != nil || c.Backends != "xirp" {
+	if err != nil || c.Backends != "herdr" {
 		t.Fatal(c, err)
 	}
-	c, err = Normalize("xirp,herdr", "", "default,work", false)
+	c, err = Normalize("herdr", "", "default,work", false)
 	if err != nil || c.HerdrPath != "herdr" || c.HerdrSessions != "default,work" {
 		t.Fatal(c, err)
 	}

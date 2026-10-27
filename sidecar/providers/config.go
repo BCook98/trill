@@ -16,27 +16,12 @@ var serverName = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
 
 func Normalize(backends, path, sessions string, lab bool) (Selection, error) {
 	if lab {
-		if backends != "" || path != "" || sessions != "" {
-			return Selection{}, fmt.Errorf("terminal lab cannot be combined with session providers")
-		}
-		return Selection{}, nil
+		return Selection{}, fmt.Errorf("tmux support was removed; use a Herdr server")
 	}
-	if backends == "" {
-		backends = "xirp"
+	if backends != "" && backends != "herdr" {
+		return Selection{}, fmt.Errorf("Trill now supports Herdr only; configure --backends herdr")
 	}
-	seen := map[string]bool{}
-	for _, b := range strings.Split(backends, ",") {
-		if (b != "xirp" && b != "herdr") || seen[b] {
-			return Selection{}, fmt.Errorf("backends must be xirp, herdr, or xirp,herdr without duplicates")
-		}
-		seen[b] = true
-	}
-	if !seen["herdr"] {
-		if path != "" || sessions != "" {
-			return Selection{}, fmt.Errorf("Herdr options require --backends herdr or xirp,herdr")
-		}
-		return Selection{Backends: backends}, nil
-	}
+	backends = "herdr"
 	if path == "" {
 		path = "herdr"
 	}

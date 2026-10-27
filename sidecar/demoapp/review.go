@@ -95,7 +95,7 @@ func (s *runtimeState) public(api http.Handler, passwordPath string) (http.Handl
 				problem(w, 507, "attachment storage quota reached")
 				return
 			}
-			if r.Method == "POST" && strings.HasSuffix(r.URL.Path, "/mosh") && s.takeFault("bootstrap-delayed") {
+			if r.Method == "POST" && strings.HasSuffix(r.URL.Path, "/terminal") && s.takeFault("bootstrap-delayed") {
 				select {
 				case <-time.After(3 * time.Second):
 				case <-r.Context().Done():
@@ -161,6 +161,6 @@ func (s *runtimeState) reviewer(password string) http.Handler {
 			content = fmt.Sprintf(`<p><a href="%s">Pair this iPhone with Trill Demo</a></p><img width="280" height="280" alt="Single-use demo pairing QR" src="data:image/png;base64,%s"><p>This invitation expires in ten minutes and can be used once. Use the link on this iPhone, or scan the QR from another screen.</p>`, html.EscapeString(setup.PairURL(b)), base64.StdEncoding.EncodeToString(png))
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		fmt.Fprintf(w, `<!doctype html><html lang="en"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>Trill Demo</title><style>body{font:17px system-ui;line-height:1.5;max-width:35rem;margin:8vh auto;padding:0 24px}button,a{display:inline-block;padding:12px}img{max-width:100%%;height:auto}</style><h1>Try Trill</h1><p>This sandbox uses real HTTPS and Mosh connections with scripted sessions. No Xirp, Herdr, shell or coding agent runs here.</p>%s<form method="post" action="/review"><button type="submit">Create pairing invitation</button></form><p>Open a session and type <code>help</code> to start. Use sample photos only. This sandbox removes its data after %s of inactivity; active terminals keep it available.</p><p><a href="https://trill.bcook.io/support">Contact support</a></p></html>`, content, html.EscapeString(s.retention.String()))
+		fmt.Fprintf(w, `<!doctype html><html lang="en"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>Trill Demo</title><style>body{font:17px system-ui;line-height:1.5;max-width:35rem;margin:8vh auto;padding:0 24px}button,a{display:inline-block;padding:12px}img{max-width:100%%;height:auto}</style><h1>Try Trill</h1><p>This sandbox uses real HTTPS terminal streams with scripted sessions. No Herdr, shell or coding agent runs here.</p>%s<form method="post" action="/review"><button type="submit">Create pairing invitation</button></form><p>Open a session and type <code>help</code> to start. Use sample photos only. This sandbox removes its data after %s of inactivity; active terminals keep it available.</p><p><a href="https://trill.bcook.io/support">Contact support</a></p></html>`, content, html.EscapeString(s.retention.String()))
 	})
 }

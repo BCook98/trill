@@ -27,17 +27,18 @@ var (
 )
 
 type HTTP struct {
-	service   *Service
-	tokenHash [32]byte
-	mux       *http.ServeMux
-	legacy    bool
-	store     *pairing.Store
-	mu        sync.Mutex
-	owners    map[string]string
-	closed    bool
-	closeOnce sync.Once
-	done      chan struct{}
-	watchDone chan struct{}
+	service     *Service
+	tokenHash   [32]byte
+	mux         *http.ServeMux
+	legacy      bool
+	store       *pairing.Store
+	mu          sync.Mutex
+	owners      map[string]string
+	closed      bool
+	closeOnce   sync.Once
+	done        chan struct{}
+	watchDone   chan struct{}
+	changeSlots chan struct{}
 
 	previews        *previewManager
 	attachmentRoot  string
@@ -55,6 +56,7 @@ func NewHTTP(service *Service, token string) *HTTP {
 func NewHTTPWithPairing(service *Service, token string, store *pairing.Store) *HTTP {
 	h := &HTTP{service: service, tokenHash: sha256.Sum256([]byte(token)), legacy: token != "", store: store, mux: http.NewServeMux(), owners: map[string]string{}, done: make(chan struct{}), watchDone: make(chan struct{})}
 	h.previews = newPreviewManager(h)
+	h.changeSlots = make(chan struct{}, 32)
 	h.mux.HandleFunc("POST /v1/previews", h.createPreview)
 	h.mux.HandleFunc("DELETE /v1/previews/{id}", h.deletePreview)
 	if store != nil {
@@ -68,13 +70,12 @@ func NewHTTPWithPairing(service *Service, token string, store *pairing.Store) *H
 	h.mux.HandleFunc("GET /v1/health", h.health)
 	h.mux.HandleFunc("GET /v1/sessions", h.sessions)
 	h.mux.HandleFunc("GET /v1/projects", h.projects)
+	h.mux.HandleFunc("GET /v1/changes", h.herdrChanges)
 	h.mux.HandleFunc("POST /v1/sessions", h.create)
 	h.mux.HandleFunc("POST /v1/spaces", h.createSpace)
 	h.mux.HandleFunc("PATCH /v1/sessions/{id}", h.rename)
-	h.mux.HandleFunc("POST /v1/sessions/{id}/stop", h.stop)
-	h.mux.HandleFunc("POST /v1/sessions/{id}/resume", h.resume)
-	h.mux.HandleFunc("POST /v1/sessions/{id}/archive", h.archive)
-	h.mux.HandleFunc("POST /v1/sessions/{id}/mosh", h.mosh)
+	h.mux.HandleFunc("POST /v1/sessions/{id}/terminal", h.attachTerminal)
+	h.mux.HandleFunc("GET /v1/leases/{id}/terminal", h.herdrTerminal)
 	h.mux.HandleFunc("POST /v1/sessions/{id}/attachments", h.attachPhoto)
 	h.mux.HandleFunc("DELETE /v1/leases/{id}", h.deleteLease)
 	return h
@@ -114,6 +115,12 @@ func (h *HTTP) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
+	// Streaming requests retain authentication and origin checks, but their
+	// lifetime is bounded by socket health, lease expiry and device revocation.
+	if r.Method == "GET" && strings.HasPrefix(r.URL.Path, "/v1/leases/") && strings.HasSuffix(r.URL.Path, "/terminal") {
+		h.mux.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), deviceContextKey{}, deviceID)))
+		return
+	}
 	ctx, cancel := context.WithTimeout(r.Context(), 35*time.Second)
 	defer cancel()
 	ctx = context.WithValue(ctx, deviceContextKey{}, deviceID)
@@ -142,9 +149,11 @@ func (h *HTTP) fail(w http.ResponseWriter, err error) {
 	case errors.Is(err, errNotAttachable):
 		writeError(w, 409, "session unavailable for attachment")
 	case errors.Is(err, errCapacity):
-		writeError(w, 429, "mosh capacity reached")
+		writeError(w, 429, "terminal capacity reached")
 	case errors.Is(err, errOutcomeUnknown):
 		writeError(w, 409, "operation outcome unconfirmed; refresh sessions before retrying")
+	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
+		writeError(w, 503, "request interrupted")
 	case errors.Is(err, errClosed):
 		writeError(w, 503, "sidecar is shutting down")
 	default:
@@ -220,7 +229,7 @@ func optionalCreateText(raw json.RawMessage) (string, bool) {
 }
 
 func (h *HTTP) health(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, 200, map[string]any{"name": "trilld", "version": "1", "readOnly": !h.service.config.AllowControl, "sessionManagement": h.service.sessionManagement(), "backend": h.service.backendName(), "terminalLab": h.service.config.TmuxSocket != "" || h.service.config.HerdrLabRoot != ""})
+	writeJSON(w, 200, map[string]any{"name": "trilld", "version": "1", "readOnly": !h.service.config.AllowControl, "sessionManagement": h.service.sessionManagement(), "backend": h.service.backendName(), "terminalLab": h.service.config.HerdrLabRoot != ""})
 }
 func (h *HTTP) sessions(w http.ResponseWriter, r *http.Request) {
 	c, err := h.service.catalog(r.Context())
@@ -257,13 +266,14 @@ func (h *HTTP) create(w http.ResponseWriter, r *http.Request) {
 	name, nameOK := optionalCreateText(v.Name)
 	goal, goalOK := optionalCreateText(v.Goal)
 	branch, branchOK := optionalCreateText(v.Branch)
-	options := CreateOptions{Kind: kind, UseWorktree: true, Branch: branch}
+	options := CreateOptions{Kind: kind, Branch: branch}
 	if len(v.Kind) == 0 {
-		options.Kind = "agent"
+		options.Kind = "terminal"
 	}
 	if len(v.UseWorktree) != 0 {
 		switch string(v.UseWorktree) {
 		case "true":
+			options.UseWorktree = true
 		case "false":
 			options.UseWorktree = false
 		default:
@@ -273,8 +283,6 @@ func (h *HTTP) create(w http.ResponseWriter, r *http.Request) {
 	}
 	valid := idPattern.MatchString(v.ProjectID) && kindOK && nameOK && goalOK && branchOK
 	switch options.Kind {
-	case "agent":
-		valid = valid && (name == "" || validText(name, 200)) && validGoal(goal) && (v.Branch == nil || (options.UseWorktree && validBranch(options.Branch)))
 	case "worktree":
 		valid = valid && options.UseWorktree && validBranch(branch) && (name == "" || validText(name, 200)) && v.Goal == nil
 	case "terminal":
@@ -312,49 +320,7 @@ func (h *HTTP) rename(w http.ResponseWriter, r *http.Request) {
 	}
 	ok(w)
 }
-func (h *HTTP) stop(w http.ResponseWriter, r *http.Request) {
-	if !h.control(w) {
-		return
-	}
-	if !idPattern.MatchString(r.PathValue("id")) {
-		writeError(w, 400, "invalid session ID")
-		return
-	}
-	if err := h.service.Stop(r.Context(), r.PathValue("id")); err != nil {
-		h.fail(w, err)
-		return
-	}
-	ok(w)
-}
-func (h *HTTP) resume(w http.ResponseWriter, r *http.Request) {
-	if !h.control(w) {
-		return
-	}
-	if !idPattern.MatchString(r.PathValue("id")) {
-		writeError(w, 400, "invalid session ID")
-		return
-	}
-	if err := h.service.Resume(r.Context(), r.PathValue("id")); err != nil {
-		h.fail(w, err)
-		return
-	}
-	ok(w)
-}
-func (h *HTTP) archive(w http.ResponseWriter, r *http.Request) {
-	if !h.control(w) {
-		return
-	}
-	if !idPattern.MatchString(r.PathValue("id")) {
-		writeError(w, 400, "invalid session ID")
-		return
-	}
-	if err := h.service.Archive(r.Context(), r.PathValue("id")); err != nil {
-		h.fail(w, err)
-		return
-	}
-	ok(w)
-}
-func (h *HTTP) mosh(w http.ResponseWriter, r *http.Request) {
+func (h *HTTP) attachTerminal(w http.ResponseWriter, r *http.Request) {
 	if !h.control(w) {
 		return
 	}
@@ -373,7 +339,7 @@ func (h *HTTP) mosh(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "invalid terminal dimensions")
 		return
 	}
-	info, err := h.service.bootstrapDevice(r.Context(), r.PathValue("id"), v.Cols, v.Rows, requestDevice(r))
+	info, err := h.service.bootstrapTerminal(r.Context(), r.PathValue("id"), v.Cols, v.Rows, requestDevice(r))
 	if err != nil {
 		h.fail(w, err)
 		return
@@ -459,7 +425,7 @@ func (h *HTTP) pair(w http.ResponseWriter, r *http.Request) {
 }
 
 // Device revocation is checked on every API request. Polling the shared state
-// also closes idle mosh leases after revocation by a separate local CLI process.
+// also closes idle terminal leases after revocation by a separate local CLI process.
 // No credential cache is used for authentication.
 func (h *HTTP) watchDevices() {
 	defer close(h.watchDone)

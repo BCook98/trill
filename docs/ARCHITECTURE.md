@@ -2,54 +2,37 @@
 
 ```mermaid
 flowchart LR
-  UI[SwiftUI session browser] -->|HTTPS + bearer token| API[Go sidecar]
-  API -->|fixed CLI operations| X[Xirp]
-  X -->|owns| T[tmux session]
-  API -->|bootstrap lease| M[mosh-server]
-  V[SwiftTerm UIKit view] <-->|input / terminal updates| C[Swift mosh client]
-  C <-->|encrypted UDP| M
-  M -->|attach; never detach other clients| T
+  UI[SwiftUI Spaces and Agents] -->|HTTPS metadata and native actions| API[Go companion]
+  API -->|Unix socket snapshots and events| H[Herdr server]
+  V[SwiftTerm terminal] <-->|Authenticated WSS frames and commands| API
+  API <-->|Owned structured terminal controller| H
 ```
 
-The control plane carries metadata, explicit session operations, and authenticated photo uploads. The terminal plane carries terminal protocol output and input. Trill never treats agent sessions as chats and never reconstructs their history.
+Herdr owns terminals, programs, workspaces, worktrees and agent detection. The companion resolves current authoritative IDs before native operations. Metadata uses bounded Unix-socket requests with CLI fallback; native events invalidate catalogs, with periodic refresh for missing events. Trill never reconstructs agent history from transcripts.
 
-The companion can aggregate independent Xirp and Herdr sources. Provider catalogs carry item-level capabilities and availability, while the existing transport owns all mosh leases. Herdr attaches through its installed direct-terminal client; it does not require a tmux wrapper. Stable terminal identities route native Herdr operations after a fresh metadata lookup. See [provider boundaries](PROVIDERS.md).
+The terminal has one transport: an authenticated WebSocket over the companion’s HTTPS origin. Lease creation returns only an identifier. The controller relays bounded JSON frames and a strict input/resize/scroll/release allowlist. Disconnect, revocation, expiry and shutdown release the controller while the terminal survives. No SSH credential or separate port is needed.
 
-## Boundaries
+Selecting a live session opens it after consent. Leaving its detail view or backgrounding releases controller ownership and desktop sizing. Returning attaches fresh after cleanup. Explicit Disconnect clears that intent. Foreground transient recovery is serialized and generation-checked; late leases are released and input is never replayed.
 
-- Xirp owns agents, worktrees, session metadata, start/stop/resume semantics and tmux targets.
-- Go invokes a bounded set of CLI operations with separate argument vectors; no generic command execution API or arbitrary Xirp proxy.
-- API bootstrap returns a short-lived connection key over authenticated HTTPS. The phone uses it directly with mosh-server; no SSH credential is needed on the phone.
-- A lease owns exactly one spawned mosh-server. Disconnect cleans up that server, while the tmux session stays alive. Attach never uses `-d`.
-- iOS stores a validated library of saved computers, bearer tokens, and the active choice in one atomic device-only Keychain item. Legacy primary pairing migrates only after that save succeeds. Switching closes Trill transports and clears host metadata; drafts and selection are scoped by stable computer UUID and session ID. Mosh keys and checkpoints stay in memory. Relaunch after process eviction requires a fresh attach.
-- Server certificate verification uses system trust, or an exact SHA-256 leaf fingerprint entered out of band. Redirects are refused.
-- The default sidecar is read-only: authenticated metadata is available, while terminal attachment, mutations, file/media reads, uploads, and browser-grant creation require global control on the computer. Control is shared by authorized devices, not scoped per project. See [Security](../SECURITY.md) for trust and revocation limits.
+The companion is read-only until control is enabled on the Mac. Device credentials, TLS pins and saved computers are retained in the device-only Keychain. Switching computers drains connections and scopes drafts and selections to stable computer/session IDs. The phone uses system trust or an exact out-of-band certificate pin and refuses redirects.
 
-## Foreground connection recovery
-
-On return to the foreground, Trill first tries the retained Mosh client and lease. An increase in accepted peer responses, including ACK-only traffic, is required before enabling input. Stalled resume falls back to a fresh authenticated attach to the authoritative provider target. A previously unseen delayed authenticated packet can count as a response; this is a liveness heuristic, not a fresh challenge/response guarantee. Transient failures retry at 1, 2, 4, 8, 15, then 30 seconds, only while foreground and connection intent remains active. Attempts are serialized per connection, generation-checked, and release late leases. Explicit disconnect clears intent; archive/stop and pairing changes also disconnect. Permanent HTTP failures stop recovery. Neither input nor drafts are replayed across fresh transports.
-
-SwiftTerm's automatic terminal-protocol replies bypass the one-shot keyboard modifiers. This prevents a cursor-position query from consuming Shift before Shift+Return.
+SwiftTerm’s protocol replies bypass keyboard modifiers. Link taps resolve validated HTTP(S) destinations on the phone before remote mouse input; explicit scroll commands preserve the touched cell. Layout changes retain the terminal view and connection.
 
 ## Photo attachments
 
 The system photo picker grants access to selected images. iOS downsampling applies orientation and re-encodes JPEG without source EXIF/location metadata. Uploads use authenticated HTTPS and require session control. The companion receives raw image bytes and chooses the storage path; clients cannot select a destination or filename. The storage root is `~/.local/share/trill/attachments`, scoped by session hash, with private atomic writes and limits of 10 MiB per image, 40 megapixels, 250 MiB total, and 4096 storage entries. Files are retained until removed by the owner. The phone adds a shell-quoted absolute path to the draft, and only the user's Insert action sends it to the real terminal. There is no agent-specific upload, simulated chat, or automatic Return.
 
-## Testing safety
+## Testing safety and limits
 
-Tests never invoke stop/resume/create/rename or send terminal input on existing Xirp sessions. Real transport testing uses a private tmux socket and a shell created specifically for Trill. Unit tests use a fake command runner only to verify protocol behavior. Those fixtures are not part of the product experience.
-
-## Current limits
-
-Trill connects to one computer at a time. It has no push notification service, background execution entitlement, or persistent terminal snapshot after process eviction. Mosh supports foreground recovery; actual cross-network roaming, packet loss, suspension duration, and radio changes need physical-device release testing. Read-only periodic metadata polling is every ten seconds. Agent actions are provided by the installed Xirp and subject to its version and project configuration.
+Tests use synthetic runners, disposable demo directories and separately created Herdr servers. They never send input or mutations to personal sessions. Physical-device network roaming and sustained output require separate release checks. Trill has no push service or persistent screen snapshot after process eviction.
 
 The terminal stays alive across SwiftUI layout changes. The system split-view handles compact/expanded navigation. The 27.1 SDK enables native side navigation. `TerminalViewportRegion` queries active division and occlusion regions locally and changes the terminal’s frame without replacing its connection or UIView. NavigationSplitView remains the navigation container; an ArrangementView is unnecessary for this single terminal viewport.
 
 ## Managed setup and device identity
 
-`trill` owns network discovery, certificate provisioning, QR invitations, device revocation, and user LaunchAgents. Tailscale supplies a stable hostname and trusted certificate; local-network setup uses Bonjour plus a pinned leaf. The iOS app retains ATS, requires HTTPS outside the isolated simulator loopback mode, rejects redirects, and checks both the scanned fingerprint and SSL hostname/validity for pinned certificates. Certificate renewal replaces an atomic PEM bundle; the daemon loads valid replacements on subsequent TLS handshakes without restarting mosh leases.
+`trill` owns network discovery, certificate provisioning, QR invitations, device revocation, and user LaunchAgents. Tailscale supplies a stable hostname and trusted certificate; local-network setup uses Bonjour plus a pinned leaf. The iOS app retains ATS, requires HTTPS outside the isolated simulator loopback mode, rejects redirects, and checks both the scanned fingerprint and SSL hostname/validity for pinned certificates. Certificate renewal replaces an atomic PEM bundle; the daemon loads valid replacements on subsequent TLS handshakes without restarting terminal leases.
 
-Pairing state stores only credential hashes in a private, atomically replaced file protected by a cross-process lock. Short-lived invitations are consumed atomically. An HTTP-layer owner map ties mosh leases to device identities; revocation monitoring delegates cleanup to the existing lease lifecycle and never changes tmux session ownership.
+Pairing state stores only credential hashes in a private, atomically replaced file protected by a cross-process lock. Short-lived invitations are consumed atomically. An HTTP-layer owner map ties terminal leases to device identities; revocation monitoring delegates cleanup to the existing lease lifecycle and never changes Herdr terminal ownership.
 
 ## Files and browser
 
@@ -60,8 +43,6 @@ Browser uses WKWebView with a private, nonpersistent data store and no native me
 Connection details are a troubleshooting destination in the Sessions overflow menu. Once paired, the main app focuses on Sessions and Projects without a persistent computer tab or computer identity card.
 
 ## Creation compatibility
-
-Xirp 0.60’s CLI catalog rejects `requestId` for coding-session creation. Trill uses a supported random `trill-…` tag to find the exact newly created agent session and validates its project, goal, name, terminal state, and worktree/root path. The one correlation tag remains in Xirp metadata because no atomic remove-single-tag API exists. Standalone terminal creation supports `requestId` directly. Neither path retries the creation mutation; an uncertain outcome asks the user to inspect Sessions.
 
 ## Static document preview
 

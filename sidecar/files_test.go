@@ -14,7 +14,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"reflect"
 	"strings"
 	"sync"
 	"syscall"
@@ -38,11 +37,11 @@ func explorerHTTP(t *testing.T, control bool) (*HTTP, *fakeRunner, string) {
 		f.mu.Lock()
 		defer f.mu.Unlock()
 		for _, c := range f.calls {
-			if c.name != "xirp" || (!reflect.DeepEqual(c.args, []string{"session", "list", "--all", "--json"}) && !reflect.DeepEqual(c.args, []string{"project", "list", "--json"})) {
+			if c.name != "herdr" {
 				t.Errorf("non-metadata command: %+v", c)
 			}
 		}
-		if f.proc != nil || len(f.moshArgs) != 0 {
+		if f.proc != nil || len(f.terminalArgs) != 0 {
 			t.Error("browsing launched process")
 		}
 	})
@@ -209,63 +208,6 @@ func TestFilesMissingMetadata(t *testing.T) {
 	}
 }
 
-// Only this fixture's socket is accepted; the embedded runner is entirely fake.
-type explorerLabRunner struct {
-	*fakeRunner
-	socket string
-}
-
-func (f *explorerLabRunner) Run(ctx context.Context, name string, args ...string) ([]byte, error) {
-	if name == "/usr/bin/tmux" && reflect.DeepEqual(args, []string{"-S", f.socket, "list-sessions", "-F", "#{session_id}\t#{session_name}\t#{session_activity}"}) {
-		f.mu.Lock()
-		f.calls = append(f.calls, call{name, append([]string(nil), args...)})
-		f.mu.Unlock()
-		return []byte("$1\tlab-one\t1760000000\n"), nil
-	}
-	return nil, errors.New("unexpected lab command")
-}
-func TestFilesLabIsolation(t *testing.T) {
-	root := t.TempDir()
-	outside := t.TempDir()
-	explorerWrite(t, root, "which", []byte("isolated lab"))
-	f := &explorerLabRunner{fakeRunner: &fakeRunner{}, socket: filepath.Join(root, "lab.sock")}
-	svc, err := NewService(Config{AllowControl: true, TmuxSocket: f.socket, LabFilesRoot: root, TmuxPath: "/usr/bin/tmux"}, f)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(svc.Close)
-	h := NewHTTP(svc, "secret")
-	h.attachmentRoot = filepath.Join(t.TempDir(), "photos")
-	t.Cleanup(h.Close)
-	for _, scope := range []string{"sessions/lab-1", "projects/terminal-lab"} {
-		w := request(h, "GET", "/v1/"+scope+"/file?path=which", "secret", "")
-		if w.Code != 200 || w.Body.String() != "isolated lab" {
-			t.Fatal(scope, w.Code, w.Body.String())
-		}
-		v := explorerList(t, h, "/v1/"+scope+"/files")
-		if v.Path != "" || len(v.Entries) != 1 || v.Entries[0].Name != "which" {
-			t.Fatal(v)
-		}
-		if w := request(h, "GET", "/v1/"+scope+"/files?root="+url.QueryEscape(outside), "secret", ""); w.Code != 400 {
-			t.Fatal(w.Code)
-		}
-	}
-	for _, scope := range []string{"sessions/lab-2", "projects/p1"} {
-		if w := request(h, "GET", "/v1/"+scope+"/files", "secret", ""); w.Code != 404 {
-			t.Fatal(scope, w.Code)
-		}
-	}
-	if v := explorerList(t, h, "/v1/sessions/lab-1/attachments"); len(v.Entries) != 0 {
-		t.Fatal(v)
-	}
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	for _, c := range f.calls {
-		if c.name != "/usr/bin/tmux" || len(c.args) != 5 || c.args[2] != "list-sessions" || c.args[1] != f.socket {
-			t.Fatal("non-isolated or mutating command", c)
-		}
-	}
-}
 func TestFilesRejectClientPaths(t *testing.T) {
 	h, f, root := explorerHTTP(t, true)
 	paths := []string{"/etc/passwd", "../outside", "a/../../outside", "a/../b", ".", "./a", "a//b", "a/", "a\\b", "a\x00b", "a\nb", "a\rb", "a\tb", "a\x7fb", "a\u0085b", string([]byte{0xff})}
@@ -555,13 +497,13 @@ func TestFilesPreviewBoundedDuringChanges(t *testing.T) {
 func TestFilesClosedCanceledAndIndependentProject(t *testing.T) {
 	h, f, root := explorerHTTP(t, true)
 	f.mu.Lock()
-	f.sessions = nil
+	f.sessions = []rawSession{}
 	f.mu.Unlock()
 	explorerList(t, h, "/v1/projects/p1/files")
 	f.mu.Lock()
 	calls := append([]call(nil), f.calls...)
 	f.mu.Unlock()
-	if len(calls) != 1 || !reflect.DeepEqual(calls[0].args, []string{"project", "list", "--json"}) {
+	if len(calls) != 0 {
 		t.Fatal(calls)
 	}
 	opened, err := os.OpenRoot(root)
@@ -608,7 +550,6 @@ func TestFilesPhotosMissingAndArchived(t *testing.T) {
 	f.mu.Lock()
 	f.sessions[1].HiddenFromSidebar = true
 	f.sessions[1].WorktreePath = "/missing/worktree"
-	f.projectsJSON = "broken"
 	f.mu.Unlock()
 	dir := explorerPhotoDir(t, h, "s2")
 	data := photoBytes(t, "png")

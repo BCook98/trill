@@ -34,13 +34,9 @@ func photoHTTP(t *testing.T, lab, control bool) (*HTTP, *fakeRunner, *Service) {
 		f.mu.Lock()
 		defer f.mu.Unlock()
 		for _, c := range f.calls {
-			metadata := c.name == "xirp" && reflect.DeepEqual(c.args, []string{"session", "list", "--all", "--json"})
-			labList := c.name == "/usr/bin/tmux" && reflect.DeepEqual(c.args, []string{"-S", "/tmp/trill-lab.sock", "list-sessions", "-F", "#{session_id}\t#{session_name}\t#{session_activity}"})
-			if !metadata && !labList {
-				t.Errorf("upload invoked more than session discovery: %+v", c)
-			}
+			t.Errorf("upload invoked an executable: %+v", c)
 		}
-		if f.proc != nil || len(f.moshArgs) != 0 || len(svc.leases) != 0 {
+		if f.proc != nil || len(f.terminalArgs) != 0 || len(svc.leases) != 0 {
 			t.Error("upload launched a process or created a lease")
 		}
 	})
@@ -306,7 +302,7 @@ func TestPhotoAttachmentValidatesImageData(t *testing.T) {
 }
 
 func TestPhotoAttachmentSessionEligibility(t *testing.T) {
-	for _, mode := range []string{"missing", "hidden", "completed", "failed", "stopped", "unknown", "dead", "agent-mode", "no-tmux", "bad-tmux", "closed-http", "closed-service", "running", "waiting", "idle", "finished"} {
+	for _, mode := range []string{"missing", "hidden", "completed", "failed", "stopped", "unknown", "dead", "agent-mode", "no-terminal", "bad-terminal", "closed-http", "closed-service", "running", "waiting", "idle", "finished"} {
 		t.Run(mode, func(t *testing.T) {
 			h, f, svc := photoHTTP(t, false, true)
 			want, id := 409, "s1"
@@ -321,10 +317,10 @@ func TestPhotoAttachmentSessionEligibility(t *testing.T) {
 				f.sessions[0].TerminalLive = false
 			case "agent-mode":
 				f.sessions[0].Mode = "agent"
-			case "no-tmux":
-				f.sessions[0].TmuxSession = ""
-			case "bad-tmux":
-				f.sessions[0].TmuxSession = "bad/session"
+			case "no-terminal":
+				f.sessions[0].HerdrTerminal = ""
+			case "bad-terminal":
+				f.sessions[0].HerdrTerminal = "bad/session"
 			case "closed-http":
 				h.Close()
 				want = 503
@@ -619,7 +615,7 @@ func TestPhotoAttachmentRechecksRevocationAfterUpload(t *testing.T) {
 	requireNoPhotos(t, h.attachmentRoot)
 }
 
-func TestHerdrPhotoUploadUsesTerminalIdentityWithoutTmux(t *testing.T) {
+func TestHerdrPhotoUploadUsesTerminalIdentityWithNativeController(t *testing.T) {
 	r := &herdrRunner{snapshot: herdrFixture}
 	s := herdrService(t, r)
 	rows, err := s.Sessions(context.Background())
@@ -640,7 +636,7 @@ func TestHerdrPhotoUploadUsesTerminalIdentityWithoutTmux(t *testing.T) {
 	if _, err = os.Stat(attachment.Path); err != nil {
 		t.Fatal("photo was not stored", err)
 	}
-	if len(r.moshArgs) != 0 || len(s.leases) != 0 {
+	if len(r.terminalArgs) != 0 || len(s.leases) != 0 {
 		t.Fatal("upload started terminal transport")
 	}
 	for _, command := range r.commands {

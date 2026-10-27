@@ -8,4 +8,4 @@ mkdir -p "$(dirname -- "$OUTPUT")"
 cd "$ROOT/sidecar"
 go build -trimpath -o "$OUTPUT" ./cmd/trillctl
 printf 'Built %s\n' "$OUTPUT"
-printf 'Runtime prerequisite: mosh-server. No services were started.\n'
+printf 'Terminal streaming uses HTTPS. No services were started.\n'

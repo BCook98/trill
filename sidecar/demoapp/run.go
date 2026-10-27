@@ -12,7 +12,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"strings"
@@ -21,14 +20,13 @@ import (
 	"time"
 
 	"trill/sidecar"
-	"trill/sidecar/demoterm"
 	"trill/sidecar/pairing"
 	"trill/sidecar/setup"
 )
 
 const usage = `Usage: trill demo <command> --state-dir /absolute/private/directory
 
-  serve       Run the isolated demo in the foreground (HTTPS + real Mosh)
+  serve       Run the isolated demo in the foreground (HTTPS terminal streams)
   pair        Issue a single-use invitation; --url, --json, or terminal QR
   status      Show owned server status; --json for smoke tooling
   fault NAME  Arm a private test fault; use clear to remove faults
@@ -36,15 +34,15 @@ const usage = `Usage: trill demo <command> --state-dir /absolute/private/directo
   reset       Reset a stopped demo's data and credentials; requires --yes
   stop        Ask only this demo's private control socket to shut down
 
-No Xirp, Herdr, shell, or coding agent is started. Demo workloads are scripted.
+No Herdr, shell, or coding agent is started. Demo workloads are scripted.
 Use trill demo serve --help for network and reviewer options.
 `
 
 type options struct {
-	root, listen, address, name, profile, moshHost, moshBind, ports, preview, cert, key, reviewPassword string
-	readOnly, flyEdgeTLS                                                                                bool
-	maxLeases                                                                                           int
-	retention                                                                                           time.Duration
+	root, listen, address, name, profile, preview, cert, key, reviewPassword string
+	readOnly, flyEdgeTLS                                                     bool
+	maxLeases                                                                int
+	retention                                                                time.Duration
 }
 
 func Run(args []string, in *os.File, out, errOut io.Writer) error {
@@ -55,29 +53,13 @@ func Run(args []string, in *os.File, out, errOut io.Writer) error {
 	command := args[0]
 	fs := flag.NewFlagSet("demo "+command, flag.ContinueOnError)
 	fs.SetOutput(errOut)
-	if command == "terminal" {
-		socket := fs.String("socket", "", "private demo control socket")
-		session := fs.String("session", "", "owned fixture session")
-		if err := fs.Parse(args[1:]); err != nil {
-			return flagError(err)
-		}
-		if !filepath.IsAbs(*socket) || *session == "" || fs.NArg() != 0 {
-			return errors.New("internal terminal requires socket and session")
-		}
-		ctx, done := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-		defer done()
-		return demoterm.Run(ctx, *socket, *session, in, out)
-	}
 	var opt options
 	fs.StringVar(&opt.root, "state-dir", "", "new or existing owned private demo directory (required)")
 	if command == "serve" {
 		fs.StringVar(&opt.listen, "listen", "127.0.0.1:19443", "HTTPS bind address; never changes installed companion")
 		fs.StringVar(&opt.address, "address", "", "HTTPS address reachable by the phone (default listen address)")
 		fs.StringVar(&opt.name, "name", "Trill Demo", "paired computer name (Demo label is always included)")
-		fs.StringVar(&opt.profile, "profile", "mixed", "fixture capabilities: xirp, herdr, mixed")
-		fs.StringVar(&opt.moshHost, "mosh-host", "127.0.0.1", "Mosh address advertised to the phone")
-		fs.StringVar(&opt.moshBind, "mosh-bind", "127.0.0.1", "local interface IP on which mosh-server binds")
-		fs.StringVar(&opt.ports, "udp-ports", "60300:60310", "owned UDP port range")
+		fs.StringVar(&opt.profile, "profile", "herdr", "fixture provider (herdr only)")
 		fs.StringVar(&opt.preview, "preview-listen", "127.0.0.1:18080", "fixture preview bind address (IPv4 loopback only)")
 		fs.StringVar(&opt.cert, "cert", "", "TLS certificate PEM (default private generated local certificate)")
 		fs.StringVar(&opt.key, "key", "", "TLS key PEM")
@@ -229,11 +211,8 @@ func validateOptions(o *options) error {
 			return err
 		}
 	}
-	if net.ParseIP(o.moshBind) == nil && !(o.flyEdgeTLS && o.moshBind == "fly-global-services") {
-		return errors.New("mosh-bind must be a local interface IP")
-	}
-	if o.profile != "mixed" && o.profile != "xirp" && o.profile != "herdr" {
-		return errors.New("profile must be mixed, xirp or herdr")
+	if o.profile != "herdr" {
+		return errors.New("profile must be herdr")
 	}
 	if o.name == "" || len(o.name) > 150 || strings.ContainsAny(o.name, "\r\n\x00") {
 		return errors.New("invalid demo name")
@@ -250,17 +229,6 @@ func validateOptions(o *options) error {
 func serve(o options, out io.Writer) error {
 	if err := validateOptions(&o); err != nil {
 		return err
-	}
-	if o.flyEdgeTLS {
-		bind, err := resolveFlyBind(context.Background())
-		if err != nil {
-			return err
-		}
-		o.moshBind = bind
-	}
-	mosh, err := exec.LookPath("mosh-server")
-	if err != nil {
-		return errors.New("mosh-server is required; install Mosh before starting the demo")
 	}
 	exe, err := os.Executable()
 	if err != nil {
@@ -315,7 +283,7 @@ func serve(o options, out io.Writer) error {
 	}
 	defer controlLn.Close()
 	previewPort := previewLn.Addr().(*net.TCPAddr).Port
-	service, demo, err := sidecar.NewDemoService(sidecar.Config{AllowControl: !o.readOnly, MoshPath: mosh, MoshHost: o.moshHost, UDPPorts: o.ports, LeaseTTL: 30 * time.Minute}, sidecar.DemoOptions{Root: root, Profile: o.profile, Executable: exe, Socket: filepath.Join(root, "control.sock"), BindHost: o.moshBind, MaxLeases: o.maxLeases})
+	service, demo, err := sidecar.NewDemoService(sidecar.Config{AllowControl: !o.readOnly, LeaseTTL: 30 * time.Minute}, sidecar.DemoOptions{Root: root, Profile: o.profile, Executable: exe, Socket: filepath.Join(root, "control.sock"), MaxLeases: o.maxLeases})
 	if err != nil {
 		return err
 	}
@@ -371,7 +339,7 @@ func serve(o options, out io.Writer) error {
 	go runtime.expireIdle(ctx)
 	fmt.Fprintf(out, "Trill Demo (%s) is ready at %s\nPreview: localhost:%d · private state: %s\nPair with: trill demo pair --state-dir %s\n", o.profile, o.address, previewPort, root, root)
 	<-ctx.Done()
-	// Release Mosh before waiting for IPC/HTTP clients so terminal polling ends.
+	// Release terminal streams before waiting for IPC/HTTP clients so terminal polling ends.
 	api.Close()
 	service.Close()
 	shutdown, done := context.WithTimeout(context.Background(), 5*time.Second)

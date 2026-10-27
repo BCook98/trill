@@ -1059,7 +1059,7 @@ def compose_video(commands, output, artifacts, appearance, profile_id, fps):
 def pair(commands, ui, state, private):
     lab = read_lab(commands.lab(state, "start").stdout)
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,63}", lab["session_name"]):
-        raise DemoError("Lab must return a valid dedicated tmux session name")
+        raise DemoError("Lab must return a valid dedicated Herdr session name")
     ui.demo_session = lab["session_name"]
     invitation = private / "invitation.url"  # Must not exist: lab writes a fresh single-use invitation.
     try:
@@ -1075,7 +1075,6 @@ def pair(commands, ui, state, private):
     finally:
         invitation.unlink(missing_ok=True)
     ui.tap(lab["session_name"])
-    ui.tap("open-terminal", "AXUniqueId")
     ui.tap("Allow once")
     ui.wait("remote-terminal", "AXUniqueId")
     if ui.args.ui_quiet:

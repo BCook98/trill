@@ -131,12 +131,14 @@ final class APIClient: @unchecked Sendable {
     func health() async throws -> Health { try await request("GET", "v1/health") }
     func sessions() async throws -> [RemoteSession] { let r: SessionsResponse = try await request("GET", "v1/sessions"); recordProviders(r.providers ?? []); return r.sessions }
     func projects() async throws -> [Project] { let r: ProjectsResponse = try await request("GET", "v1/projects"); return r.projects }
-    func action(_ action: String, id: String) async throws { let _: OKResponse = try await request("POST", "v1/sessions/\(id)/\(action)") }
+    func waitForHerdrChange() async throws -> Bool {
+        struct Change: Decodable { let changed: Bool }
+        let change: Change = try await request("GET", "v1/changes")
+        return change.changed
+    }
     func rename(id: String, name: String) async throws { let _: OKResponse = try await request("PATCH", "v1/sessions/\(id)", body: ["name": name]) }
-    func create(projectId: String, name: String, goal: String, terminalOnly: Bool = false, useWorktree: Bool = true) async throws {
-        var body: [String: Any] = ["projectId": projectId, "kind": terminalOnly ? "terminal" : "agent", "useWorktree": terminalOnly ? false : useWorktree]
-        if !terminalOnly { body["name"] = name; body["goal"] = goal }
-        let _: OKResponse = try await request("POST", "v1/sessions", body: body)
+    func createTerminal(projectID: String) async throws {
+        let _: OKResponse = try await request("POST", "v1/sessions", body: ["projectId": projectID, "kind": "terminal", "useWorktree": false])
     }
     func createSpace(providerID: String, name: String, directory: String) async throws {
         let _: OKResponse = try await request("POST", "v1/spaces", body: ["providerId": providerID, "name": name, "directory": directory])
@@ -144,7 +146,21 @@ final class APIClient: @unchecked Sendable {
     func createWorktree(projectID: String, name: String, branch: String) async throws {
         let _: OKResponse = try await request("POST", "v1/sessions", body: ["projectId": projectID, "kind": "worktree", "useWorktree": true, "name": name, "branch": branch])
     }
-    func attach(id: String, cols: Int, rows: Int) async throws -> MoshLease { try await request("POST", "v1/sessions/\(id)/mosh", body: ["cols": cols, "rows": rows]) }
+    func attach(id: String, cols: Int, rows: Int) async throws -> TerminalLease {
+        try await request("POST", "v1/sessions/\(id)/terminal", body: ["cols": cols, "rows": rows])
+    }
+    func herdrTransport(lease: TerminalLease) -> HerdrTerminalTransport {
+        var components = URLComponents(url: baseURL.appendingPathComponent("v1/leases/\(lease.leaseId)/terminal"), resolvingAgainstBaseURL: false)!
+        components.scheme = baseURL.scheme == "https" ? "wss" : "ws"
+        var request = URLRequest(url: components.url!)
+        request.setValue("Bearer \(computer.token)", forHTTPHeaderField: "Authorization")
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.urlCache = nil
+        configuration.timeoutIntervalForRequest = 20
+        configuration.timeoutIntervalForResource = 12 * 60 * 60
+        let streamSession = URLSession(configuration: configuration, delegate: trustDelegate, delegateQueue: nil)
+        return HerdrTerminalTransport(request: request, session: streamSession)
+    }
     func uploadPhoto(id: String, jpeg: Data) async throws -> PhotoAttachment {
         try await request("POST", "v1/sessions/\(id)/attachments", data: jpeg, contentType: "image/jpeg")
     }

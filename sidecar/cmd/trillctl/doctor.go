@@ -103,19 +103,9 @@ func doctor(args []string, output, errorOutput io.Writer, home string) error {
 		if _, err := os.Lstat(filepath.Join(absoluteStateDir, ".binary-update.json")); err == nil {
 			add("update-recovery", errors.New("a binary update was interrupted"), "", "Run trill update with the same --state-dir to restore the previous release and services.")
 		}
-		dependencies := []string{"mosh-server"}
-		backends := c.Backends
-		if backends == "" && c.TmuxSocket == "" {
-			backends = "xirp"
-		}
-		if strings.Contains(backends, "xirp") {
-			dependencies = append(dependencies, "xirp", "tmux")
-		}
-		if c.TmuxSocket != "" {
-			dependencies = append(dependencies, "tmux")
-		}
-		if strings.Contains(backends, "herdr") {
-			dependencies = append(dependencies, c.HerdrPath)
+		dependencies := []string{c.HerdrPath}
+		if c.HerdrPath == "" {
+			dependencies = []string{"herdr"}
 		}
 		for _, dependency := range dependencies {
 			if dependency == "" {
@@ -123,7 +113,7 @@ func doctor(args []string, output, errorOutput io.Writer, home string) error {
 			}
 			add("dependency:"+filepath.Base(dependency), findDependency(dependency, c.Path), "Available on the saved service PATH", "Install the dependency and ensure its directory is on the companion's saved PATH.")
 		}
-		findings = append(findings, doctorFinding{"phone-connectivity", "warn", "Local diagnostics cannot prove phone-to-Mac HTTPS, Bonjour or Mosh UDP reachability, or provider authentication", "Check the connection from Trill on the phone; allow TCP 7443 and UDP 60000–60010."})
+		findings = append(findings, doctorFinding{"phone-connectivity", "warn", "Local diagnostics cannot prove phone-to-Mac HTTPS or Bonjour reachability, or provider authentication", "Check the connection from Trill on the phone; allow TCP 7443."})
 	}
 	failed := false
 	for _, finding := range findings {

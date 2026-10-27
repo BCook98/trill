@@ -12,8 +12,8 @@ trill setup
 trill doctor
 ```
 
-The cask installs Mosh and tmux dependencies. Users still install and configure
-their Xirp or Herdr provider separately. Setup records stable Homebrew `bin`
+The cask installs the HTTPS-only Trill companion. Users install and run
+Herdr separately. Setup records stable Homebrew `bin`
 paths; it does not record the versioned Caskroom directory. Homebrew controls
 binary upgrades, and `trill update` directs users to `brew upgrade`.
 
