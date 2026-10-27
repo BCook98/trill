@@ -180,7 +180,7 @@ func TestSetupRerunRejectsEveryConflictingCreationFlagBeforeEffects(t *testing.T
 	cases := [][]string{
 		{"--allow-control"}, {"--network", "tailscale"}, {"--network", "bogus"}, {"--ip", "192.168.9.9"},
 		{"--hostname", "other.local"}, {"--hostname="}, {"--name", "Other Mac"}, {"--name="}, {"--daemon", "/other/trilld"},
-		{"--tmux-socket", "/other/lab.sock"}, {"--backends", "herdr"}, {"--herdr-path", "/other/herdr"},
+		{"--backends", "removed-provider"}, {"--herdr-path", "/other/herdr"},
 		{"--herdr-sessions", "work"}, {"--herdr-config-home", "/other/config"},
 	}
 	for _, flags := range cases {
@@ -214,7 +214,7 @@ func TestSetupMatchingFlagsAndNoStartPreserveSavedControl(t *testing.T) {
 		}
 		before := privateSnapshot(t, dir, "config.json", "tls.pem")
 		for _, network := range []string{"lan", "auto"} {
-			args := []string{"setup", "--state-dir", dir, "--no-start", "--no-pair", "--network", network, "--ip", c.IP, "--hostname", "MY-MAC.local.", "--name", c.Name, "--daemon", c.Daemon, fmt.Sprintf("--allow-control=%t", allow), "--backends", "xirp"}
+			args := []string{"setup", "--state-dir", dir, "--no-start", "--no-pair", "--network", network, "--ip", c.IP, "--hostname", "MY-MAC.local.", "--name", c.Name, "--daemon", c.Daemon, fmt.Sprintf("--allow-control=%t", allow), "--backends", "herdr"}
 			out, _, err := runSetupTest(args, "", env, home)
 			if err != nil || services.installs != 0 || services.starts != 0 || !strings.Contains(out, "Services left unchanged") {
 				t.Fatalf("matching flags rejected: %v %s", err, out)
@@ -482,14 +482,14 @@ func TestSetupProviderFlagsCompareEffectiveSelection(t *testing.T) {
 		flags                          []string
 		conflict                       bool
 	}{
-		{name: "implicit Xirp", flags: []string{"--backends=", "--herdr-path=", "--herdr-sessions="}},
-		{name: "explicit Xirp", backends: "xirp", flags: []string{"--backends="}},
+		{name: "implicit Herdr", flags: []string{"--backends=", "--herdr-path=", "--herdr-sessions="}},
+		{name: "explicit Herdr", backends: "herdr", flags: []string{"--backends="}},
 		{name: "implicit Herdr defaults", backends: "herdr", flags: []string{"--backends", "herdr", "--herdr-path=", "--herdr-sessions=", "--herdr-config-home="}},
 		{name: "explicit Herdr defaults", backends: "herdr", path: "herdr", sessions: "default", flags: []string{"--herdr-path=", "--herdr-sessions="}},
 		{name: "omitted custom options", backends: "herdr", path: "/custom/herdr", sessions: "work", flags: []string{"--backends", "herdr"}},
 		{name: "empty path changes custom option", backends: "herdr", path: "/custom/herdr", flags: []string{"--herdr-path="}, conflict: true},
 		{name: "empty sessions changes custom option", backends: "herdr", sessions: "work", flags: []string{"--herdr-sessions="}, conflict: true},
-		{name: "empty backend changes Herdr", backends: "herdr", flags: []string{"--backends="}, conflict: true},
+		{name: "empty backend keeps Herdr", backends: "herdr", flags: []string{"--backends="}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			env, services, home := fakeSetup(t)
@@ -603,7 +603,7 @@ func TestEmbeddedSetupEnrollsOnceAndPreservesTrustedIdentity(t *testing.T) {
 	}
 	assertSnapshot(t, directory, before)
 	args := strings.Join(setup.DaemonArgs(configuration, directory), " ")
-	if !strings.Contains(args, "--tsnet-state-dir "+filepath.Join(directory, "tsnet")) || !strings.Contains(args, "--mosh-bind 127.0.0.1") || !strings.Contains(args, "--tsnet-hostname trill-test") {
+	if !strings.Contains(args, "--tsnet-state-dir "+filepath.Join(directory, "tsnet")) || !strings.Contains(args, "--tsnet-ip 100.73.54.69") || !strings.Contains(args, "--tsnet-hostname trill-test") {
 		t.Fatal(args)
 	}
 	_, _, err = runSetupTest([]string{"setup", "--state-dir", directory, "--tsnet-hostname", "another-node", "--no-pair"}, "", env, home)

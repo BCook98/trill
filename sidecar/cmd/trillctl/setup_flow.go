@@ -37,7 +37,7 @@ type setupEnvironment struct {
 // authoritative; setup never invokes Control, Providers, Renew, Stop or Uninstall.
 func compatibleSetupFlags(flags *flag.FlagSet, c setup.Config, dir string) error {
 	u, _ := url.Parse(c.Address) // LoadConfig has validated the URL.
-	selection, err := providers.Normalize(c.Backends, c.HerdrPath, c.HerdrSessions, c.TmuxSocket != "")
+	selection, err := providers.Normalize(c.Backends, c.HerdrPath, c.HerdrSessions, false)
 	if err != nil {
 		return err
 	}
@@ -58,7 +58,7 @@ func compatibleSetupFlags(flags *flag.FlagSet, c setup.Config, dir string) error
 		}
 		providerFlags = append(providerFlags, "--"+f.Name)
 	})
-	requested, err = providers.Normalize(requested.Backends, requested.HerdrPath, requested.HerdrSessions, c.TmuxSocket != "")
+	requested, err = providers.Normalize(requested.Backends, requested.HerdrPath, requested.HerdrSessions, false)
 	if err != nil {
 		return fmt.Errorf("saved configuration conflicts with %s; no settings changed. Rerun setup without those flags to resume; use %s --help to change providers: %w", strings.Join(providerFlags, ", "), companionCommand(c, dir, "providers"), err)
 	}
@@ -66,7 +66,7 @@ func compatibleSetupFlags(flags *flag.FlagSet, c setup.Config, dir string) error
 	want := map[string]string{
 		"network": c.Network, "ip": c.IP, "hostname": u.Hostname(), "name": c.Name,
 		"daemon": c.Daemon, "allow-control": strconv.FormatBool(c.AllowControl),
-		"tmux-socket": c.TmuxSocket, "backends": selection.Backends,
+		"backends":   selection.Backends,
 		"herdr-path": selection.HerdrPath, "herdr-sessions": selection.HerdrSessions,
 		"herdr-config-home": c.HerdrConfigHome,
 		"tsnet-hostname":    c.TSNetHostname,
@@ -140,9 +140,6 @@ func finishSetup(ctx context.Context, c setup.Config, dir string, noStart, noPai
 	} else {
 		fmt.Fprintln(out, "Access: read-only. Terminal access and session changes require an explicit control choice.")
 		fmt.Fprintf(out, "To enable later: %s --enable (disconnects Trill transport; underlying sessions stay alive).\n", companionCommand(c, dir, "control"))
-	}
-	if c.TmuxSocket != "" {
-		fmt.Fprintf(out, "Terminal lab uses only the explicitly supplied socket: %s\n", c.TmuxSocket)
 	}
 	if noStart {
 		fmt.Fprintf(out, "Services left unchanged. When ready, run %s to install/start and pair using this saved configuration.\n", companionCommand(c, dir, "setup"))

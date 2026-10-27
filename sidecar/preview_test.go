@@ -153,7 +153,7 @@ func TestPreviewHostAndTLSValidation(t *testing.T) {
 	t.Cleanup(h.Close)
 	for _, host := range []string{"", "https://companion.test:7443", "companion.test:", "companion.test:bad", "companion.test:0", "companion.test:65536", "companion.test:07443", "user@host:7443", "[::1", "host/path", "host\\evil", "host#frag", "host?query", "bad..host", "-bad:7443", "bad_:7443", "[host]:7443"} {
 		t.Run(host, func(t *testing.T) {
-			r := httptest.NewRequest("POST", previewTestOrigin+"/v1/previews", strings.NewReader(`{"sessionId":"s1","port":3000}`))
+			r := httptest.NewRequest("POST", previewTestOrigin+"/v1/previews", strings.NewReader(`{"sessionId":"lab-1","port":3000}`))
 			r.Host = host
 			r.Header.Set("Authorization", "Bearer secret")
 			r.Header.Set("Content-Type", "application/json")
@@ -164,7 +164,7 @@ func TestPreviewHostAndTLSValidation(t *testing.T) {
 			}
 		})
 	}
-	r := httptest.NewRequest("POST", previewTestOrigin+"/v1/previews", strings.NewReader(`{"sessionId":"s1","port":3000}`))
+	r := httptest.NewRequest("POST", previewTestOrigin+"/v1/previews", strings.NewReader(`{"sessionId":"lab-1","port":3000}`))
 	r.Header.Set("Authorization", "Bearer secret")
 	r.Header.Set("Content-Type", "application/json")
 	r = r.WithContext(context.WithValue(r.Context(), http.LocalAddrContextKey, &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 3000}))
@@ -187,7 +187,7 @@ func TestPreviewHostAndTLSValidation(t *testing.T) {
 			t.Fatal(tc, got)
 		}
 	}
-	r = httptest.NewRequest("POST", "http://companion.test:7443/v1/previews", strings.NewReader(`{"sessionId":"s1","port":3000}`))
+	r = httptest.NewRequest("POST", "http://companion.test:7443/v1/previews", strings.NewReader(`{"sessionId":"lab-1","port":3000}`))
 	r.Header.Set("Authorization", "Bearer secret")
 	r.Header.Set("Content-Type", "application/json")
 	w = httptest.NewRecorder()
@@ -409,27 +409,26 @@ type previewBlockingRunner struct {
 	once             atomic.Bool
 }
 
-func (f *previewBlockingRunner) Run(ctx context.Context, name string, args ...string) ([]byte, error) {
-	if name == "xirp" && len(args) > 1 && args[0] == "session" && f.once.CompareAndSwap(false, true) {
-		close(f.entered)
-		select {
-		case <-f.release:
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		}
-	}
-	return f.fakeRunner.Run(ctx, name, args...)
-}
 func TestPreviewRevocationDuringGrantCreation(t *testing.T) {
 	h, f, svc, store, _ := pairedHTTP(t, true, "")
 	id, token := pairPhone(t, h, store, "One")
-	// Switch this fixture to its fake xirp backend so find can be paused.
-	svc.config.TmuxSocket = ""
+	// Gate authoritative metadata to exercise revocation during an in-flight request.
 	blocked := &previewBlockingRunner{fakeRunner: f, entered: make(chan struct{}), release: make(chan struct{})}
-	svc.runner = blocked
+	metadata := svc.readMetadata
+	svc.readMetadata = func(ctx context.Context) ([]Project, []rawSession, error) {
+		if blocked.once.CompareAndSwap(false, true) {
+			close(blocked.entered)
+			select {
+			case <-blocked.release:
+			case <-ctx.Done():
+				return nil, nil, ctx.Err()
+			}
+		}
+		return metadata(ctx)
+	}
 	result := make(chan *httptest.ResponseRecorder, 1)
 	go func() {
-		result <- previewRequest(h, "POST", "/v1/previews", token, "", `{"sessionId":"s1","port":3000}`)
+		result <- previewRequest(h, "POST", "/v1/previews", token, "", `{"sessionId":"lab-1","port":3000}`)
 	}()
 	select {
 	case <-blocked.entered:

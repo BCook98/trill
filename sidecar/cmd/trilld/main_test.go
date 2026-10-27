@@ -9,30 +9,17 @@ import (
 )
 
 func TestNetworkGuards(t *testing.T) {
-	for _, tc := range []struct {
-		listen, cert, key, mosh, bind string
-		insecure                      bool
-		valid                         bool
+	for _, test := range []struct {
+		listen, cert, key string
+		insecure, valid   bool
 	}{
-		{"127.0.0.1:7443", "", "", "127.0.0.1", "", true, true},
-		{"127.0.0.1:7443", "cert", "key", "127.0.0.1", "", false, true},
-		{"0.0.0.0:7443", "cert", "key", "192.0.2.1", "", false, true},
-		{"0.0.0.0:7443", "", "", "192.0.2.1", "", true, false},
-		{"0.0.0.0:7443", "cert", "key", "127.0.0.1", "", false, false},
-		{"127.0.0.1:7443", "", "", "127.0.0.1", "", false, false},
-		{"localhost:7443", "cert", "key", "127.0.0.1", "", false, false},
-		{"127.0.0.1:7443", "cert", "", "127.0.0.1", "", false, false},
-		{"127.0.0.1:7443", "cert", "key", "100.73.54.69", "127.0.0.1", false, true},
-		{"127.0.0.1:7443", "cert", "key", "100.73.54.69", "0.0.0.0", false, false},
-		{"127.0.0.1:7443", "cert", "key", "100.73.54.69", "localhost", false, false},
+		{"127.0.0.1:7443", "", "", true, true}, {"127.0.0.1:7443", "cert", "key", false, true}, {"0.0.0.0:7443", "cert", "key", false, true}, {"0.0.0.0:7443", "", "", true, false}, {"127.0.0.1:7443", "", "", false, false}, {"localhost:7443", "cert", "key", false, false}, {"127.0.0.1:7443", "cert", "", false, false},
 	} {
-		err := validateNetwork(tc.listen, tc.cert, tc.key, tc.insecure, tc.mosh, tc.bind)
-		if (err == nil) != tc.valid {
-			t.Errorf("listen=%s insecure=%t: %v", tc.listen, tc.insecure, err)
+		if (validateNetwork(test.listen, test.cert, test.key, test.insecure) == nil) != test.valid {
+			t.Fatal(test)
 		}
 	}
 }
-
 func TestTokenFileSecurity(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "private", "token")
@@ -111,16 +98,5 @@ func TestEmbeddedDaemonRequiresExistingEnrollment(t *testing.T) {
 	_, err := openTSNet(context.Background(), directory, "trill", "100.73.54.69", "trill.example.ts.net")
 	if err == nil || !strings.Contains(err.Error(), "run trill setup") {
 		t.Fatalf("daemon attempted implicit enrollment: %v", err)
-	}
-}
-
-func TestEmbeddedUDPPortRangeIsBounded(t *testing.T) {
-	for _, value := range []string{"0:10", "65535:65536", "60010:60000", "1:65535", "60000", "bad:60010"} {
-		if _, _, err := parseUDPPortRange(value); err == nil {
-			t.Fatalf("accepted UDP range %s", value)
-		}
-	}
-	if first, last, err := parseUDPPortRange("60000:60010"); err != nil || first != 60000 || last != 60010 {
-		t.Fatalf("invalid default range: %d %d %v", first, last, err)
 	}
 }

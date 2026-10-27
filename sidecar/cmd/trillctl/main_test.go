@@ -177,15 +177,15 @@ func TestProvidersCommandPersistsSelectionWithoutRePairing(t *testing.T) {
 	if err := runWithHome([]string{"providers", "--state-dir", dir}, strings.NewReader(""), &out, &errOut, getHome); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out.String(), `"backends": "xirp"`) {
+	if !strings.Contains(out.String(), `"backends": "herdr"`) {
 		t.Fatal(out.String())
 	}
 	out.Reset()
-	if err := runWithHome([]string{"providers", "--state-dir", dir, "--backends", "xirp,herdr", "--herdr-path", "/tmp/herdr", "--herdr-sessions", "default,work"}, strings.NewReader(""), &out, &errOut, getHome); err != nil {
+	if err := runWithHome([]string{"providers", "--state-dir", dir, "--herdr-path", "/tmp/herdr", "--herdr-sessions", "default,work"}, strings.NewReader(""), &out, &errOut, getHome); err != nil {
 		t.Fatal(err)
 	}
 	next, err := setup.LoadConfig(dir)
-	if err != nil || next.Backends != "xirp,herdr" || next.HerdrSessions != "default,work" {
+	if err != nil || next.Backends != "herdr" || next.HerdrSessions != "default,work" {
 		t.Fatal(next, err)
 	}
 	if _, err := os.Stat(filepath.Join(dir, "devices.json")); !os.IsNotExist(err) {

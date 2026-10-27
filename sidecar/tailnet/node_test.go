@@ -28,7 +28,7 @@ import (
 
 // Two real embedded nodes, a disposable control server and local DERP/STUN.
 // No production tailnet, account, daemon, TUN interface or personal session.
-func TestEmbeddedTailnetHTTPSUDPAndPersistentIdentity(t *testing.T) {
+func TestEmbeddedTailnetHTTPSAndPersistentIdentity(t *testing.T) {
 	t.Setenv("TS_NO_LOGS_NO_SUPPORT", "true")
 	netns.SetEnabled(false)
 	defer netns.SetEnabled(true)
@@ -105,67 +105,6 @@ func TestEmbeddedTailnetHTTPSUDPAndPersistentIdentity(t *testing.T) {
 		}
 	})
 
-	for _, address := range func() []string { v4, v6 := node.TailscaleIPs(); return []string{v4.String(), v6.String()} }() {
-		t.Run("UDP "+address, func(t *testing.T) {
-			backend, err := net.ListenUDP("udp4", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer backend.Close()
-			sources := make(chan string, 2)
-			go func() {
-				packet := make([]byte, 65535)
-				for {
-					count, remote, err := backend.ReadFromUDP(packet)
-					if err != nil {
-						return
-					}
-					sources <- remote.String()
-					_, _ = backend.WriteToUDP(packet[:count], remote)
-				}
-			}()
-			frontend, err := node.ListenPacket("udp", net.JoinHostPort(address, "60000"))
-			if err != nil {
-				t.Fatal(err)
-			}
-			forwarder, err := NewUDPForwarder(frontend, backend.LocalAddr().(*net.UDPAddr))
-			if err != nil {
-				t.Fatal(err)
-			}
-			stopped := make(chan error, 1)
-			go func() { stopped <- forwarder.Serve() }()
-			defer forwarder.Close()
-			var clients []net.Conn
-			for index := 0; index < 2; index++ {
-				client, err := peer.Dial(ctx, "udp", net.JoinHostPort(address, "60000"))
-				if err != nil {
-					t.Fatal(err)
-				}
-				defer client.Close()
-				_ = client.SetDeadline(time.Now().Add(15 * time.Second))
-				clients = append(clients, client)
-				if _, err := client.Write([]byte(fmt.Sprintf("client-%d", index))); err != nil {
-					t.Fatal(err)
-				}
-			}
-			for index, client := range clients {
-				packet := make([]byte, 100)
-				count, err := client.Read(packet)
-				if err != nil || string(packet[:count]) != fmt.Sprintf("client-%d", index) {
-					t.Fatalf("crossed or missing UDP reply: %q, %v", packet[:count], err)
-				}
-			}
-			if first, second := <-sources, <-sources; first == second {
-				t.Fatal("distinct peers shared one backend endpoint")
-			}
-			forwarder.Close()
-			select {
-			case <-stopped:
-			case <-time.After(time.Second):
-				t.Fatal("UDP forwarder did not shut down")
-			}
-		})
-	}
 	if err := node.Close(); err != nil {
 		t.Fatal(err)
 	}

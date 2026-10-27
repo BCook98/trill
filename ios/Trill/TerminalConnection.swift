@@ -1,6 +1,5 @@
 import SwiftUI
 import SwiftTerm
-import MoshCore
 
 // SwiftTerm emits terminal protocol replies through the same delegate as user
 // input. Keep its terminal-core callback separate so a query cannot consume Shift
@@ -18,19 +17,28 @@ final class TrillTerminalView: TerminalView {
     }
 }
 
-// The real Mosh actor implements this directly; tests supply an isolated transport.
+enum TerminalInputOperation: Sendable, Equatable { case keystrokes(Data), resize(cols: Int32, rows: Int32) }
+enum TerminalOutputOperation: Sendable, Equatable { case hostBytes(Data), resize(cols: Int32, rows: Int32), echoAck(UInt64) }
+enum TerminalTransportFailure: Error, Sendable, Equatable { case transportFailure(String), protocolViolation(String) }
+enum TerminalTransportState: Sendable, Equatable { case idle, starting, running, suspended, stopped, failed(TerminalTransportFailure) }
+enum TerminalTransportError: Error { case notStarted }
+
+// Tests supply an isolated implementation of the HTTPS terminal stream.
 protocol TerminalTransport: AnyObject, Sendable {
-    var state: MoshSessionState { get async }
+    var state: TerminalTransportState { get async }
     var peerResponseCount: UInt64 { get async }
     func resumeFromApplicationBackground() async throws
     func start() async throws
     func stop() async
-    func prepareForApplicationBackground() async throws -> MoshSnapshot
-    func enqueue(_ op: MoshClientOp) async throws
-    func drainHostOps() async -> [MoshHostOp]
+    func prepareForApplicationBackground() async throws
+    func enqueue(_ op: TerminalInputOperation) async throws
+    func drainHostOps() async -> [TerminalOutputOperation]
     func hostActivityStream() async -> AsyncStream<Void>
 }
-extension MoshClientSession: TerminalTransport {}
+
+protocol RemoteTerminalScrolling: TerminalTransport {
+    func scroll(lines: Int, column: Int, row: Int) async throws
+}
 
 @MainActor @Observable
 final class TerminalConnection: NSObject, TerminalViewDelegate {
@@ -43,7 +51,7 @@ final class TerminalConnection: NSObject, TerminalViewDelegate {
         didSet { if draftText != oldValue { draftRevision = UUID() } }
     }
     struct InputEnvelope {
-        let operation: MoshClientOp
+        let operation: TerminalInputOperation
         let draftID: UUID?
         let streamID: UUID
     }
@@ -65,11 +73,9 @@ final class TerminalConnection: NSObject, TerminalViewDelegate {
     }
     let terminal: TrillTerminalView
     struct Environment {
-        var attach: (String, Int, Int) async throws -> MoshLease
+        var attach: (String, Int, Int) async throws -> TerminalLease
         var release: (String) async throws -> Void
-        var makeTransport: (MoshLease) -> any TerminalTransport = {
-            MoshClientSession(endpoint: .init(host: $0.host, port: $0.port, keyBase64_22: $0.key))
-        }
+        var makeTransport: (TerminalLease) -> any TerminalTransport
         var retrySleep: (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
         var monitorInterval: Duration = .seconds(1)
         var responsePollLimit = 15
@@ -86,7 +92,7 @@ final class TerminalConnection: NSObject, TerminalViewDelegate {
     private var retry: Task<Void, Never>?
     private var retryCount = 0
     private var client: (any TerminalTransport)?
-    private var lease: MoshLease?
+    private var lease: TerminalLease?
     private var environment: Environment?
     private var reader: Task<Void, Never>?
     private var drainingReader: Task<Void, Never>?
@@ -129,7 +135,7 @@ final class TerminalConnection: NSObject, TerminalViewDelegate {
         terminal.isUserInteractionEnabled = false
     }
     // Transport-only test seam: supplies a real input stream without creating
-    // a Mosh session or starting any networking. Connection state stays explicit.
+    // a terminal stream or starting any networking. Connection state stays explicit.
     convenience init(inputContinuation: AsyncStream<InputEnvelope>.Continuation) {
         self.init()
         input = inputContinuation
@@ -189,7 +195,7 @@ final class TerminalConnection: NSObject, TerminalViewDelegate {
 
     // The sender and transport-only tests share the same handoff boundary.
     // Stream and draft IDs make late completions harmless after cancellation/retry.
-    func handoff(_ envelope: InputEnvelope, enqueue: (MoshClientOp) async throws -> Void) async throws {
+    func handoff(_ envelope: InputEnvelope, enqueue: (TerminalInputOperation) async throws -> Void) async throws {
         guard !Task.isCancelled, envelope.streamID == inputID, input != nil else { return }
         if let id = envelope.draftID, pendingDraft?.id != id { return }
         do { try await enqueue(envelope.operation) }
@@ -203,7 +209,7 @@ final class TerminalConnection: NSObject, TerminalViewDelegate {
         if draftRevision == pending.revision { draftText = "" }
     }
 
-    private func queueInput(_ operation: MoshClientOp) {
+    private func queueInput(_ operation: TerminalInputOperation) {
         input?.yield(InputEnvelope(operation: operation, draftID: nil, streamID: inputID))
     }
 
@@ -214,24 +220,29 @@ final class TerminalConnection: NSObject, TerminalViewDelegate {
         case .disconnected: "Disconnected"
         case .connecting: "Connecting…"
         case .reconnecting: "Reconnecting…"
-        case .connected: "Mosh · encrypted"
+        case .connected: "Herdr · encrypted"
         case .resuming: "Resuming…"
         case .suspended: returnsControlWhenHidden ? "Paused" : "Paused in background"
         case .failed: "Connection interrupted"
         }
     }
-    func connect(sessionID: String, api: APIClient, sessionProvider: String? = nil) async {
+    var transportLabel: String { "Herdr · HTTPS" }
+    func connect(sessionID: String, api: APIClient) async {
         await connect(sessionID: sessionID, environment: Environment(
             attach: { id, cols, rows in
                 // Never reopen an archived/ended session as a side effect of recovery.
                 let sessions = try await api.sessions()
                 guard let session = sessions.first(where: { $0.id == id }), !session.isArchived, session.attachable else {
-                    throw APIRequestError(status: 409, message: "This session no longer has an active terminal. Check Projects to reopen it.")
+                    throw APIRequestError(status: 409, message: "This terminal is no longer active. Open or create a terminal in Herdr.")
+                }
+                guard session.provider == "herdr", session.capabilities?.terminalStream == true else {
+                    throw APIRequestError(status: 409, message: "Update the Mac companion to use Trill’s Herdr terminal stream.")
                 }
                 return try await api.attach(id: id, cols: cols, rows: rows)
             },
             release: { try await api.release($0) },
-            returnsControlWhenHidden: sessionProvider == "herdr"))
+            makeTransport: { api.herdrTransport(lease: $0) },
+            returnsControlWhenHidden: true))
     }
 
     func connect(sessionID: String, environment: Environment) async {
@@ -350,6 +361,7 @@ final class TerminalConnection: NSObject, TerminalViewDelegate {
     }
 
     private func stopIO() {
+        terminal.remoteScrollHandler = nil
         if let reader { drainingReader = reader }
         reader?.cancel(); monitor?.cancel(); sender?.cancel()
         resumeDeadline?.cancel(); resumeDeadline = nil
@@ -444,7 +456,7 @@ final class TerminalConnection: NSObject, TerminalViewDelegate {
         // connection even if one bootstrap is still waiting on the network.
         enqueueTransition { [self] in
             guard generation == attempt, !wantsForeground, let client else { return }
-            // Bootstrap may have returned a lease without starting UDP yet.
+            // Bootstrap may have returned a lease without opening the stream yet.
             guard case .running = await client.state else { return }
             do { _ = try await client.prepareForApplicationBackground() }
             catch { fail("Trill could not pause the connection safely.", attempt: attempt) }
@@ -483,7 +495,7 @@ final class TerminalConnection: NSObject, TerminalViewDelegate {
                 do { try await Task.sleep(for: deadline) } catch { return }
                 guard let self, self.generation == attempt, self.wantsForeground,
                       self.phase == .resuming else { return }
-                // stop() aborts a pending UDP start, allowing the serialized
+                // stop() aborts a pending stream start, allowing the serialized
                 // transition to finish before replacement attaches.
                 let expiredAttempt = UUID()
                 self.generation = expiredAttempt
@@ -508,6 +520,15 @@ final class TerminalConnection: NSObject, TerminalViewDelegate {
     private func activate(_ session: any TerminalTransport, attempt: UUID, resumeBaseline: UInt64? = nil) async throws {
         guard generation == attempt else { return }
         if resumeBaseline == nil { try await session.start() }
+        if let scrolling = session as? any RemoteTerminalScrolling {
+            terminal.remoteScrollHandler = { [weak self] lines, column, row in
+                guard let self, self.connected, self.generation == attempt else { return }
+                Task {
+                    do { try await scrolling.scroll(lines: lines, column: column, row: row) }
+                    catch { self.fail("Trill could not scroll the remote terminal.", attempt: attempt) }
+                }
+            }
+        }
         guard generation == attempt else { return }
         if !wantsForeground {
             phase = .suspended
@@ -602,13 +623,13 @@ final class TerminalConnection: NSObject, TerminalViewDelegate {
                 default: break
                 }
                 if elapsed >= responsePollLimit, !self.receivedHostOp {
-                    self.fail("Your terminal has not responded. Check your VPN connection and access to the companion's UDP ports.", attempt: attempt)
+                    self.fail("Your terminal has not responded. Check your network connection to the companion.", attempt: attempt)
                     return
                 }
             }
         }
     }
-    private func consumeHostOps(_ ops: [MoshHostOp], from session: any TerminalTransport) {
+    private func consumeHostOps(_ ops: [TerminalOutputOperation], from session: any TerminalTransport) {
         guard client === session else { return }
         var output: [UInt8] = []
         if !ops.isEmpty, !receivedHostOp {
@@ -710,4 +731,142 @@ struct TerminalSurface: UIViewRepresentable {
     func makeUIView(context: Context) -> TerminalView { connection.terminal }
     func updateUIView(_ uiView: TerminalView, context: Context) {}
     static func dismantleUIView(_ uiView: TerminalView, coordinator: ()) { _ = uiView.resignFirstResponder() }
+}
+
+/// A Herdr controller delivers ordered ANSI frames.
+/// It shares the connection lifecycle, input serialization and lease cleanup.
+actor HerdrTerminalTransport: RemoteTerminalScrolling {
+    private(set) var state: TerminalTransportState = .idle
+    private(set) var peerResponseCount: UInt64 = 0
+    private let request: URLRequest
+    private let session: URLSession
+    private var socket: URLSessionWebSocketTask?
+    private var receiver: Task<Void, Never>?
+    private var heartbeat: Task<Void, Never>?
+    private var pendingOperations: [TerminalOutputOperation] = []
+    private var pendingByteCount = 0
+    private var previousSequence: UInt64?
+    private let activity = AsyncStream<Void>.makeStream(bufferingPolicy: .bufferingNewest(1))
+
+    init(request: URLRequest, session: URLSession) {
+        self.request = request
+        self.session = session
+    }
+    func start() async throws {
+        guard state == .idle else { throw TerminalTransportError.notStarted }
+        state = .starting
+        let socket = session.webSocketTask(with: request)
+        socket.maximumMessageSize = 4 * 1024 * 1024
+        self.socket = socket
+        socket.resume()
+        receiver = Task { [weak self] in
+            do {
+                while !Task.isCancelled {
+                    let message = try await socket.receive()
+                    guard let self else { return }
+                    try await self.receive(message)
+                }
+            } catch { await self?.interrupted(error) }
+        }
+        heartbeat = Task { [weak self] in
+            do {
+                while !Task.isCancelled {
+                    try await Task.sleep(for: .seconds(15))
+                    try await Self.ping(socket)
+                }
+            } catch { await self?.interrupted(error) }
+        }
+    }
+    struct Frame: Decodable {
+        let type: String
+        let seq: UInt64?
+        let bytes: Data?
+        let width: Int?
+        let height: Int?
+    }
+    nonisolated static func ping(_ socket: URLSessionWebSocketTask) async throws {
+        let deadline = Task {
+            do { try await Task.sleep(for: .seconds(5)) }
+            catch { return }
+            socket.cancel(with: .goingAway, reason: nil)
+        }
+        defer { deadline.cancel() }
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            socket.sendPing { error in
+                if let error { continuation.resume(throwing: error) }
+                else { continuation.resume() }
+            }
+        }
+    }
+    func receive(_ message: URLSessionWebSocketTask.Message) throws {
+        let data: Data
+        switch message {
+        case .string(let text): data = Data(text.utf8)
+        case .data(let bytes): data = bytes
+        @unknown default: throw TrillError.message("Unknown terminal frame.")
+        }
+        let frame = try JSONDecoder().decode(Frame.self, from: data)
+        guard frame.type == "terminal.frame", let bytes = frame.bytes,
+              let sequence = frame.seq, let width = frame.width, let height = frame.height,
+              (20...500).contains(width), (5...200).contains(height),
+              previousSequence.map({ sequence > $0 }) ?? true else {
+            throw TrillError.message("The Herdr terminal stream ended or returned an invalid frame.")
+        }
+        guard pendingByteCount + bytes.count <= 8 * 1024 * 1024 else {
+            throw TrillError.message("The terminal produced output faster than Trill could display it.")
+        }
+        previousSequence = sequence
+        pendingByteCount += bytes.count
+        pendingOperations.append(.hostBytes(bytes))
+        peerResponseCount &+= 1
+        state = .running
+        activity.continuation.yield(())
+    }
+    private func interrupted(_ error: Error) {
+        guard state != .stopped else { return }
+        state = .failed(.protocolViolation(error.localizedDescription))
+        socket?.cancel(with: .goingAway, reason: nil)
+        activity.continuation.finish()
+    }
+    func enqueue(_ operation: TerminalInputOperation) async throws {
+        switch operation {
+        case .keystrokes(let bytes):
+            // Match the companion's bounded input messages. Preserve byte order.
+            for start in stride(from: 0, to: bytes.count, by: 8192) {
+                let end = min(start + 8192, bytes.count)
+                try await send(["type": "terminal.input", "bytes": bytes.subdata(in: start..<end).base64EncodedString()])
+            }
+        case .resize(let columns, let rows):
+            try await send(["type": "terminal.resize", "cols": max(20, min(500, Int(columns))), "rows": max(5, min(200, Int(rows)))])
+        }
+    }
+    func scroll(lines: Int, column: Int, row: Int) async throws {
+        guard lines != 0 else { return }
+        try await send(["type": "terminal.scroll", "direction": lines > 0 ? "up" : "down", "lines": min(200, abs(lines)), "column": column, "row": row])
+    }
+    private func send(_ command: [String: Any]) async throws {
+        guard let socket, state == .starting || state == .running else { throw TerminalTransportError.notStarted }
+        let data = try JSONSerialization.data(withJSONObject: command)
+        try await socket.send(.string(String(decoding: data, as: UTF8.self)))
+    }
+    func drainHostOps() -> [TerminalOutputOperation] {
+        defer { pendingOperations.removeAll(keepingCapacity: true); pendingByteCount = 0 }
+        return pendingOperations
+    }
+    func hostActivityStream() -> AsyncStream<Void> { activity.stream }
+    func stop() {
+        state = .stopped
+        receiver?.cancel(); receiver = nil
+        heartbeat?.cancel(); heartbeat = nil
+        socket?.cancel(with: .normalClosure, reason: nil); socket = nil
+        session.invalidateAndCancel()
+        activity.continuation.finish()
+    }
+    // Herdr always releases the controller on background; it reconnects with a
+    // fresh full frame rather than resuming a stale viewport or replaying input.
+    func resumeFromApplicationBackground() async throws { throw TerminalTransportError.notStarted }
+    func prepareForApplicationBackground() async throws {
+        stop()
+        throw TerminalTransportError.notStarted
+    }
 }

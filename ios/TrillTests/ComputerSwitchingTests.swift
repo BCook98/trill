@@ -34,12 +34,15 @@ final class ComputerSwitchingTests: XCTestCase {
                     }
                     return [Self.row(api.computer.name)]
                 }, fetchProjects: { _ in [Project(id: "project", name: "Project", path: "/fixture")] },
-                performAction: { _, _, _ in
+                performRename: { _, _, _ in
                     if self.holdAction { try await withCheckedThrowingContinuation { self.pendingAction = $0; self.actionStarted?() } }
                 })
         }
         static func row(_ name: String) -> RemoteSession {
-            RemoteSession(id: "same-session-id", name: name, projectId: "project", projectName: "Project", status: "running", activityState: "working", agent: "shell", branch: "", updatedAt: "", attachable: true, resumable: false)
+            var session = RemoteSession(id: "same-session-id", name: name, projectId: "project", projectName: "Project", status: "running", activityState: "working", agent: "shell", branch: "", updatedAt: "", attachable: true, resumable: false)
+            var capabilities = SessionCapabilities(); capabilities.rename = true
+            session.capabilities = capabilities
+            return session
         }
     }
     private func computer(_ name: String) -> Computer {
@@ -171,7 +174,7 @@ final class ComputerSwitchingTests: XCTestCase {
         let previousClient = try XCTUnwrap(store.api)
         let connection = store.connection(for: "same-session-id")
         let started = expectation(description: "Previous computer attach is pending")
-        var pendingAttach: CheckedContinuation<MoshLease, Error>?
+        var pendingAttach: CheckedContinuation<TerminalLease, Error>?
         // Disconnect must drain this fake attach. It throws before any transport
         // can be created, so the test never opens a terminal or uses networking.
         let environment = TerminalConnection.Environment(attach: { _, _, _ in
@@ -179,7 +182,7 @@ final class ComputerSwitchingTests: XCTestCase {
                 pendingAttach = $0
                 started.fulfill()
             }
-        }, release: { _ in })
+        }, release: { _ in }, makeTransport: { _ in fatalError("Cancelled fixture must never create a transport") })
         let opening = Task { await connection.connect(sessionID: "same-session-id", environment: environment) }
         defer { pendingAttach?.resume(throwing: CancellationError()) }
         await fulfillment(of: [started], timeout: 2)
@@ -214,7 +217,7 @@ final class ComputerSwitchingTests: XCTestCase {
         try await store.pair(computer("B")); let b = try XCTUnwrap(store.activeComputerID)
         let started = expectation(description: "Action started")
         h.holdAction = true; h.actionStarted = { started.fulfill() }
-        let action = Task { await store.action("archive", session: Harness.row("B")) }
+        let action = Task { await store.rename(Harness.row("B"), name: "Updated") }
         await fulfillment(of: [started], timeout: 2)
         do { try await store.selectComputer(id: a); XCTFail("Switch must wait") } catch {}
         XCTAssertEqual(store.activeComputerID, b)

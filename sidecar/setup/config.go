@@ -23,27 +23,27 @@ const Label = "app.trill.companion"
 const RenewalLabel = Label + ".renew"
 
 type Config struct {
-	Backends        string `json:"backends,omitempty"`
-	HerdrPath       string `json:"herdrPath,omitempty"`
-	HerdrConfigHome string `json:"herdrConfigHome,omitempty"`
-	HerdrSessions   string `json:"herdrSessions,omitempty"`
-	Version         int    `json:"version"`
-	Name            string `json:"name"`
-	Network         string `json:"network"`
-	IP              string `json:"ip"`
-	BindIP          string `json:"bindIP,omitempty"`
-	Address         string `json:"address"`
-	Fingerprint     string `json:"fingerprint"`
-	Certificate     string `json:"certificate"`
-	PrivateKey      string `json:"privateKey"`
-	TailscaleCLI    string `json:"tailscaleCLI,omitempty"`
-	TailscaleSocket string `json:"tailscaleSocket,omitempty"`
-	TSNetHostname   string `json:"tsnetHostname,omitempty"`
-	AllowControl    bool   `json:"allowControl"`
-	TmuxSocket      string `json:"tmuxSocket,omitempty"`
-	Daemon          string `json:"daemon"`
-	CLI             string `json:"cli"`
-	Path            string `json:"path"`
+	Backends          string `json:"backends,omitempty"`
+	HerdrPath         string `json:"herdrPath,omitempty"`
+	HerdrConfigHome   string `json:"herdrConfigHome,omitempty"`
+	HerdrSessions     string `json:"herdrSessions,omitempty"`
+	Version           int    `json:"version"`
+	Name              string `json:"name"`
+	Network           string `json:"network"`
+	IP                string `json:"ip"`
+	BindIP            string `json:"bindIP,omitempty"`
+	Address           string `json:"address"`
+	Fingerprint       string `json:"fingerprint"`
+	Certificate       string `json:"certificate"`
+	PrivateKey        string `json:"privateKey"`
+	TailscaleCLI      string `json:"tailscaleCLI,omitempty"`
+	TailscaleSocket   string `json:"tailscaleSocket,omitempty"`
+	TSNetHostname     string `json:"tsnetHostname,omitempty"`
+	AllowControl      bool   `json:"allowControl"`
+	RemovedTmuxSocket string `json:"tmuxSocket,omitempty"`
+	Daemon            string `json:"daemon"`
+	CLI               string `json:"cli"`
+	Path              string `json:"path"`
 }
 
 func DefaultStateDir() (string, error) {
@@ -182,7 +182,7 @@ func (c Config) Validate(dir string) error {
 			return err
 		}
 	}
-	if _, err := providers.Normalize(c.Backends, c.HerdrPath, c.HerdrSessions, c.TmuxSocket != ""); err != nil {
+	if _, err := providers.Normalize(c.Backends, c.HerdrPath, c.HerdrSessions, c.RemovedTmuxSocket != ""); err != nil {
 		return err
 	}
 	ip := net.ParseIP(c.IP)
@@ -224,8 +224,8 @@ func (c Config) Validate(dir string) error {
 	if !filepath.IsAbs(c.Daemon) || !filepath.IsAbs(c.CLI) || c.Path == "" || strings.ContainsRune(c.Path, 0) {
 		return errors.New("absolute executable paths and PATH required")
 	}
-	if c.TmuxSocket != "" && (!filepath.IsAbs(c.TmuxSocket) || filepath.Clean(c.TmuxSocket) != c.TmuxSocket || filepath.Base(c.TmuxSocket) == "default") {
-		return errors.New("lab tmux socket must be an absolute clean path to a dedicated socket, never the default socket")
+	if c.RemovedTmuxSocket != "" {
+		return errors.New("tmux support was removed; configure a Herdr companion")
 	}
 	return nil
 }
@@ -267,18 +267,12 @@ func (c Config) ListenIP() string {
 }
 
 func DaemonArgs(c Config, dir string) []string {
-	args := []string{"--listen", net.JoinHostPort(c.ListenIP(), Port), "--cert", c.Certificate, "--key", c.PrivateKey, "--pairing-store", filepath.Join(dir, "devices.json"), "--mosh-host", c.IP}
-	if c.BindIP != "" {
-		args = append(args, "--mosh-bind", c.BindIP)
-	}
+	args := []string{"--listen", net.JoinHostPort(c.ListenIP(), Port), "--cert", c.Certificate, "--key", c.PrivateKey, "--pairing-store", filepath.Join(dir, "devices.json")}
 	if c.Network == "tsnet" {
-		args = append(args, "--tsnet-state-dir", filepath.Join(dir, "tsnet"), "--tsnet-hostname", c.TSNetHostname)
+		args = append(args, "--tsnet-state-dir", filepath.Join(dir, "tsnet"), "--tsnet-hostname", c.TSNetHostname, "--tsnet-ip", c.IP)
 	}
 	if c.AllowControl {
 		args = append(args, "--allow-control")
-	}
-	if c.TmuxSocket != "" {
-		args = append(args, "--tmux-socket", c.TmuxSocket)
 	}
 	if c.Backends != "" {
 		args = append(args, "--backends", c.Backends)

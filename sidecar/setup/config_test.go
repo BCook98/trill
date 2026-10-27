@@ -98,8 +98,8 @@ func TestConfigValidation(t *testing.T) {
 		func(c *Config) { c.Address += "/path" }, func(c *Config) { c.Address = "https://user@192.168.1.2:7443" },
 		func(c *Config) { c.Fingerprint = "" }, func(c *Config) { c.IP = "0.0.0.0" }, func(c *Config) { c.IP = "127.0.0.1" },
 		func(c *Config) { c.Name = "bad\x1bname" }, func(c *Config) { c.Certificate = "/tmp/foreign.pem" },
-		func(c *Config) { c.PrivateKey = "/tmp/foreign.key" }, func(c *Config) { c.TmuxSocket = "relative.sock" },
-		func(c *Config) { c.TmuxSocket = "/tmp/tmux-501/default" }, func(c *Config) { c.Daemon = "trilld" },
+		func(c *Config) { c.PrivateKey = "/tmp/foreign.key" }, func(c *Config) { c.RemovedTmuxSocket = "relative.sock" },
+		func(c *Config) { c.RemovedTmuxSocket = "/tmp/tmux-501/default" }, func(c *Config) { c.Daemon = "trilld" },
 		func(c *Config) { c.Network = "tailscale" }, func(c *Config) { c.Version = 99 },
 	}
 	for i, change := range cases {
@@ -120,9 +120,8 @@ func TestDaemonArgsReadOnlyAndLabIsolation(t *testing.T) {
 		t.Fatal(args)
 	}
 	c.AllowControl = true
-	c.TmuxSocket = "/tmp/trill-lab.sock"
 	args = DaemonArgs(c, "/tmp/state")
-	if !reflect.DeepEqual(args[len(args)-3:], []string{"--allow-control", "--tmux-socket", "/tmp/trill-lab.sock"}) {
+	if !strings.Contains(strings.Join(args, " "), "--allow-control") {
 		t.Fatal(args)
 	}
 	path := DependencyPath("/Users/example", "/custom/bin:.:/usr/bin:/custom/bin")
@@ -192,7 +191,7 @@ func TestUserspaceTailscaleConfigBindsLoopbackAndAdvertisesTailnet(t *testing.T)
 				t.Fatal(err)
 			}
 			args := strings.Join(DaemonArgs(c, dir), " ")
-			if !strings.Contains(args, "--listen 127.0.0.1:7443 ") || !strings.Contains(args, "--mosh-host "+advertisedIP+" --mosh-bind 127.0.0.1") {
+			if !strings.Contains(args, "--listen 127.0.0.1:7443 ") {
 				t.Fatal(args)
 			}
 			c.BindIP = "::1"

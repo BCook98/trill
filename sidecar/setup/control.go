@@ -12,7 +12,7 @@ import (
 	"trill/sidecar/providers"
 )
 
-// Control is an explicit local permission change. It never invokes Xirp or tmux,
+// Control is an explicit local permission change. It never starts or replaces Herdr servers,
 // and restarts only the daemon with this exact installed configuration. The
 // certificate renewal service is left running. A stable lock serializes changes.
 func (a Agents) Control(ctx context.Context, c Config, dir string, allow bool) error {
@@ -21,7 +21,7 @@ func (a Agents) Control(ctx context.Context, c Config, dir string, allow bool) e
 	return a.changeConfiguration(ctx, c, next, dir)
 }
 func (a Agents) Providers(ctx context.Context, c Config, dir, backends, path, sessions, configHome string) error {
-	selection, err := providers.Normalize(backends, path, sessions, c.TmuxSocket != "")
+	selection, err := providers.Normalize(backends, path, sessions, false)
 	if err != nil {
 		return err
 	}

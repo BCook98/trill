@@ -57,8 +57,6 @@ def parse_policy(text):
             rules.append(('interface', match[1]))
         elif match := re.fullmatch(r'ip daddr \{ ([0-9./, ]+) \} reject', line):
             rules.append(('private4', [ipaddress.IPv4Network(v.strip()) for v in match[1].split(',')]))
-        elif match := re.fullmatch(r'ip saddr ([0-9.]+) udp sport (\d+)-(\d+) accept', line):
-            rules.append(('mosh4', (ipaddress.IPv4Address(match[1]), int(match[2]), int(match[3]))))
         elif line == 'counter reject':
             rules.append(('reject', None))
         else:
@@ -80,10 +78,6 @@ def verdict(text, *, source='172.19.0.2', destination='8.8.8.8', protocol='udp',
             return 'ACCEPT'
         if kind == 'private4' and destination.version == 4 and any(destination in net for net in value):
             return 'REJECT'
-        if kind == 'mosh4' and source.version == destination.version == 4:
-            address, low, high = value
-            if source == address and protocol == 'udp' and low <= sport <= high:
-                return 'ACCEPT'
         if kind == 'reject':
             return 'REJECT'
     raise AssertionError('missing final reject')
@@ -100,7 +94,7 @@ class StartupChecks(unittest.TestCase):
                 path.write_text('#!' + sys.executable + '\n' + FAKE_TOOL)
                 path.chmod(0o755)
             source = (HERE / 'entrypoint.sh').read_text()
-            body = source[source.index('# Resolve the special IPv4'):source.index('\nexec setpriv')]
+            body = source[source.index('# Native nftables'):source.index('\nexec setpriv')]
             env = dict(os.environ, PATH=str(bins) + ':/usr/bin:/bin', PROBE_ROOT=temp,
                        PROBE_FAIL=fail, PROBE_BIND=bind)
             result = subprocess.run(['sh', '-c', 'set -eu\nfail() { exit 91; }\n' + body + '\nprintf ready'],
@@ -119,15 +113,14 @@ class StartupChecks(unittest.TestCase):
         result, files, calls = self.probe()
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout, 'ready')
-        self.assertEqual(calls, [['getent', 'ahostsv4', 'fly-global-services'], ['nft', '-f', '-']])
+        self.assertEqual(calls, [['nft', '-f', '-']])
         rules = files['nft.rules']
         owner, priority, policy = parse_policy(rules)
         self.assertEqual(owner, 10001)
         self.assertEqual(priority, -10)
-        self.assertEqual([kind for kind, _ in policy], ['state', 'interface', 'private4', 'mosh4', 'reject'])
+        self.assertEqual([kind for kind, _ in policy], ['state', 'interface', 'private4', 'reject'])
         self.assertEqual(policy[0][1], {'established', 'related'})
         self.assertEqual(policy[1][1], 'lo')
-        self.assertEqual(policy[3][1], (ipaddress.IPv4Address('172.19.0.2'), 60300, 60301))
         # Strictly reject global flushes, foreign table changes, split transactions,
         # extra hooks/UID rules, and rules added after the final reject/table close.
         for changed in ('flush ruleset\n' + rules,
@@ -144,7 +137,7 @@ class StartupChecks(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         rules = files['nft.rules']
         for sport in (60300, 60301):
-            self.assertEqual(verdict(rules, source='172.19.0.9', sport=sport), 'ACCEPT')
+            self.assertEqual(verdict(rules, source='172.19.0.9', sport=sport), 'REJECT')
         for state in ('established', 'related'):
             self.assertEqual(verdict(rules, destination='10.0.0.1', protocol='tcp', state=state), 'ACCEPT')
         self.assertEqual(verdict(rules, destination='127.0.0.1', interface='lo'), 'ACCEPT')
@@ -180,19 +173,12 @@ class StartupChecks(unittest.TestCase):
             for destination in ('169.254.169.254', 'fdaa::1'):
                 self.assertEqual(verdict(files['nft.rules'], uid=uid, destination=destination, protocol='tcp'), 'ACCEPT')
 
-    def test_resolution_or_transaction_failure_blocks_startup(self):
-        for options in ({'bind': ''}, {'bind': 'bad-address'}, {'bind': '999.0.0.1'},
-                        {'bind': 'fdaa::1'}, {'fail': 'getent'}, {'fail': 'nft'}):
-            with self.subTest(options=options):
-                result, files, calls = self.probe(**options)
-                self.assertNotEqual(result.returncode, 0)
-                self.assertEqual(result.stdout, '')
-                nft_calls = [call for call in calls if call[0] == 'nft']
-                if options.get('fail') == 'nft':
-                    self.assertEqual(nft_calls, [['nft', '-f', '-']])
-                    parse_policy(files['nft.rules'])
-                else:
-                    self.assertEqual(nft_calls, [])
+    def test_transaction_failure_blocks_startup(self):
+        result, files, calls = self.probe(fail='nft')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(result.stdout, '')
+        self.assertEqual(calls, [['nft', '-f', '-']])
+        parse_policy(files['nft.rules'])
 
 
 if __name__ == '__main__':

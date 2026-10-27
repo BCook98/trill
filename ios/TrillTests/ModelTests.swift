@@ -1,6 +1,5 @@
 import XCTest
 import SwiftUI
-import MoshCore
 import UIKit
 import ImageIO
 import UniformTypeIdentifiers
@@ -499,9 +498,9 @@ final class ModelTests: XCTestCase {
     @MainActor private func collectedInput(
         _ channel: (stream: AsyncStream<TerminalConnection.InputEnvelope>, continuation: AsyncStream<TerminalConnection.InputEnvelope>.Continuation),
         handoffTo connection: TerminalConnection? = nil
-    ) async -> [MoshClientOp] {
+    ) async -> [TerminalInputOperation] {
         channel.continuation.finish()
-        var operations: [MoshClientOp] = []
+        var operations: [TerminalInputOperation] = []
         for await envelope in channel.stream {
             operations.append(envelope.operation)
             if let connection {
@@ -896,7 +895,7 @@ final class ModelTests: XCTestCase {
         let connection = TerminalConnection(inputContinuation: channel.continuation)
         connection.phase = .connected
         connection.terminal.feed(text: "\u{1b}[>1u")
-        var operations: [MoshClientOp] = []
+        var operations: [TerminalInputOperation] = []
         let collector = Task { @MainActor in
             for await envelope in channel.stream { operations.append(envelope.operation) }
         }
@@ -964,7 +963,7 @@ final class ModelTests: XCTestCase {
         let connection = TerminalConnection(inputContinuation: channel.continuation)
         connection.phase = .connected
         XCTAssertEqual(connection.terminal.terminalInputStateSnapshot()?.applicationCursor, false)
-        var expected: [MoshClientOp] = []
+        var expected: [TerminalInputOperation] = []
         for applicationCursor in [false, true, false] {
             connection.terminal.feed(text: applicationCursor ? "\u{1b}[?1h" : "\u{1b}[?1l")
             for final in ["A", "B", "C", "D"] {
@@ -989,7 +988,7 @@ final class ModelTests: XCTestCase {
             let channel = AsyncStream<TerminalConnection.InputEnvelope>.makeStream()
             let connection = TerminalConnection(inputContinuation: channel.continuation)
             connection.phase = .connected
-            var expected: [MoshClientOp] = []
+            var expected: [TerminalInputOperation] = []
             for (input, shifted) in cases {
                 connection.shiftHeld = true
                 if useDelegate { connection.send(source: connection.terminal, data: Array(input.utf8)[...]) }
@@ -1496,7 +1495,7 @@ final class ModelTests: XCTestCase {
     }
 
     @MainActor func testFailedAndStoppedTransportsAutomaticallyRetrySameTarget() async throws {
-        for state in [MoshSessionState.failed(.transportFailure("fixture")), .stopped] {
+        for state in [TerminalTransportState.failed(.transportFailure("fixture")), .stopped] {
             let fixture = TerminalLifecycleFixture()
             let sleeper = TerminalRetrySleeper()
             let old = TerminalLifecycleTransport()
@@ -1893,7 +1892,7 @@ final class ModelTests: XCTestCase {
         connection.sizeChanged(source: connection.terminal, newCols: 120, newRows: 40)
         connection.sizeChanged(source: connection.terminal, newCols: 0, newRows: 0)
         channel.continuation.finish()
-        var delivered: [MoshClientOp] = []
+        var delivered: [TerminalInputOperation] = []
         for await envelope in channel.stream {
             XCTAssertNil(envelope.draftID)
             try await connection.handoff(envelope) { delivered.append($0) }
@@ -1985,7 +1984,7 @@ private actor TerminalLifecycleFixture {
         self.releaseGate = releaseGate
     }
 
-    func attach(_ sessionID: String, cols: Int, rows: Int) async throws -> MoshLease {
+    func attach(_ sessionID: String, cols: Int, rows: Int) async throws -> TerminalLease {
         requests.append(Request(sessionID: sessionID, cols: cols, rows: rows))
         let attempt = requests.count
         if attempt == gatedAttempt { await attachGate?.wait() }
@@ -1996,7 +1995,7 @@ private actor TerminalLifecycleFixture {
         case .success, .lostResponse:
             if let old = activeLeases.updateValue("lease-\(attempt)", forKey: sessionID) { replaced.append(old) }
             if case .lostResponse = outcome { throw URLError(.networkConnectionLost) }
-            return MoshLease(host: "fixture.invalid", port: 60000, key: "fixture-key", leaseId: "lease-\(attempt)")
+            return TerminalLease(leaseId: "lease-\(attempt)")
         }
     }
 
@@ -2023,7 +2022,7 @@ private actor TerminalLifecycleTransport: TerminalTransport {
         activityContinuation?.yield(())
         return channel.stream
     }
-    private(set) var state: MoshSessionState = .idle
+    private(set) var state: TerminalTransportState = .idle
     private(set) var startCount = 0
     private(set) var stopCount = 0
     private(set) var pauseCount = 0
@@ -2046,9 +2045,9 @@ private actor TerminalLifecycleTransport: TerminalTransport {
     private let respondsOnResume: Bool
     private let resumeGate: TerminalLifecycleGate?
     private let returnsCompletedResumeAfterStop: Bool
-    private(set) var statesAtStop: [MoshSessionState] = []
-    private var hostOps: [MoshHostOp]
-    private var operations: [MoshClientOp] = []
+    private(set) var statesAtStop: [TerminalTransportState] = []
+    private var hostOps: [TerminalOutputOperation]
+    private var operations: [TerminalInputOperation] = []
     private var inputGate: TerminalLifecycleGate?
     private let remainsRunningInBackground: Bool
     private let startGate: TerminalLifecycleGate?
@@ -2071,7 +2070,7 @@ private actor TerminalLifecycleTransport: TerminalTransport {
         operations.compactMap { if case .keystrokes(let bytes) = $0 { return bytes }; return nil }
     }
 
-    func setState(_ state: MoshSessionState) { self.state = state }
+    func setState(_ state: TerminalTransportState) { self.state = state }
     func respond() {
         hostOps.append(.hostBytes(Data("fixture response".utf8)))
         activityContinuation?.yield(())
@@ -2087,12 +2086,10 @@ private actor TerminalLifecycleTransport: TerminalTransport {
         activityContinuation?.finish()
         await resumeGate?.release()
     }
-    func prepareForApplicationBackground() async throws -> MoshSnapshot {
+    func prepareForApplicationBackground() async throws {
         pauseCount += 1
         if failsToPause { throw URLError(.networkConnectionLost) }
         if !remainsRunningInBackground { state = .suspended }
-        return MoshSnapshot(endpoint: .init(host: "fixture.invalid", port: 60000, keyBase64_22: "fixture-key"),
-                            transportState: Data(), createdAtMs: 0)
     }
     func resumeFromApplicationBackground() async throws {
         resumeCount += 1
@@ -2106,11 +2103,11 @@ private actor TerminalLifecycleTransport: TerminalTransport {
         responseCount += 1
         activityContinuation?.yield(())
     }
-    func enqueue(_ op: MoshClientOp) async throws {
+    func enqueue(_ op: TerminalInputOperation) async throws {
         if case .keystrokes = op, let inputGate { await inputGate.wait() }
         operations.append(op)
     }
-    func drainHostOps() async -> [MoshHostOp] {
+    func drainHostOps() async -> [TerminalOutputOperation] {
         let pending = hostOps
         hostOps.removeAll()
         let gate = drainGate; drainGate = nil
@@ -2331,7 +2328,7 @@ extension ModelTests {
     }
 }
 
-// Drive SwiftTerm's real tap hit testing without a mosh connection or personal session.
+// Drive SwiftTerm's real tap hit testing without a network connection or personal session.
 private final class TerminalLinkTestTap: UITapGestureRecognizer {
     var point: CGPoint = .zero
     override var state: UIGestureRecognizer.State { get { .ended } set {} }
@@ -2439,7 +2436,7 @@ extension ModelTests {
         XCTAssertEqual(finalRequests, 2, "Explicit disconnect revokes automatic reconnect intent")
     }
 
-    @MainActor func testHerdrBackgroundReleasesInsteadOfRetainingMoshAndWaitsUntilForeground() async throws {
+    @MainActor func testHerdrBackgroundReleasesControlAndWaitsUntilForeground() async throws {
         let fixture = TerminalLifecycleFixture()
         let sleeper = TerminalRetrySleeper()
         let old = TerminalLifecycleTransport(respondsOnResume: true)
@@ -2574,26 +2571,7 @@ extension ModelTests {
         await backgrounding.value
     }
 
-    @MainActor func testXirpSurfaceSwitchRetainsWarmTransport() async throws {
-        let fixture = TerminalLifecycleFixture()
-        let sleeper = TerminalRetrySleeper()
-        let transport = TerminalLifecycleTransport(respondsOnResume: true)
-        let connection = TerminalConnection()
-        let surface = UUID()
-        addTeardownBlock { await connection.disconnect(); await sleeper.resumeAll() }
-        connection.terminalDidAppear(surfaceID: surface)
-        await connection.connect(sessionID: "xirp", environment: lifecycleEnvironment(fixture, transports: [transport], sleeper: sleeper))
-        try await eventually("Xirp connected") { connection.connected }
-        connection.terminalDidDisappear(surfaceID: surface)
-        XCTAssertTrue(connection.connected)
-        await connection.background()
-        await connection.foreground()
-        try await eventually("Warm Xirp transport resumed") { connection.connected }
-        let requests = await fixture.requests.count
-        let releases = await fixture.released
-        XCTAssertEqual(requests, 1)
-        XCTAssertEqual(releases, [])
-    }
+
 }
 
 

@@ -1,6 +1,6 @@
 package sidecar
 
-// This provider is selected only by NewDemoService. It has no CLI, shell, tmux,
+// This provider is selected only by NewDemoService. It has no CLI or shell,
 // or Herdr dependency. Production handlers and transport continue to own auth,
 // validation, leases, files, uploads, and browser grants.
 import (
@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -33,7 +32,7 @@ const (
 
 type DemoOptions struct {
 	Root, Profile, Executable, Socket string
-	BindHost                          string // Local mosh-server bind address; MoshHost remains advertised.
+	BindHost                          string // Legacy fixture bind option; terminal traffic uses HTTPS.
 	MaxLeases                         int
 }
 type DemoSnapshot struct {
@@ -84,10 +83,10 @@ type Demo struct {
 
 func NewDemoService(config Config, options DemoOptions) (*Service, *Demo, error) {
 	if options.Profile == "" {
-		options.Profile = "mixed"
+		options.Profile = "herdr"
 	}
-	if options.Profile != "xirp" && options.Profile != "herdr" && options.Profile != "mixed" {
-		return nil, nil, errors.New("demo profile must be xirp, herdr or mixed")
+	if options.Profile != "herdr" {
+		return nil, nil, errors.New("demo supports Herdr sessions only")
 	}
 	if !filepath.IsAbs(options.Root) || !filepath.IsAbs(options.Executable) || !filepath.IsAbs(options.Socket) {
 		return nil, nil, errors.New("demo paths must be absolute")
@@ -107,7 +106,7 @@ func NewDemoService(config Config, options DemoOptions) (*Service, *Demo, error)
 		return nil, nil, errors.New("demo max leases must be between one and eight")
 	}
 	// Deliberately discard provider config: there is no path to a real provider.
-	config.Backends, config.HerdrPath, config.HerdrConfigHome, config.HerdrSessions, config.HerdrSession, config.HerdrLabRoot, config.TmuxSocket, config.LabFilesRoot = "xirp", "", "", "", "", "", "", ""
+	config.Backends, config.HerdrPath, config.HerdrConfigHome, config.HerdrSessions, config.HerdrSession, config.HerdrLabRoot = "herdr", "", "", "", "", ""
 	if config.LeaseTTL == 0 {
 		config.LeaseTTL = 15 * time.Minute
 	}
@@ -115,20 +114,12 @@ func NewDemoService(config Config, options DemoOptions) (*Service, *Demo, error)
 	if err != nil {
 		return nil, nil, err
 	}
-	bind := options.BindHost
-	if bind == "" {
-		bind = s.config.MoshHost
-	}
-	if net.ParseIP(bind) == nil {
-		s.Close()
-		return nil, nil, errors.New("demo mosh bind must be an IP address")
-	}
 	root, err := os.OpenRoot(options.Root)
 	if err != nil {
 		s.Close()
 		return nil, nil, err
 	}
-	d := &Demo{root: root, rootPath: options.Root, profile: options.Profile, executable: options.Executable, socket: options.Socket, bindHost: bind, maxLeases: options.MaxLeases, allowControl: config.AllowControl, faults: map[string]bool{}, wsSlots: make(chan struct{}, 8), done: make(chan struct{}), stopped: make(chan struct{}), closeDone: make(chan struct{}), service: s}
+	d := &Demo{root: root, rootPath: options.Root, profile: options.Profile, executable: options.Executable, socket: options.Socket, maxLeases: options.MaxLeases, allowControl: config.AllowControl, faults: map[string]bool{}, wsSlots: make(chan struct{}, 8), done: make(chan struct{}), stopped: make(chan struct{}), closeDone: make(chan struct{}), service: s}
 	if err = d.load(); err == nil {
 		err = d.ensureFixtures()
 	}
@@ -257,7 +248,7 @@ func (d *Demo) validateState() error {
 	projects := map[string]string{}
 	ids := map[string]bool{}
 	for _, p := range st.Projects {
-		if !idPattern.MatchString(p.ID) || projects[p.ID] != "" || !validText(p.Name, 200) || (p.Provider != "xirp" && p.Provider != "herdr") || (d.profile != "mixed" && p.Provider != d.profile) {
+		if !idPattern.MatchString(p.ID) || projects[p.ID] != "" || !validText(p.Name, 200) || p.Provider != "herdr" {
 			return errors.New("invalid demo project")
 		}
 		projects[p.ID] = p.Provider
@@ -290,9 +281,6 @@ func (d *Demo) validateState() error {
 func (d *Demo) seed() {
 	d.state = demoState{Version: 1, Profile: d.profile, Next: 1, Headings: map[string]string{}, Revision: 1}
 	providers := []string{d.profile}
-	if d.profile == "mixed" {
-		providers = []string{"xirp", "herdr"}
-	}
 	for _, provider := range providers {
 		project := "demo-" + provider
 		d.state.Projects = append(d.state.Projects, demoProject{project, "Demo · " + strings.ToUpper(provider[:1]) + provider[1:], provider}, demoProject{project + "-empty", "Demo · Empty project", provider})
@@ -302,9 +290,7 @@ func (d *Demo) seed() {
 		}{{"Welcome", "running", "idle", false}, {"Build preview", "running", "working", false}, {"Needs attention", "waiting", "waiting", false}, {"Archived example", "running", "idle", true}, {"Stopped example", "stopped", "idle", false}, {"Failed example", "failed", "idle", false}} {
 			id := fmt.Sprintf("%s-%d", project, i+1)
 			v := demoSession{Session: rawSession{ID: id, Name: item.name, ProjectID: project, Status: item.status, ActivityState: item.activity, CurrentAgent: "Demo", Mode: "terminal", TerminalLive: activeStatus(item.status), HiddenFromSidebar: item.hidden, Source: "terminal", UpdatedAt: time.Now().UTC().Format(time.RFC3339)}, Directory: "fixtures/" + project, Screen: DemoSnapshot{Text: "Trill Demo — interactive sample workspace.\nType help to explore. No commands run on a shell.\n", Revision: 1, Live: activeStatus(item.status), Columns: 80, Rows: 24}}
-			if provider == "xirp" {
-				v.Session.CLISessionID = "demo-" + id
-			}
+
 			d.state.Sessions = append(d.state.Sessions, v)
 		}
 	}
@@ -360,8 +346,7 @@ func (d *Demo) materialize(v demoSession) rawSession {
 	raw := v.Session
 	p, _ := d.project(raw.ProjectID)
 	raw.ProviderKey = "demo-" + p.Provider
-	raw.HerdrTerminal = ""             // Prevent Herdr env or preflight paths during bootstrap.
-	raw.TmuxSession = "demo-" + raw.ID // Catalog/photo eligibility only; attach is explicit.
+	raw.HerdrTerminal = "term_" + raw.ID
 	raw.WorktreePath = filepath.Join(d.rootPath, filepath.FromSlash(v.Directory))
 	return raw
 }
@@ -373,9 +358,6 @@ func (d *Demo) catalog() (catalog, error) {
 	}
 	c := catalog{Projects: []Project{}, Raw: []rawSession{}, Providers: []ProviderStatus{}}
 	providers := []string{d.profile}
-	if d.profile == "mixed" {
-		providers = []string{"xirp", "herdr"}
-	}
 	healthy := false
 	for _, provider := range providers {
 		available := d.available(provider)
@@ -393,14 +375,8 @@ func (d *Demo) catalog() (catalog, error) {
 		if !d.available(p.Provider) {
 			continue
 		}
-		caps := &Capabilities{Rename: true, CreateTerminal: true, Files: true}
-		if p.Provider == "xirp" {
-			caps.Stop = true
-			caps.Archive = true
-			caps.Resume = true
-			caps.CreateAgent = true
-			caps.Worktree = true
-		}
+		caps := &Capabilities{TerminalStream: true, Rename: true, CreateTerminal: true, Files: true}
+
 		c.Projects = append(c.Projects, Project{ID: p.ID, Name: p.Name, Provider: p.Provider, ProviderName: "Demo · " + p.Provider, Path: filepath.Join(d.rootPath, "fixtures", p.ID), Capabilities: caps})
 	}
 	for _, v := range d.state.Sessions {
@@ -424,7 +400,7 @@ func (d *Demo) create(projectID, name, goal string, options CreateOptions) error
 	if !d.available(p.Provider) {
 		return errUnavailable
 	}
-	if options.Kind != "agent" && options.Kind != "terminal" {
+	if options.Kind != "terminal" || options.UseWorktree {
 		return errUnsupported
 	}
 	if p.Provider == "herdr" && (options.Kind != "terminal" || options.UseWorktree) {
@@ -441,22 +417,9 @@ func (d *Demo) create(projectID, name, goal string, options CreateOptions) error
 	d.state.Next++
 	if name == "" {
 		name = "Demo terminal"
-		if options.Kind == "agent" {
-			name = "Demo task"
-		}
 	}
 	raw := rawSession{ID: id, Name: name, ProjectID: projectID, Status: "running", ActivityState: "idle", CurrentAgent: "Demo", Mode: "terminal", TerminalLive: true, Goal: goal, Source: options.Kind, UpdatedAt: time.Now().UTC().Format(time.RFC3339)}
 	directory := "fixtures/" + projectID
-	if options.UseWorktree {
-		directory = "worktrees/" + id
-		raw.Branch = options.Branch
-		if raw.Branch == "" {
-			raw.Branch = "demo/" + id
-		}
-	}
-	if p.Provider == "xirp" {
-		raw.CLISessionID = id
-	}
 	v := demoSession{Session: raw, Directory: directory, Screen: DemoSnapshot{Text: "Trill Demo — new sample session.\nType help to explore.\n", Revision: 1, Live: true, Columns: 80, Rows: 24}}
 	if err := d.fixture(directory); err != nil {
 		d.state = before
@@ -493,27 +456,6 @@ func (d *Demo) mutate(id, action, value string) error {
 			return errUnsupported
 		}
 		v.Session.Name = value
-	case "stop":
-		if endedStatus(v.Session.Status) {
-			return errUnsupported
-		}
-		v.Session.Status = "stopped"
-		v.Session.TerminalLive = false
-		v.Screen.Live = false
-		v.TaskDue = time.Time{}
-		v.Session.ActivityState = "idle"
-		d.append(v, "Session stopped.\n")
-	case "archive":
-		v.Session.HiddenFromSidebar = true
-	case "resume":
-		if !endedStatus(v.Session.Status) && !v.Session.HiddenFromSidebar {
-			return errUnsupported
-		}
-		v.Session.HiddenFromSidebar = false
-		v.Session.Status = "running"
-		v.Session.TerminalLive = true
-		v.Screen.Live = true
-		d.append(v, "Session reopened.\n")
 	default:
 		return errUnsupported
 	}
@@ -561,17 +503,17 @@ func (d *Demo) Resize(id string, cols, rows int) (DemoSnapshot, error) {
 	}
 	return v.Screen, nil
 }
-func (d *Demo) attach(id string, cols, rows int) ([]string, error) {
+func (d *Demo) prepareTerminal(id string, cols, rows int) error {
 	d.mu.Lock()
 	if d.faults["busy"] {
 		delete(d.faults, "busy")
 		d.mu.Unlock()
-		return nil, errTerminalBusy
+		return errTerminalBusy
 	}
 	if d.faults["capacity"] {
 		delete(d.faults, "capacity")
 		d.mu.Unlock()
-		return nil, errCapacity
+		return errCapacity
 	}
 	v, err := d.session(id)
 	if err == nil && (!v.Session.TerminalLive || !activeStatus(v.Session.Status)) {
@@ -579,18 +521,18 @@ func (d *Demo) attach(id string, cols, rows int) ([]string, error) {
 	}
 	d.mu.Unlock()
 	if err != nil {
-		return nil, err
+		return err
 	}
 	if _, err = d.Resize(id, cols, rows); err != nil {
-		return nil, err
+		return err
 	}
-	return []string{d.executable, "demo", "terminal", "--socket", d.socket, "--session", id}, nil
+	return nil
 }
 
 // Fault arms one-shot busy/capacity/create-unconfirmed faults. The persistent
-// provider-unavailable fault hides Herdr only, preserving Xirp in mixed mode.
-// clear disarms all faults. drop-leases stops only this service’s tracked Mosh
-// children. preview-expired expires grants from this Demo’s registered HTTP
+// provider-unavailable fault hides the synthetic Herdr provider.
+// clear disarms all faults. drop-leases stops only this service’s tracked terminal
+// streams. preview-expired expires grants from this Demo’s registered HTTP
 // instances, leaving production TTLs and other instances untouched.
 // These methods are for local IPC, never public routing.
 func (d *Demo) Fault(name string) error {

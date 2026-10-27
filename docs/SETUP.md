@@ -1,353 +1,100 @@
 # Set up Trill
 
-Trill has two parts: an iPhone app and a companion running as your user on the Mac that owns your sessions. Start with [prerequisites](#prerequisites-and-supported-versions), then [install the app](#install-the-iphone-app), [install the companion](#install-the-mac-companion), and [pair](#pair-your-iphone). Day-to-day controls are in the [usage guide](USAGE.md).
-
 ## Prerequisites and supported versions
 
-| Component | Requirement |
-| --- | --- |
-| iPhone | iOS 18.0 or later, the project's deployment target. Duo-specific APIs are guarded for newer iOS versions. |
-| App build tools | Xcode 27.1 or later with the iOS 27.1 SDK. This build requirement is separate from the minimum phone OS. |
-| Companion host | macOS, with a logged-in user session for LaunchAgents. The repository does not declare a separate minimum macOS version; your Xcode and dependencies may require a newer release. |
-| Go | 1.26.10 or a newer patched release to build the companion, as declared in `sidecar/go.mod`. Go's automatic toolchain selection can download the required version; `GOTOOLCHAIN=local` rejects older compilers. |
-| Terminal transport | `mosh-server` on the Mac, provided by the Mosh package. Trill includes its own iOS Mosh client. |
-| Xirp backend | Installed Xirp app and `xirp` CLI, a running provider, and `tmux` on PATH. Sessions must expose a live tmux terminal to attach. No minimum Xirp release is pinned; compatibility depends on its CLI metadata and daemon API. |
-| Herdr backend (optional) | Installed `herdr` CLI and running selected servers. Direct attach requires matching CLI/server protocols, at least protocol 22. Herdr 0.9.5 is the version exercised by this repository's live probes, not a guarantee for every later release. |
-| Network | Reachability from iPhone to Mac on HTTPS TCP 7443 and Mosh UDP 60000 to 60010. Choose LAN, an already configured Tailscale node, or embedded Tailscale enrollment. |
+The session Mac needs Herdr installed and running, and Go 1.26.10 or a newer patched release to build the companion from source. Trill integrates with Herdr protocol 22 (validated against 0.9.5); incompatible metadata fails explicitly. The phone needs iOS 18 or later. Building the native app requires Xcode with SDK 27.1 or later.
 
-Full Xcode is needed to build the iOS app, not to run the installed Go companion. The [development guide](DEVELOPMENT.md) covers builds and tests; the [release guide](RELEASING.md) covers distribution.
-
-### Install Go, Mosh, and tmux
-
-Install [Go from the official instructions](https://go.dev/doc/install). If you use [Homebrew](https://brew.sh/), install the Mac terminal dependencies with:
-
-```sh
-brew install mosh tmux
-go version
-command -v mosh-server
-command -v tmux
-```
-
-These package commands follow the official [Mosh installation guide](https://mosh.org/#getting) and [Homebrew tmux formula](https://formulae.brew.sh/formula/tmux). **The Mac also needs `mosh-server`.** Installing the iPhone app alone does not provide it. Xirp attachment also needs `tmux`; Herdr uses its own direct-terminal client instead of tmux.
-
-Trill setup builds Trill's binaries. It does not install Go, Mosh, tmux, providers, or coding-agent CLIs.
-
-### Install and prepare a provider
-
-Choose one provider or both. Install and authenticate any coding agents through the provider's onboarding or their own installers on the Mac; Trill does not supply agent accounts or credentials.
-
-**Xirp (default).** Download the macOS app from the official [Xirp download page](https://xirp.spotify.com/join-beta), or use its published installer:
-
-```sh
-curl -fsSL https://xirp.spotify.com/install.sh | sh
-```
-
-Open Xirp and complete its [getting-started flow](https://backstage.spotify.com/docs/xirp). Add a local project and start a terminal-backed session. Ensure its installed CLI is on PATH:
-
-```sh
-command -v xirp
-xirp session list --all --json
-xirp project list --json
-```
-
-Those listing commands are the metadata calls Trill uses. A project or transcript without a running terminal cannot be attached until the provider starts or resumes it.
-
-**Herdr (optional).** Follow the official [Herdr installation guide](https://herdr.dev/docs/install/). With Homebrew:
-
-```sh
-brew install herdr
-```
-
-Start `herdr` from your project directory and follow its [quick start](https://herdr.dev/docs/quick-start/) to create a workspace and terminal. Keep its server running. Inspect the existing server names with:
-
-```sh
-command -v herdr
-herdr session list --json
-```
-
-Trill selects Herdr's `default` server unless you name others. It never starts, updates, restarts, or takes over a Herdr server. See [provider configuration and compatibility](PROVIDERS.md) for named servers and the supported actions.
+Herdr is the only provider. Terminal frames, input, scrolling and resize use an authenticated WebSocket on the companion’s HTTPS listener. There are no additional terminal ports or transport executables to install.
 
 ## Install the iPhone app
 
-From a checkout of this repository, open `ios/Trill.xcodeproj` in **Xcode 27.1+**, select the **Trill** scheme, choose your iPhone or simulator, and Run. Use your own signing team for a physical device; signing and distribution details belong in [RELEASING.md](RELEASING.md).
-
-Swift Package Manager resolves pinned remote dependencies; SwiftTerm and swift-mosh are vendored in the checkout. Xcode may ask you to trust SwiftTerm's build-info package plugin. Inspect that plugin before allowing it. No project regeneration is required for a normal build.
-
-To check a simulator build from the repository root:
-
-```sh
-./scripts/build-ios.sh
-```
-
-The script requires the iOS 27.1+ simulator SDK and builds into `.build/ios`; it does not install or launch the app. It honors `DEVELOPER_DIR` and otherwise uses the active `xcode-select` installation. For an Xcode installed elsewhere:
-
-```sh
-DEVELOPER_DIR="/Applications/Xcode.app/Contents/Developer" ./scripts/build-ios.sh
-```
-
-This selects tools only for that command; it does not change global `xcode-select`.
+Open `ios/Trill.xcodeproj`, choose the Trill scheme and destination, select your signing team for a physical device, and Run. SwiftTerm is vendored. Inspect its build-info package plugin before trusting it. Normal builds do not require project regeneration.
 
 ## Choose a network
 
-| Mode | Before setup | Address used by the phone |
-| --- | --- | --- |
-| LAN | Put both devices on the same reachable network, allow Trill Local Network access, and ensure Bonjour/mDNS works. | `https://my-mac.local:7443`, with the certificate pin included in pairing. |
-| Tailscale | Install and connect Tailscale on both devices, enable tailnet HTTPS certificates, and allow the phone to reach the Mac. | `https://machine.tailnet.ts.net:7443`, using a system-trusted certificate. |
-| Embedded Tailscale (`tsnet`) | Join the iPhone to Tailscale, enable MagicDNS/HTTPS certificates, and approve the companion's own node during setup. | `https://trill-mac.tailnet.ts.net:7443`, using a system-trusted certificate issued through the embedded node. |
+Both devices must reach the Mac. Keep the Mac awake and Herdr running.
 
-Setup defaults to `--network auto`: it prefers an **already connected** Tailscale node and otherwise detects an active LAN interface. Auto/LAN/external-Tailscale setup does not sign into Tailscale, reconnect it, change accounts or policy, or enable Serve/Funnel. Embedded mode explicitly enrolls its own node. There is no Trill public tunnel.
+- **LAN:** setup provisions a local certificate and advertises Bonjour. The phone trusts the exact certificate scanned in the invitation. Allow TCP 7443 through applicable firewall rules.
+- **Existing Tailscale client:** setup can use the Mac’s connected client and trusted tailnet hostname. The phone must be on the same tailnet and ACLs must allow TCP 7443. Userspace networking forwards HTTPS to loopback.
+- **Embedded Tailscale:** `--network tsnet --tsnet-hostname NAME` enrolls a dedicated companion node with its own identity. Follow the presented login link, using a distinct name for a development companion. State and pairing identity persist across restarts. It serves HTTPS on tailnet TCP 7443 and local loopback TCP 7443.
 
-For Tailscale, follow the official [HTTPS certificate prerequisites](https://tailscale.com/docs/how-to/set-up-https-certificates). The local CLI must be allowed to export a certificate. Publicly issued machine hostnames appear in certificate transparency logs. Setup verifies the certificate chain, hostname, and validity before omitting a pin. Export or trust failure stops setup rather than substituting a self-signed certificate.
+Trill does not edit firewall rules. Network access alone does not grant control or bypass pairing.
 
-### Embedded Tailscale mode
+## Install the companion
 
-To let the companion register as its own tailnet device without installing the Mac Tailscale app or running a separate `tailscaled`:
-
-```sh
-./scripts/setup-companion.sh --network tsnet --tsnet-hostname trill-mac
-```
-
-Open the Tailscale login URL printed during setup and approve the node in the tailnet used by your iPhone. The iPhone continues to use the Tailscale app. The companion has its own tailnet IP, DNS name and private persistent identity under `<state-dir>/tsnet`; the Mac's system Tailscale connection can use another tailnet. This mode requires no administrator privileges or system VPN configuration. The node name is a lowercase DNS label; the default is `trill`.
-
-Embedded mode requests a publicly trusted certificate through its own Tailscale node. Enable MagicDNS and HTTPS certificates in the tailnet first; as with external Tailscale mode, the hostname appears in public certificate transparency logs. Issuance or chain-validation failure stops setup without a self-signed fallback. The running companion checks for renewal at startup and every six hours, then atomically reloads validated certificates for new connections. No separate Tailscale CLI or certificate-export daemon is needed. Keep the state directory private and preserve it across restarts; deleting it can register a new device. Pairing uses normal device approval with an empty certificate fingerprint, relying on the trusted certificate chain.
-
-HTTPS is served inside the embedded node and on `127.0.0.1:7443` for local management checks. Mosh runs on loopback, with the configured UDP ports forwarded through the embedded node. Normal read-only defaults, explicit control permission, pairing and device revocation still apply. `--ip`, `--hostname`, `--tailscale-cli` and `--tailscale-socket` belong to other modes and cannot be combined with `--network tsnet`. Rerunning setup preserves the saved node and paired phones.
-
-If the embedded node needs to log in again, stop this companion before opening its stored identity, then restart it:
-
-```sh
-trill stop
-trill tailnet-login
-trill start
-```
-
-Include the same `--state-dir` on each command when using a custom state directory. A login into a different tailnet that changes the saved identity requires a fresh configuration and re-pairing.
-
-### Use a second tailnet
-
-Setup uses the `tailscale` CLI on PATH, then the Tailscale app. To use a different tailnet, such as a second `tailscaled` with its own socket, name its CLI and socket:
-
-```sh
-./scripts/setup-companion.sh --tailscale-cli /path/to/tailscale --tailscale-socket /path/to/tailscaled.sock
-```
-
-Either flag selects Tailscale. Renewal uses the same CLI and socket. Certificate export requires that `tailscaled` to run with `--statedir`.
-
-If the node's tailnet IP is not assigned to a Mac interface, as with `--tun=userspace-networking`, the companion and `mosh-server` listen on `127.0.0.1` for both IPv4 and IPv6 tailnet addresses. The phone still connects to the tailnet hostname and IP, and `tailscaled` forwards that traffic to loopback.
-
-For LAN, setup reads the Mac's Bonjour name and creates a certificate for its `.local` hostname and selected IP. Use the generated hostname: self-signed numeric-IP HTTPS can be rejected by iOS before pinning. The hostname must actually resolve from the phone. Guest Wi-Fi isolation and VPN DNS can prevent that.
-
-Allow TCP **7443** and UDP **60000 to 60010** through applicable Mac firewall, LAN, and tailnet rules. HTTPS reachability alone does not prove that the Mosh UDP path works. Trill does not edit firewall rules.
-
-## Install the Mac companion
-
-The companion is Go software; Xcode builds the iPhone app. Use the source installer below. Signed binary distribution and maintenance commands are described in [Companion releases](COMPANION_RELEASES.md); signed downloads remain unavailable until Apple signing is configured and the first release is validated.
-
-Clone the repository if you have not already:
-
-```sh
-git clone https://github.com/BCook98/trill.git
-cd trill
-```
-
-From its root, run setup as the user who owns the provider sessions:
+From a checkout on the session Mac:
 
 ```sh
 ./scripts/setup-companion.sh
-```
-
-For Herdr alone or both providers, choose the corresponding command **instead**:
-
-```sh
-./scripts/setup-companion.sh --backends herdr
-# Or:
-./scripts/setup-companion.sh --backends xirp,herdr
-```
-
-To explicitly select a network or LAN interface on first setup:
-
-```sh
-./scripts/setup-companion.sh --network lan
-./scripts/setup-companion.sh --network lan --ip 192.168.1.20
-./scripts/setup-companion.sh --network lan --hostname my-mac.local
-./scripts/setup-companion.sh --network tailscale
-```
-
-The IP override must belong to an active interface; a Tailscale override must belong to the connected node. `--hostname` is LAN-only. Combine your chosen network and provider flags in the same initial command.
-
-Setup builds the public `trill` CLI, private `trilld` daemon, and legacy private `trillctl` compatibility binary in `~/.local/share/trill/bin`. It exposes only the `~/.local/bin/trill` symlink, creates private state, provisions HTTPS, and installs/starts two user LaunchAgents: the companion and certificate renewal. It downloads a pinned Go QR encoder during the build; pairing QR contents stay local.
-
-Keep the public command directory on PATH:
-
-```sh
 export PATH="$HOME/.local/bin:$PATH"
+trill status
+trill doctor
 ```
 
-Add that line to your shell profile if needed; the installer does not edit profiles. Setup preserves a dependency PATH for launchd, including the invoking PATH, `~/.local/bin`, and standard Homebrew locations.
+Setup chooses a connected Tailscale client when available, otherwise LAN. Use `trill setup --help` for explicit network options. It installs only Trill’s owned user LaunchAgents and private binaries; it never starts or replaces Herdr. Rerunning setup preserves identity, pairings and control permission and rejects conflicting changes.
 
-Use `TRILL_BIN_DIR` with an absolute path to customize the binary directory. The public symlink then points there. Foreign public links/files and binary directories without Trill's ownership marker are refused. Keep the same override when updating.
-
-### Resume an interrupted setup
-
-Rerun setup with the **same state directory**. Valid saved settings, TLS identity, control choice, and pairings are reused. Setup can finish missing owned service installation and start unloaded agents; already loaded companions are not restarted. To skip another invitation:
+The default server is Herdr’s existing `default`. Select additional servers or a custom installation:
 
 ```sh
-trill setup --no-pair
+trill providers --herdr-sessions default,work
+trill providers --herdr-path /absolute/path/herdr --herdr-config-home /absolute/path/config-home
 ```
 
-`--no-start` creates or validates configuration without changing services; `--no-pair` skips invitation creation. If pairing was cancelled, use `trill pair` later.
+The config home is the base containing `herdr/`. Setup pins the effective `XDG_CONFIG_HOME`, or `~/.config`, so launchd uses the same installation. See [Herdr semantics](PROVIDERS.md).
 
-Only explicitly supplied flags are compared with saved settings. Conflicting flags fail before service/invitation changes. Remove them to resume; use the dedicated control/provider commands below to change those settings. `--network auto` on a rerun reuses the saved network.
+Before upgrading an installation configured for a removed provider, use its previously installed CLI to select `trill providers --backends herdr`. The new companion rejects removed provider configurations and terminal flags explicitly. If already upgraded without migrating, preserve the old state and set up a fresh private `--state-dir`. Update app and companion together for the stream capability.
 
 ## Pair your iPhone
 
-1. At setup's local prompt on the Mac, type `pair` to approve one invitation.
-2. In Trill, choose **Pair a computer → Scan pairing code**.
-3. Review the name/address, set this device's name if desired, and tap **Pair**.
-4. Select a session to view its details. Terminal access remains disabled until you enable control.
+Type `pair` at setup’s local approval prompt or run `trill pair`. Scan the private QR in **Pair a computer**, or use `trill pair --url` and paste the link. Review the host before confirming. Invitations are single-use and expire after ten minutes. Permanent device credentials stay in the phone’s Keychain and are hashed on the Mac. Keep invitations out of logs and screenshots.
 
-Each invitation is single-use and expires after ten minutes. Each phone gets its own revocable credential stored in the device-only Keychain. Setup does not print permanent bearer credentials. Treat QR images and links as temporary access secrets.
-
-For later invitations, or a simulator without a camera:
-
-```sh
-trill pair
-trill pair --url
-trill pair --png "$HOME/Desktop/trill-pair.png" --open
-```
-
-Each command approves and creates a separate invitation. With `--url`, transfer the link privately and use **Paste pairing link** on the phone/simulator. PNG output requires a new path and is created with mode 0600; remove saved QR images after use. `--json` produces invitation JSON; `--yes` explicitly approves one invitation without a prompt for local automation.
-
-To pair another Mac, run its own setup, then choose **Sessions → More → Computers → Add computer** on the phone.
-
-### Enable terminal access and session control
-
-New companions start read-only. To open terminals, browse session files/previews, upload photos, and change sessions:
+Setup begins read-only. Enable control explicitly:
 
 ```sh
 trill control --enable
 ```
 
-Trill also asks for terminal permission on the phone; photo upload has a separate per-computer approval. For a new configuration, `--allow-control` on the initial setup opts in immediately. To return to metadata-only access:
+Selecting a live session opens it directly after the phone’s terminal-consent prompt. You can remember terminal permission per pairing. Photo upload permission is separate. Disabling control uses `trill control --disable`; it restarts only the owned companion and releases attachments while Herdr programs remain alive.
+
+## Devices and configuration
 
 ```sh
-trill control --disable
-```
-
-Changing control restarts only the owned companion if loaded and disconnects its transports and Mosh leases. Underlying tmux/Herdr sessions stay alive. Re-pairing is unnecessary. A no-op choice does not restart anything. If interrupted, use `trill start` with the same state directory to apply the saved choice.
-
-### Manage devices and providers
-
-```sh
-trill status
 trill devices
 trill revoke DEVICE_ID
 trill providers
-trill providers --backends xirp,herdr
-```
-
-`trill devices` shows device names, pairing status, pairing dates in UTC, and full device IDs. Status describes pairing access, not whether a phone is currently connected. Use `trill devices --json` for machine-readable output.
-
-Replace `DEVICE_ID` with an ID from `devices`. Revocation persists and releases that device's Mosh leases, leaving provider sessions and other devices' leases alone. Forgetting a computer on the phone only removes its local pairing; use revocation on the Mac to invalidate access.
-
-Provider changes preserve pairings and control permission. They restart the owned companion when loaded and release its Mosh connections. For selected existing Herdr servers, add `--herdr-sessions default,work`; `--herdr-path` and `--herdr-config-home` handle custom installations. See [PROVIDERS.md](PROVIDERS.md).
-
-## Update Trill
-
-For a managed signed companion installation, use `trill update --check`, then `trill update`. Updates preserve pairings and restore the prior loaded service state; phone transports disconnect. See [companion distribution and recovery](COMPANION_RELEASES.md). Signed releases require signing configuration and validation before they become available.
-
-The following commands apply to **source installations**:
-
-Update your checkout to the release/revision you intend to use. Rebuild and run the iPhone app through Xcode. To rebuild/install companion binaries **without configuring state or starting services**, run from the repository root:
-
-```sh
-./scripts/setup-companion.sh --help
-```
-
-Despite the name, this script builds and installs binaries before forwarding `--help` to setup. Keep the same `TRILL_BIN_DIR` if customized. All builds must succeed before executable replacement; binaries are published with atomic renames.
-
-A running daemon continues using its old executable until restarted. When you are ready to disconnect Trill transports and load the update:
-
-```sh
-trill stop
-trill start
+trill control
 trill status
 ```
 
-These service operations preserve the underlying provider sessions and saved pairings. An ordinary setup rerun deliberately does not restart a loaded companion. Existing configurations retain their recorded private daemon/renewal paths; the installer still updates the legacy `trillctl` binary for those installations.
+Revocation denies new authenticated requests and releases that device’s tracked controllers and preview grants. Forgetting a computer on the phone removes its local credential but does not revoke it on the Mac. Provider selection and control changes preserve pairings.
 
-Update app and companion together when adopting features such as video preview. Update Xirp or Herdr separately using their own documented update process; Trill does not update providers.
+Management commands accept `--state-dir /absolute/private/directory`. Do not reuse a production state directory or listener for development. The default state is `~/.config/trill`; uploaded images default to `~/.local/share/trill/attachments` and remain until manually removed.
 
-## Stop or uninstall
-
-To pause Trill's two owned LaunchAgents:
+## Updates and removal
 
 ```sh
-trill stop
-# Resume later:
+trill update --check
+trill update
 trill start
-```
-
-To stop and remove those LaunchAgents:
-
-```sh
+trill stop
 trill uninstall
 ```
 
-This disconnects Trill transports and preserves provider sessions. **Uninstall keeps private state, certificates, device records, installed binaries, the public symlink, and uploaded photos.** It does not uninstall Xirp, Herdr, tmux, or Mosh. No configuration directory is recursively deleted by the CLI.
+Use the signed distribution update flow only for installations configured for it; source installations can rerun their setup script. See [companion releases](COMPANION_RELEASES.md). Trill does not update Herdr. A restart closes phone attachments without closing Herdr terminals.
 
-For complete removal, first uninstall through the correct state directory, then forget the computer on each phone and remove the Trill app if desired. Review and manually remove only the Trill-owned binary directory, its matching public symlink, your private state directory, and uploaded photos if you no longer need them. Default locations are listed below; custom installations may differ. Keep any images or state you need before deleting them.
-
-## State, services, and certificates
-
-| Default path | Purpose |
-| --- | --- |
-| `~/.local/bin/trill` | Managed public symlink |
-| `~/.local/share/trill/bin` | Source-installed binaries and ownership marker |
-| `~/.local/share/trill/companion` | Managed signed releases, stable binary links and current release pointer |
-| `~/.config/trill/config.json` | Network, permissions, provider and executable settings |
-| `~/.config/trill/devices.json` | Device metadata and credential/invitation hashes |
-| `~/.config/trill/tls.pem` | Certificate and private key |
-| `~/.config/trill/app.trill.companion.log` | Companion diagnostics |
-| `~/.config/trill/app.trill.companion.renew.log` | Certificate renewal diagnostics |
-| `~/.local/share/trill/attachments` | Uploaded session photos |
-| `~/Library/LaunchAgents/app.trill.companion.plist` | Companion service |
-| `~/Library/LaunchAgents/app.trill.companion.renew.plist` | Renewal service |
-
-State defaults to `~/.config/trill` independently of `XDG_CONFIG_HOME`. Custom state uses `--state-dir /absolute/path` on **every** management command, including stop, start, renew, and uninstall. Only one configuration can own the stable LaunchAgent labels at a time.
-
-Private state directories use mode 0700 and private files use 0600. Unsafe ownership, symlinks, writable ancestors, and service ownership conflicts are rejected. Service commands verify the matching plist and loaded job; they do not stop an unknown service or kill an existing port listener.
-
-Tailscale renewal runs at load and every six hours, requesting export when fewer than 30 days remain or validation fails. A coherent certificate/key bundle is replaced atomically and reloaded for new TLS handshakes without restarting terminal connections. Failed exports preserve the old bundle. You can request a check with `trill renew`.
-
-LAN certificates last one year and cannot automatically rotate without changing the phone's pin. Within 30 days of expiry, renewal asks for a new configuration and pairing. Check expiry with `trill status`; there is no notification service.
-
-Changing network, selected IP, Bonjour name, or certificate identity requires stopping/uninstalling the old owned configuration, choosing a fresh private state directory, running setup there, and pairing again. Keep the old state if needed. Setup does not silently migrate or replace an existing identity.
+Uninstall removes only Trill’s owned LaunchAgents. It retains private configuration, certificates, device records, installed binaries, public symlink and uploaded photos. It does not recursively delete state or uninstall Herdr. Review retained files on the Mac before manually deleting them.
 
 ## Troubleshooting
 
-Start with `trill doctor`, `trill status`, **Sessions → More → Connection details → Check connection**, and the companion's private log. `trill doctor --json` provides read-only structured diagnostics and exits nonzero when checks fail. Do not publish device credentials, certificate private keys, or active pairing links when asking for help.
-
-| Symptom | What to check |
+| Symptom | Check |
 | --- | --- |
-| Build reports a missing Duo API or SDK | Use Xcode 27.1+ and the iOS 27.1+ SDK. Check `DEVELOPER_DIR`; the minimum phone OS of iOS 18 does not make an older SDK sufficient. |
-| `trill: command not found` | Add `$HOME/.local/bin` to PATH, or use the full executable path printed by the installer. |
-| No projects/sessions, or a provider warning | Check provider installation and running state. Use the read-only provider listing commands above. Select Herdr explicitly if Xirp is not installed. A failed provider does not hide healthy providers. |
-| Read-only access / control disabled | Run `trill control --enable` on the Mac with the correct state directory, then refresh. |
-| Session listed but terminal will not open | Check `mosh-server`, `tmux` for Xirp, a live attachable terminal, and UDP reachability. Ended Xirp sessions may need resume; metadata alone is insufficient. |
-| Herdr terminal occupied / HTTP 409 | Disconnect the competing direct controller or other device. Trill never takes over an external controller. Normal desktop Herdr TUI use can coexist. Check matching CLI/server protocols if the provider is unavailable. |
-| LAN pairing cannot connect | Allow Local Network access, use the generated `.local` hostname, and check Bonjour, Wi-Fi isolation, firewall, and VPN DNS. Avoid substituting a numeric-IP self-signed URL. |
-| Tailscale HTTPS export/trust fails | Check connection, clock, tailnet HTTPS settings, and CLI export permission. Setup stops on failure; fix the cause and retry. For saved state, use `trill renew` and rerun setup. |
-| QR expired, used, or hard to scan | Create a fresh `trill pair`, or use `--url` / `--png`. Existing paired phones do not need another invitation. |
-| Setup saved state but service installation failed | Resolve the printed listener/permissions/ownership problem and rerun setup with the same state directory. Do not delete a valid identity to retry. |
-| Saved flags conflict | Remove conflicting flags to resume. Use `control` or `providers` for those changes; network/identity changes require the explicit new-state flow. |
-| `tls.pem` exists without `config.json` | Preserve the orphan identity and use a fresh state directory. Setup refuses to overwrite it. |
-| Interrupted permission/provider update | Run the printed `trill start --state-dir ...` recovery command. Unrelated ownership/configuration differences remain errors. |
-| Interrupted signed binary update | Run `trill update` with the same `--state-dir` to restore the previous release and jobs, then rerun it to retry. |
-| Service loaded but not running | Inspect the private companion log and dependencies on its saved PATH. A port collision is an error; Trill does not kill the listener. |
-| LAN certificate expired | Check the clock or restore the original bundle. Replacement identity requires stop/uninstall, new state, and re-pairing. |
-| Localhost preview fails | Start the development server on the Mac, verify its port and IPv4 loopback listener (`127.0.0.1`), then Reload. Trill does not start servers; re-pairing does not fix a stopped server. |
-| Input or photo upload was interrupted | Review the terminal and draft before retrying. Trill does not automatically reinsert text; uploaded photos can remain on the Mac. |
-| Terminal did not return after iOS closed Trill | Reopen the app and explicitly open the terminal. Foreground recovery covers background suspension, not process eviction. |
+| Pairing cannot reach Mac | Mac awake, same LAN/tailnet, correct HTTPS hostname, TCP 7443 and current certificate |
+| Metadata works but terminal denied | `trill control --enable`, remembered phone permission, updated app and companion |
+| No spaces or stale metadata | Selected Herdr server running, pinned config home/executable, `trill doctor`; warnings identify failed servers |
+| Terminal busy | Another direct controller owns it; disconnect that client. Trill never takes over |
+| Screen shows a cleanup warning | Network loss prevented confirmed release; wait for cleanup, then retry |
+| Existing config rejected | Select Herdr with the current CLI and remove obsolete transport/lab options |
+| Files unavailable | Herdr must report an authoritative cwd or project checkout; paths cannot escape it |
+| Preview fails | Start the server yourself on IPv4 localhost and verify its port; preview does not launch it |
 
-For custom foreground deployments, use `trill serve --help` and the [sidecar reference](../sidecar/README.md). Isolated lab and transport probes belong in [DEVELOPMENT.md](DEVELOPMENT.md); they send input and should only target disposable lab sessions.
+For foreground development and API details see [the companion reference](../sidecar/README.md), [API](API.md), and [usage](USAGE.md).

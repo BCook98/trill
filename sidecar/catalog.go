@@ -7,13 +7,10 @@ import (
 )
 
 // Capabilities are evaluated per item. Missing fields in older v1 clients remain
-// harmless; new clients use legacy Xirp defaults only when the object is absent.
+// harmless; unsupported capabilities stay disabled.
 type Capabilities struct {
+	TerminalStream bool `json:"terminalStream,omitempty"`
 	Rename         bool `json:"rename"`
-	Stop           bool `json:"stop"`
-	Archive        bool `json:"archive"`
-	Resume         bool `json:"resume"`
-	CreateAgent    bool `json:"createAgent"`
 	CreateTerminal bool `json:"createTerminal"`
 	Worktree       bool `json:"worktree"`
 	Files          bool `json:"files"`
@@ -32,29 +29,12 @@ type catalog struct {
 }
 
 func (s *Service) configureSources() error {
-	if s.config.TmuxSocket != "" {
-		s.sourceKey = "terminal-lab"
-		return nil
-	}
 	var configs []Config
-	for _, b := range strings.Split(s.config.Backends, ",") {
-		c := s.config
-		c.Backends = b
-		if b == "xirp" {
-			c.HerdrPath = ""
-			c.HerdrConfigHome = ""
-			c.HerdrSession = ""
-			c.HerdrSessions = ""
-			c.HerdrLabRoot = ""
-			configs = append(configs, c)
-			continue
-		}
-		for _, name := range strings.Split(c.HerdrSessions, ",") {
-			h := c
-			h.HerdrSession = name
-			h.HerdrSessions = name
-			configs = append(configs, h)
-		}
+	for _, serverName := range strings.Split(s.config.HerdrSessions, ",") {
+		configuration := s.config
+		configuration.HerdrSession = serverName
+		configuration.HerdrSessions = serverName
+		configs = append(configs, configuration)
 	}
 	if len(configs) == 1 {
 		s.config = configs[0]
@@ -77,19 +57,10 @@ func (s *Service) providerName() string {
 	if s.config.HerdrPath != "" {
 		return "Herdr · " + s.config.HerdrSession
 	}
-	if s.config.TmuxSocket != "" {
-		return "Terminal lab"
-	}
-	return "Xirp"
+	return "Herdr"
 }
 func (s *Service) capabilities(files bool) *Capabilities {
-	if s.config.HerdrPath != "" {
-		return &Capabilities{Rename: true, CreateTerminal: true, Files: files}
-	}
-	if s.config.TmuxSocket != "" {
-		return &Capabilities{Files: files}
-	}
-	return &Capabilities{Rename: true, Stop: true, Archive: true, Resume: true, CreateAgent: true, CreateTerminal: true, Worktree: true, Files: files}
+	return &Capabilities{TerminalStream: true, Rename: true, CreateTerminal: true, Files: files}
 }
 func (s *Service) localCatalog(ctx context.Context) (catalog, error) {
 	ctx, cancel := context.WithTimeout(ctx, 12*time.Second)
@@ -97,18 +68,7 @@ func (s *Service) localCatalog(ctx context.Context) (catalog, error) {
 	var projects []Project
 	var raw []rawSession
 	var err error
-	switch {
-	case s.config.HerdrPath != "":
-		projects, raw, err = s.herdrMetadata(ctx)
-	case s.config.TmuxSocket != "":
-		projects = []Project{{ID: "terminal-lab", Name: "Terminal lab", Path: s.config.LabFilesRoot}}
-		raw, err = s.labSessions(ctx)
-	default:
-		projects, err = s.xirpProjects(ctx)
-		if err == nil {
-			raw, err = s.rawSessions(ctx)
-		}
-	}
+	projects, raw, err = s.readMetadata(ctx)
 	if err != nil {
 		return catalog{}, err
 	}
@@ -120,7 +80,7 @@ func (s *Service) localCatalog(ctx context.Context) (catalog, error) {
 			projects[i].Capabilities.Worktree = projects[i].Path != "" && !projects[i].IsWorktree
 		}
 		if s.config.HerdrLabRoot != "" {
-			projects[i].Capabilities = &Capabilities{Files: true}
+			projects[i].Capabilities = &Capabilities{Files: true, TerminalStream: true}
 		}
 	}
 	for i := range raw {
@@ -129,6 +89,9 @@ func (s *Service) localCatalog(ctx context.Context) (catalog, error) {
 	return catalog{Projects: projects, Raw: raw}, nil
 }
 func (s *Service) catalog(ctx context.Context) (catalog, error) {
+	if err := ctx.Err(); err != nil {
+		return catalog{}, err
+	}
 	if s.demo != nil {
 		return s.demo.catalog()
 	}
@@ -179,6 +142,9 @@ func (s *Service) catalog(ctx context.Context) (catalog, error) {
 			healthy++
 		}
 		out.Providers = append(out.Providers, status)
+	}
+	if err := ctx.Err(); err != nil {
+		return catalog{}, err
 	}
 	if healthy == 0 {
 		return out, errUnavailable
@@ -241,8 +207,8 @@ func (c catalog) sessions() []Session {
 			copy.Files = v.WorktreePath != "" || p.Path != ""
 			caps = &copy
 		}
-		attachable := v.Mode == "terminal" && v.TerminalLive && activeStatus(v.Status) && (tmuxPattern.MatchString(v.TmuxSession) || v.HerdrTerminal != "")
-		out = append(out, Session{ID: v.ID, Name: v.Name, ProjectID: v.ProjectID, ProjectName: p.Name, Status: v.Status, ActivityState: v.ActivityState, Agent: v.CurrentAgent, Branch: v.Branch, UpdatedAt: v.UpdatedAt, Attachable: attachable, Archived: v.HiddenFromSidebar || endedStatus(v.Status), Resumable: (v.HiddenFromSidebar && activeStatus(v.Status)) || (endedStatus(v.Status) && resumeID(v) != ""), Provider: p.Provider, ProviderName: p.ProviderName, Capabilities: caps})
+		attachable := v.Mode == "terminal" && v.TerminalLive && activeStatus(v.Status) && v.HerdrTerminal != ""
+		out = append(out, Session{ID: v.ID, Name: v.Name, ProjectID: v.ProjectID, ProjectName: p.Name, Status: v.Status, ActivityState: v.ActivityState, Agent: v.CurrentAgent, Branch: v.Branch, UpdatedAt: v.UpdatedAt, Attachable: attachable, Archived: v.HiddenFromSidebar || endedStatus(v.Status), Resumable: false, Provider: p.Provider, ProviderName: p.ProviderName, Capabilities: caps})
 	}
 	return out
 }
@@ -250,6 +216,9 @@ func (c catalog) sessions() []Session {
 // Used by scoped reads (uploads/files/actions) so unrelated project/session
 // discovery cannot broaden or break an otherwise independent operation.
 func collectSourceValues[T any](ctx context.Context, sources []*Service, read func(*Service) ([]T, error)) ([]T, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	type result struct {
 		values []T
 		err    error
@@ -272,6 +241,9 @@ func collectSourceValues[T any](ctx context.Context, sources []*Service, read fu
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		}
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
 	if !healthy {
 		return nil, errUnavailable

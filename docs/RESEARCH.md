@@ -6,15 +6,13 @@ Trill is independent of Spotify. This document records implementation choices an
 
 Keep the desktop provider's project/session model: titles, agent labels, branch context, capabilities, and explicit actions. Use the installed supported CLI as the compatibility boundary. Resolve authoritative terminal targets from current metadata rather than manufacturing tmux names from IDs. Do not parse transcripts or infer agent progress from terminal output.
 
-[Xirp](https://xirp.spotify.com/) supplies coding-session and tmux operations. Herdr supplies independent direct terminals. Provider actions differ; the [capability matrix](PROVIDERS.md) is the canonical description. Creation uses a correlation identifier and metadata verification; an uncertain outcome requires inspection rather than automatic mutation retry.
+Herdr supplies authoritative spaces, terminal identities, worktree provenance and native mutations. The [capability matrix](PROVIDERS.md) defines the supported actions. Mutation requests are never automatically retried after an uncertain outcome.
 
 ## Terminal and transport provenance
 
-[SwiftTerm](https://github.com/migueldeicaza/SwiftTerm) supplies the native VT/xterm emulator and UIKit terminal view. The vendored revision and opt-in touch-link change are recorded in [TRILL-PATCHES.md](../vendor/SwiftTerm/TRILL-PATCHES.md). Trill validates and routes deliberately tapped HTTP(S) links; terminal output does not automatically open pages.
+[SwiftTerm](https://github.com/migueldeicaza/SwiftTerm) supplies native rendering and UIKit input. [Local patches](../vendor/SwiftTerm/TRILL-PATCHES.md) route intentional link taps and cell-aware scroll gestures. Herdr’s structured controller preserves terminal bytes, including labeled OSC 8 links, through an authenticated HTTPS WebSocket. No output opens a link automatically.
 
-[swift-mosh](https://github.com/wiedymi/swift-mosh) supplies UDP terminal transport. Its pinned revision and local timing, peer-liveness, and startup-cancellation changes are recorded in [TRILL-PATCHES.md](../vendor/swift-mosh/TRILL-PATCHES.md). [Third-party notices](THIRD_PARTY.md) retain upstream attribution.
-
-[Mosh](https://mosh.org/) synchronizes terminal state over encrypted UDP. Trill uses authenticated HTTPS for bootstrap instead of placing SSH credentials on the phone; terminal traffic then travels directly to mosh-server. Xirp uses tmux for retained remote sessions; Herdr uses its direct-terminal client. Mosh is not unlimited remote scrollback. Physical roaming, loss, suspension, and sustained-output behavior require separate validation.
+The disposable loopback prototype measured roughly 19–21 ms median shell round trips with the structured stream. This is local evidence, not a physical-device or roaming guarantee. The [probe](../prototypes/herdr/README.md) verifies stream behavior without accessing personal terminals.
 
 ## Native interaction decisions
 

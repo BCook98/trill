@@ -23,6 +23,7 @@ struct SessionDetailView: View {
     @Bindable var connection: TerminalConnection
     @State private var showInputNotice = false
     @State private var showInfo = false
+    @State private var requestedInitialConnection = false
     @State private var tabletop = false
     @State private var terminalSurfaceID = UUID()
     @Binding var showWorkspace: Bool
@@ -71,29 +72,18 @@ struct SessionDetailView: View {
                     terminalControls(lowerScreen: lowerScreen)
                 }.background(.black)
             } else {
-                ScrollView {
-                    VStack(spacing: 24) {
-                        Image(systemName: "terminal").font(.system(size: 44, weight: .light)).foregroundStyle(Color.accentColor)
-                            .padding(24).background(Color.accentColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 28))
-                        VStack(spacing: 10) {
-                            Text("Open this session").font(.title2.bold())
-                            Text(session.attachable ? "Connect to the session already running on your Mac." : "This session doesn't have a running terminal.")
-                                .foregroundStyle(.secondary).multilineTextAlignment(.center)
-                        }
-                        if store.readOnly {
-                            Label("Read-only access", systemImage: "eye").font(.headline)
-                            Text("Run trill control --enable on your Mac to open terminals and manage sessions.")
-                                .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
-                        } else if session.attachable {
-                            Button(action: connect) { Label("Open terminal", systemImage: "terminal").padding(.horizontal, 20).padding(.vertical, 4) }
-                                .buttonStyle(.borderedProminent).controlSize(.large).accessibilityIdentifier("open-terminal")
-                        } else if session.resumable {
-                            Button("Resume session") { Task { await store.action("resume", session: session) } }.buttonStyle(.borderedProminent).disabled(store.busy)
-                        }
-                        if let warning = connection.cleanupWarning { Text(warning).font(.footnote).foregroundStyle(.secondary) }
-                        if let error = store.error { Text(error).font(.footnote).foregroundStyle(.red) }
-                    }.padding(32).frame(maxWidth: 500).frame(maxWidth: .infinity)
-                }.frame(maxHeight: .infinity)
+                ContentUnavailableView {
+                    Label(store.readOnly ? "Read-only access" : session.attachable ? "Disconnected" : "Terminal unavailable", systemImage: store.readOnly ? "eye" : "terminal")
+                } description: {
+                    if store.readOnly { Text("Enable control in your Mac companion to open terminals.") }
+                    else if !session.attachable { Text("This session doesn’t have a running terminal.") }
+                    else { Text("Reconnect when you’re ready.") }
+                } actions: {
+                    if !store.readOnly, session.attachable {
+                        Button("Reconnect", action: connect).buttonStyle(.borderedProminent)
+                    }
+                }
+
             }
         }
         .navigationTitle(connection.isOpen || isFailed ? "" : session.name)
@@ -103,6 +93,11 @@ struct SessionDetailView: View {
         .onAppear {
             connection.terminalDidAppear(surfaceID: terminalSurfaceID)
             connection.setFontSize(fontSize)
+            guard !requestedInitialConnection else { return }
+            requestedInitialConnection = true
+            if session.attachable, !session.isArchived, !store.readOnly, connection.phase == .disconnected {
+                connect()
+            }
         }
         .onDisappear { connection.terminalDidDisappear(surfaceID: terminalSurfaceID) }
         .onChange(of: fontSize) { _, value in connection.setFontSize(value) }
@@ -154,7 +149,7 @@ struct SessionDetailView: View {
                     if !session.branch.isEmpty { LabeledContent("Branch", value: session.branch) }
                     Section("Connection") {
                         LabeledContent("State", value: connection.phaseLabel)
-                        LabeledContent("Transport", value: "Mosh · UDP")
+                        LabeledContent("Transport", value: connection.transportLabel)
                         LabeledContent("Terminal", value: "SwiftTerm")
                         if let warning = connection.cleanupWarning { Text(warning).foregroundStyle(.secondary) }
                         Text("Disconnecting closes Trill's connection. Your session keeps running on your computer.").foregroundStyle(.secondary)
@@ -236,14 +231,7 @@ struct SessionDetailView: View {
         if connection.isOpen || isFailed {
             Button("Disconnect", systemImage: "network.slash") { Task { await connection.disconnect() } }
         }
-        Divider()
-        Button("Archive session…", systemImage: "archivebox") { store.requestSessionPrompt(.archive, sessionID: session.id) }
-            .disabled(store.readOnly || !store.supports("archive", session: session) || store.busy || session.isArchived)
-        if session.attachable && store.supports("stop", session: session) {
-            Button("Stop session…", systemImage: "stop.circle", role: .destructive) { store.requestSessionPrompt(.stop, sessionID: session.id) }.disabled(store.readOnly || !store.supports("stop", session: session) || store.busy)
-        } else if session.resumable && store.supports("resume", session: session) {
-            Button("Resume session", systemImage: "play") { Task { await store.action("resume", session: session) } }.disabled(store.readOnly || !store.supports("resume", session: session) || store.busy)
-        }
+
     }
 
     private func toggleWorkspace() {
@@ -279,7 +267,7 @@ struct SessionDetailView: View {
             guard store.api === api,
                   request.isCurrent(computer: store.computer, sessionID: store.selectedID,
                                     changingComputer: store.changingComputer, readOnly: store.readOnly) else { return }
-            await connection.connect(sessionID: request.sessionID, api: api, sessionProvider: session.provider)
+            await connection.connect(sessionID: request.sessionID, api: api)
         }
     }
 }
@@ -349,7 +337,7 @@ private struct TerminalBarBehavior: ViewModifier {
 
 
 /// A standard text editor keeps native keyboard dictation and editing in a local
-/// draft. SwiftTerm still owns direct terminal input; only Insert crosses mosh.
+/// draft. SwiftTerm still owns direct terminal input; only Insert sends the draft.
 private struct TerminalWriter: View {
     @Environment(AppStore.self) private var store
     @Environment(\.dismiss) private var dismiss

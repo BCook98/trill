@@ -1,21 +1,19 @@
 #!/usr/bin/env python3
-"""Real HTTPS/Mosh demo integration check. Never targets an existing companion.
+"""Real HTTPS terminal-stream demo integration check. Never targets an existing companion.
 
-Requires a built trill binary and mosh-client. Creates its own private directory,
+Requires a built trill binary . Creates its own private directory,
 ports, registrations and processes. This is transport/API evidence, not iOS UI or
 real-provider integration evidence.
 """
 import argparse
 import base64
-import fcntl
 import hashlib
 import http.client
 import hmac
+import urllib.parse
 import json
 import os
 from pathlib import Path
-import pty
-import select
 import shutil
 import signal
 import socket
@@ -23,7 +21,6 @@ import ssl
 import struct
 import subprocess
 import tempfile
-import termios
 import time
 import urllib.error
 import urllib.request
@@ -84,6 +81,81 @@ class NoRedirects(urllib.request.HTTPRedirectHandler):
         return None
 
 
+class TerminalStream:
+    """Bounded RFC6455 client over the already verified HTTPS socket."""
+    def __init__(self, connection, path, token):
+        self.connection = connection
+        connection.connect()  # Verify trust before sending a credential.
+        self.socket = connection.sock
+        key = base64.b64encode(os.urandom(16)).decode()
+        request = (f"GET {path} HTTP/1.1\r\nHost: {connection.host}:{connection.port}\r\n"
+                   f"Authorization: Bearer {token}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"
+                   f"Sec-WebSocket-Version: 13\r\nSec-WebSocket-Key: {key}\r\n\r\n")
+        try:
+            self.socket.sendall(request.encode('ascii'))
+            header = bytearray()
+            while not header.endswith(b'\r\n\r\n'):
+                header.extend(self.read_exactly(1))
+                if len(header) > 8192:
+                    raise ValueError('WebSocket headers exceed limit')
+            lines = header.decode('ascii').split('\r\n')
+            fields = {key.lower(): value for key, value in (line.split(': ', 1) for line in lines[1:] if ': ' in line)}
+            expected = base64.b64encode(hashlib.sha1((key + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11').encode()).digest()).decode()
+            if lines[0] != 'HTTP/1.1 101 Switching Protocols' or fields.get('sec-websocket-accept') != expected:
+                raise ValueError('Terminal stream upgrade rejected')
+        except BaseException:
+            self.close()
+            raise
+
+    def read_exactly(self, length):
+        result = bytearray()
+        while len(result) < length:
+            chunk = self.socket.recv(length - len(result))
+            if not chunk:
+                raise EOFError('Terminal stream closed')
+            result.extend(chunk)
+        return bytes(result)
+
+    def frame(self, opcode, payload):
+        mask = os.urandom(4)
+        length = len(payload)
+        header = bytes([0x80 | opcode, 0x80 | length]) if length < 126 else bytes([0x80 | opcode, 0x80 | 126]) + struct.pack('>H', length)
+        self.socket.sendall(header + mask + bytes(byte ^ mask[index % 4] for index, byte in enumerate(payload)))
+
+    def send(self, value):
+        payload = json.dumps(value).encode()
+        if len(payload) > 16384:
+            raise ValueError('Terminal command exceeds limit')
+        self.frame(1, payload)
+
+    def receive(self):
+        while True:
+            first, second = self.read_exactly(2)
+            if first & 0x70 or second & 0x80 or not first & 0x80:
+                raise ValueError('Unsupported terminal WebSocket frame')
+            length = second & 127
+            if length == 126:
+                length = struct.unpack('>H', self.read_exactly(2))[0]
+            elif length == 127:
+                length = struct.unpack('>Q', self.read_exactly(8))[0]
+            if length > 4 << 20:
+                raise ValueError('Terminal frame exceeds limit')
+            payload = self.read_exactly(length)
+            opcode = first & 15
+            if opcode == 9:
+                self.frame(10, payload)
+                continue
+            if opcode != 1:
+                raise EOFError('Terminal stream ended')
+            value = json.loads(payload)
+            if value.get('type') != 'terminal.frame':
+                raise ValueError('Unexpected terminal message')
+            return value
+
+    def close(self):
+        self.connection.close()
+
+
 class Smoke:
     def __init__(self, binary, output):
         self.binary = str(binary.resolve())
@@ -92,7 +164,6 @@ class Smoke:
         self.state = self.root / 's'
         self.api_port = free_port()
         self.preview_port = free_port()
-        self.udp_port = free_port(socket.SOCK_DGRAM)
         self.address = f'https://127.0.0.1:{self.api_port}'
         self.token = None
         self.clients = []
@@ -129,10 +200,11 @@ class Smoke:
     def start(self):
         self.log = (self.root / 'server.log').open('wb')
         os.chmod(self.root / 'server.log', 0o600)
-        self.process = subprocess.Popen([self.binary, 'demo', 'serve', '--state-dir', str(self.state), '--listen', f'127.0.0.1:{self.api_port}', '--address', self.address, '--preview-listen', f'127.0.0.1:{self.preview_port}', '--udp-ports', f'{self.udp_port}:{self.udp_port}', '--max-leases', '2'], stdout=self.log, stderr=self.log, start_new_session=True)
+        self.process = subprocess.Popen([self.binary, 'demo', 'serve', '--state-dir', str(self.state), '--listen', f'127.0.0.1:{self.api_port}', '--address', self.address, '--preview-listen', f'127.0.0.1:{self.preview_port}', '--max-leases', '2'], stdout=self.log, stderr=self.log, start_new_session=True)
         wait_for(lambda: json.loads(self.cli('status', '--json')).get('running'))
         der = ssl.PEM_cert_to_DER_cert((self.state / 'tls.pem').read_text().split('-----END CERTIFICATE-----')[0] + '-----END CERTIFICATE-----')
         pin = hashlib.sha256(der).hexdigest()
+        self.pin = pin
         self.opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), PinnedHTTPSHandler(pin), NoRedirects())
 
     def pair(self):
@@ -148,44 +220,34 @@ class Smoke:
         expired = json.loads(self.cli('pair', '--json'))
         self.request('POST', '/v1/pair', {'code': expired['code'], 'name': 'Expired'}, expected=403, token=False)
         projects = self.request('GET', '/v1/projects')['projects']
-        self.project = next(p for p in projects if p['capabilities']['createAgent'])
+        self.project = next(p for p in projects if p['capabilities']['createTerminal'])
         sessions = self.request('GET', '/v1/sessions')['sessions']
         self.session = next(s for s in sessions if s['projectId'] == self.project['id'] and s['attachable'] and not s['archived'])['id']
 
     def lifecycle(self):
-        base = {s['id'] for s in self.request('GET', '/v1/sessions')['sessions']}
-        self.request('POST', '/v1/sessions', {'projectId': self.project['id'], 'kind': 'agent', 'name': 'Smoke worktree', 'goal': 'Demonstrate a sample change', 'useWorktree': True, 'branch': 'demo/smoke'})
-        made = [s for s in self.request('GET', '/v1/sessions')['sessions'] if s['id'] not in base]
-        assert len(made) == 1
-        sid = made[0]['id']
-        self.request('PATCH', f'/v1/sessions/{sid}', {'name': 'Renamed smoke'})
-        self.request('POST', f'/v1/sessions/{sid}/archive')
-        assert next(s for s in self.request('GET', '/v1/sessions')['sessions'] if s['id'] == sid)['archived']
-        self.request('POST', f'/v1/sessions/{sid}/resume')
-        self.request('POST', f'/v1/sessions/{sid}/stop')
-        self.request('POST', f'/v1/sessions/{sid}/resume')
-        final = next(s for s in self.request('GET', '/v1/sessions')['sessions'] if s['id'] == sid)
-        assert final['name'] == 'Renamed smoke' and final['attachable'] and not final['archived']
+        before = {row['id'] for row in self.request('GET', '/v1/sessions')['sessions']}
         self.request('POST', '/v1/sessions', {'projectId': self.project['id'], 'kind': 'terminal', 'useWorktree': False})
+        made = [row for row in self.request('GET', '/v1/sessions')['sessions'] if row['id'] not in before]
+        assert len(made) == 1
+        self.request('PATCH', '/v1/sessions/' + made[0]['id'], {'name': 'Renamed smoke'})
+        assert next(row for row in self.request('GET', '/v1/sessions')['sessions'] if row['id'] == made[0]['id'])['name'] == 'Renamed smoke'
 
     def connect(self):
-        lease = self.request('POST', f'/v1/sessions/{self.session}/mosh', {'cols': 90, 'rows': 28})
-        master, slave = pty.openpty()
-        fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack('HHHH', 28, 90, 0, 0))
-        env = os.environ.copy()
-        env.update(MOSH_KEY=lease['key'], TERM='xterm-256color', LANG='en_US.UTF-8')
-        process = subprocess.Popen(['mosh-client', lease['host'], str(lease['port'])], stdin=slave, stdout=slave, stderr=slave, env=env, start_new_session=True)
-        os.close(slave)
-        self.clients.append((process, master))
-        output = bytearray()
-        def ready():
-            readable, _, _ = select.select([master], [], [], .1)
-            if readable:
-                output.extend(os.read(master, 65536))
-                del output[:-262144]
-            return b'Demo' in output or b'demo' in output
-        wait_for(ready)
-        return process, master, lease
+        lease = self.request('POST', f'/v1/sessions/{self.session}/terminal', {'cols': 90, 'rows': 28})
+        assert set(lease) == {'leaseId'}, 'stream lease must contain only its identifier'
+        origin = urllib.parse.urlsplit(self.address)
+        if hasattr(self, 'tls_context'):
+            connection = http.client.HTTPSConnection(origin.netloc, context=self.tls_context, timeout=12)
+        else:
+            context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+            context.check_hostname = False
+            context.verify_mode = ssl.CERT_NONE
+            connection = PinnedHTTPSConnection(origin.netloc, expected_pin=self.pin, context=context, timeout=12)
+        stream = TerminalStream(connection, '/v1/leases/' + lease['leaseId'] + '/terminal', self.token)
+        self.clients.append(stream)
+        first = stream.receive()
+        assert base64.b64decode(first['bytes']), 'first frame is empty'
+        return stream, lease
 
     def file(self):
         data = self.request('GET', f'/v1/sessions/{self.session}/file?path=web/index.html')
@@ -195,28 +257,24 @@ class Smoke:
         return data.decode()
 
     def terminal(self):
-        self.process1, master, self.lease1 = self.connect()
-        command = b'demo heading Smoke through real Mosh'
-        os.write(master, command)
+        stream, first = self.connect()
+        stream.send({'type': 'terminal.input', 'bytes': base64.b64encode(b'demo heading Smoke through HTTPS').decode()})
         time.sleep(.3)
-        assert 'Smoke through real Mosh' not in self.file(), 'input executed before Return'
-        os.write(master, b'\r')
-        wait_for(lambda: 'Smoke through real Mosh' in self.file())
-        fcntl.ioctl(master, termios.TIOCSWINSZ, struct.pack('HHHH', 31, 93, 0, 0))
-        os.killpg(self.process1.pid, signal.SIGWINCH)
+        assert 'Smoke through HTTPS' not in self.file(), 'input executed before Return'
+        stream.send({'type': 'terminal.input', 'bytes': base64.b64encode(b'\r').decode()})
+        wait_for(lambda: 'Smoke through HTTPS' in self.file())
+        stream.send({'type': 'terminal.resize', 'cols': 93, 'rows': 31})
         def resized():
             status = json.loads(self.cli('status', '--json'))
-            return any(s['id'] == self.session and s.get('columns') == 93 and s.get('rows') == 31
-                       for s in status['state']['sessions'])
+            return any(row['id'] == self.session and row.get('columns') == 93 and row.get('rows') == 31 for row in status['state']['sessions'])
         wait_for(resized)
-        # Real reconnect replaces this paired device's previous Mosh lease.
-        _, second, self.lease2 = self.connect()
-        assert self.lease1['leaseId'] != self.lease2['leaseId'], 'reconnect reused lease identity'
-        self.request('DELETE', '/v1/leases/' + self.lease1['leaseId'], expected=404)
-        assert 'Smoke through real Mosh' in self.file()
-        os.write(second, b'demo heading Reconnected through real Mosh\r')
-        wait_for(lambda: 'Reconnected through real Mosh' in self.file())
-        self.request('DELETE', '/v1/leases/' + self.lease2['leaseId'])
+        stream.send({'type': 'terminal.scroll', 'direction': 'up', 'lines': 2, 'column': 4, 'row': 5})
+        second, replacement = self.connect()
+        assert first['leaseId'] != replacement['leaseId'], 'reconnect reused lease identity'
+        self.request('DELETE', '/v1/leases/' + first['leaseId'], expected=404)
+        second.send({'type': 'terminal.input', 'bytes': base64.b64encode(b'demo heading Reconnected through HTTPS\r').decode()})
+        wait_for(lambda: 'Reconnected through HTTPS' in self.file())
+        self.request('DELETE', '/v1/leases/' + replacement['leaseId'])
 
     def media(self):
         files = self.request('GET', f'/v1/sessions/{self.session}/files?path=media')
@@ -236,14 +294,14 @@ class Smoke:
         # The production proxy routes the unchanged path using its HttpOnly cookie.
         path = '/'
         page = self.request('GET', path, headers={'Cookie': 'trill_preview=' + grant['token']}, token=False)
-        assert b'Reconnected through real Mosh' in page
+        assert b'Reconnected through HTTPS' in page
         self.request('POST', '/v1/previews', {'sessionId': self.session, 'port': self.api_port}, expected=400)
         self.request('GET', path, token=False, expected=401)
         self.request('DELETE', '/v1/previews/' + grant['id'])
 
     def failures(self):
         self.cli('fault', 'capacity')
-        self.request('POST', f'/v1/sessions/{self.session}/mosh', {'cols': 90, 'rows': 28}, expected=429)
+        self.request('POST', f'/v1/sessions/{self.session}/terminal', {'cols': 90, 'rows': 28}, expected=429)
         self.cli('fault', 'clear')
         self.cli('fault', 'api-unavailable')
         self.request('GET', '/v1/sessions', expected=503)
@@ -253,15 +311,8 @@ class Smoke:
         self.request('GET', '/v1/sessions', expected=401)
 
     def cleanup(self):
-        for process, master in self.clients:
-            if process.poll() is None:
-                os.killpg(process.pid, signal.SIGTERM)
-                try:
-                    process.wait(timeout=5)
-                except subprocess.TimeoutExpired:
-                    os.killpg(process.pid, signal.SIGKILL)
-                    process.wait(timeout=5)
-            os.close(master)
+        for stream in self.clients:
+            stream.close()
         if self.process and self.process.poll() is None:
             try:
                 self.cli('stop')
@@ -276,7 +327,7 @@ class Smoke:
         outcome, failure = 'pass', None
         try:
             self.start()
-            for name, fn in [('HTTPS pairing and invitation expiry', self.pair), ('session lifecycle', self.lifecycle), ('real Mosh input and reconnect', self.terminal), ('files and private uploads', self.media), ('authenticated browser proxy', self.previews), ('failure recovery and revocation', self.failures)]:
+            for name, fn in [('HTTPS pairing and invitation expiry', self.pair), ('session lifecycle', self.lifecycle), ('HTTPS stream input and reconnect', self.terminal), ('files and private uploads', self.media), ('authenticated browser proxy', self.previews), ('failure recovery and revocation', self.failures)]:
                 self.record(name, fn)
         except Exception as exc:
             outcome, failure = 'fail', f'{type(exc).__name__}: {exc}'
@@ -285,7 +336,7 @@ class Smoke:
                 self.cleanup()
             except Exception as exc:
                 outcome, failure = "fail", "Owned process cleanup failed: " + type(exc).__name__
-        manifest = {'kind': 'trill-demo-api-smoke-v1', 'outcome': outcome, 'binary_sha256': hashlib.sha256(Path(self.binary).read_bytes()).hexdigest(), 'checks': self.results, 'failure': failure, 'private_evidence': str(self.root), 'coverage': 'HTTPS/API and upstream mosh-client; no iOS UI or real provider claims'}
+        manifest = {'kind': 'trill-demo-api-smoke-v1', 'outcome': outcome, 'binary_sha256': hashlib.sha256(Path(self.binary).read_bytes()).hexdigest(), 'checks': self.results, 'failure': failure, 'private_evidence': str(self.root), 'coverage': 'HTTPS/API and authenticated WebSocket; no iOS UI or real provider claims'}
         self.output.parent.mkdir(parents=True, exist_ok=True)
         with os.fdopen(os.open(self.output, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), 'w') as file:
             json.dump(manifest, file, indent=2)
@@ -298,8 +349,8 @@ def main():
     parser.add_argument('--trill', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True, help='new private JSON report path')
     args = parser.parse_args()
-    if not args.trill.is_file() or not shutil.which('mosh-client'):
-        parser.error('built trill and mosh-client are required')
+    if not args.trill.is_file():
+        parser.error('built trill is required')
     if args.output.exists():
         parser.error('output must be a new path')
     raise SystemExit(0 if Smoke(args.trill, args.output).run() else 1)

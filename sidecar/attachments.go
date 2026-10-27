@@ -137,7 +137,7 @@ func (h *HTTP) photoSession(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
-	if v.HiddenFromSidebar || v.Mode != "terminal" || !v.TerminalLive || !activeStatus(v.Status) || !(tmuxPattern.MatchString(v.TmuxSession) || herdrTerminalPattern.MatchString(v.HerdrTerminal)) {
+	if v.HiddenFromSidebar || v.Mode != "terminal" || !v.TerminalLive || !activeStatus(v.Status) || !herdrTerminalPattern.MatchString(v.HerdrTerminal) {
 		return errNotAttachable
 	}
 	return nil

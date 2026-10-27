@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Qualify a deployed Trill demo using trusted HTTPS and upstream mosh-client.
+"""Qualify a deployed Trill demo using trusted HTTPS terminal streams.
 
 Read-only preflight is the default. --allow-demo-mutations authorizes disposable
 sessions/registrations and GLOBAL fault checks: reserve a shared-sandbox maintenance
@@ -10,29 +10,24 @@ Example (after deployment, from this Mac):
   python3 scripts/demo-fly-smoke.py --app trill-demo --allow-demo-mutations \
       --output /new/private/full-report.json
 
-Requires authenticated fly CLI and, for the full suite, upstream mosh-client.
+Requires authenticated fly CLI.
 No backend is started/stopped, no deployment changed, no device/UI is operated.
-Archived test sessions/worktree uploads remain subject to sandbox retention.
+Created test terminals and uploads remain subject to sandbox retention.
 """
 import argparse
 import contextlib
 import datetime
-import fcntl
 import importlib.util
-import ipaddress
 import json
 import os
 from pathlib import Path
-import pty
 import re
-import select
 import shlex
 import shutil
 import signal
 import ssl
 import struct
 import subprocess
-import termios
 import time
 import urllib.error
 import urllib.parse
@@ -93,13 +88,9 @@ def sigterm_as_interrupt():
 
 
 class FlySmoke(BASE.Smoke):
-    def __init__(self, app, output, allow_mutations=False, mosh_host='137.66.44.233'):
+    def __init__(self, app, output, allow_mutations=False):
         if not re.fullmatch(r'[a-z0-9][a-z0-9-]{0,61}[a-z0-9]', app):
             raise SmokeError('invalid-fly-app-name')
-        try:
-            self.mosh_host = str(ipaddress.IPv4Address(mosh_host))
-        except ipaddress.AddressValueError:
-            raise SmokeError('invalid-dedicated-ipv4') from None
         self.app, self.output = app, Path(output)
         self.allow_mutations = allow_mutations
         self.address, self.state = 'https://' + app + '.fly.dev', Path('/data/state')
@@ -232,7 +223,7 @@ class FlySmoke(BASE.Smoke):
                 photo_path = result['path']
                 if not isinstance(photo_path, str) or '..' in Path(photo_path).parts or not Path(photo_path).is_relative_to(self.state):
                     raise SmokeError('upload-path-outside-demo-state')
-            for suffix, key, owned in [('/mosh', 'leaseId', self.leases), ('/v1/previews', 'id', self.grants)]:
+            for suffix, key, owned in [('/terminal', 'leaseId', self.leases), ('/v1/previews', 'id', self.grants)]:
                 if route.endswith(suffix) and key in result:
                     if not isinstance(result[key], str) or not IDENTIFIER.fullmatch(result[key]):
                         raise SmokeError('invalid-owned-resource-id')
@@ -277,7 +268,7 @@ class FlySmoke(BASE.Smoke):
             self.request('POST', '/v1/pair', {'code': expired['code'], 'name': 'Expired'}, token=False, expected=403)
         finally:
             self.cli('fault', 'clear')
-        self.project = next(p for p in self.request('GET', '/v1/projects')['projects'] if p['capabilities']['createAgent'])
+        self.project = next(p for p in self.request('GET', '/v1/projects')['projects'] if p['capabilities']['createTerminal'])
 
     def discover_owned(self):
         sessions = self.request('GET', '/v1/sessions')['sessions']
@@ -312,51 +303,18 @@ class FlySmoke(BASE.Smoke):
         return made[0]['id']
 
     def lifecycle(self):
-        self.session = self.create_owned('agent', True)
+        self.session = self.create_owned('terminal', False)
         renamed = 'Fly smoke ' + self.run_id + ' renamed'
         self.session_names.add(renamed)
         self.request('PATCH', '/v1/sessions/' + self.session, {'name': renamed})
-        for action in ('archive', 'resume', 'stop', 'resume'):
-            self.request('POST', '/v1/sessions/' + self.session + '/' + action)
-            if action == 'archive':
-                assert next(s for s in self.discover_owned() if s['id'] == self.session)['archived']
-        final = next(s for s in self.discover_owned() if s['id'] == self.session)
-        assert final['name'] == renamed and final['attachable'] and not final['archived']
-        self.create_owned('terminal', False)
-
-    def connect(self):
-        lease = self.request('POST', '/v1/sessions/' + self.session + '/mosh', {'cols': 90, 'rows': 28})
-        if lease.get('host') != self.mosh_host or type(lease.get('port')) is not int or lease['port'] not in (60300, 60301):
-            raise SmokeError('mosh-endpoint-outside-dedicated-demo')
-        if not isinstance(lease.get('key'), str) or not re.fullmatch(r'[A-Za-z0-9+/]{22}', lease['key']):
-            raise SmokeError('invalid-mosh-key')
-        master, slave = pty.openpty()
-        try:
-            fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack('HHHH', 28, 90, 0, 0))
-            env = dict(os.environ, MOSH_KEY=lease['key'], TERM='xterm-256color', LANG='en_US.UTF-8')
-            process = subprocess.Popen(['mosh-client', lease['host'], str(lease['port'])],
-                stdin=slave, stdout=slave, stderr=slave, env=env, start_new_session=True)
-        except BaseException:
-            os.close(master)
-            raise
-        finally:
-            os.close(slave)
-        self.clients.append((process, master))
-        output = bytearray()
-        def ready():
-            readable, _, _ = select.select([master], [], [], .1)
-            if readable:
-                output.extend(os.read(master, 65536))
-                del output[:-262144]
-            return b'Demo' in output or b'demo' in output
-        BASE.wait_for(ready, timeout=30)
-        return process, master, lease
+        final = next(row for row in self.discover_owned() if row['id'] == self.session)
+        assert final['name'] == renamed and final['attachable']
 
     def previews(self):
         grant = self.request('POST', '/v1/previews', {'sessionId': self.session, 'port': self.preview_port}, expected=201)
         path = '/?session=' + urllib.parse.quote(self.session, safe='')
         page = self.request('GET', path, headers={'Cookie': 'trill_preview=' + grant['token']}, token=False)
-        assert b'Reconnected through real Mosh' in page
+        assert b'Reconnected through HTTPS' in page
         self.request('POST', '/v1/previews', {'sessionId': self.session, 'port': self.api_port}, expected=400)
         self.request('GET', path, token=False, expected=401)
         self.request('DELETE', '/v1/previews/' + grant['id'])
@@ -365,7 +323,7 @@ class FlySmoke(BASE.Smoke):
     def failures(self):
         try:
             self.cli('fault', 'capacity')
-            self.request('POST', '/v1/sessions/' + self.session + '/mosh', {'cols': 90, 'rows': 28}, expected=429)
+            self.request('POST', '/v1/sessions/' + self.session + '/terminal', {'cols': 90, 'rows': 28}, expected=429)
             self.cli('fault', 'clear')
             self.cli('fault', 'api-unavailable')
             self.request('GET', '/v1/sessions', expected=503)
@@ -382,19 +340,8 @@ class FlySmoke(BASE.Smoke):
             except Exception:
                 errors.append('cleanup-step-failed')
         # Local process cleanup is independent of all remote/API failures.
-        for process, master in self.clients:
-            try:
-                if process.poll() is None:
-                    process.terminate()  # Exact Popen child only; never a name/global kill.
-                    try:
-                        process.wait(timeout=5)
-                    except subprocess.TimeoutExpired:
-                        process.kill()
-                        process.wait(timeout=5)
-            except Exception:
-                errors.append('local-mosh-cleanup-failed')
-            finally:
-                attempt(lambda fd=master: os.close(fd))
+        for stream in self.clients:
+            attempt(stream.close)
         self.clients = []
         if self.faults_armed:
             attempt(lambda: self.cli('fault', 'clear'))
@@ -405,8 +352,6 @@ class FlySmoke(BASE.Smoke):
                 attempt(lambda key=grant: self.request('DELETE', '/v1/previews/' + key, expected=(200, 404)))
             if self.session_names:
                 attempt(self.discover_owned)
-            for session in sorted(self.owned_sessions):
-                attempt(lambda sid=session: self.request('POST', '/v1/sessions/' + sid + '/archive'))
         if self.device_id:
             attempt(lambda: self.cli('revoke', self.device_id))
             if self.token:
@@ -439,7 +384,7 @@ class FlySmoke(BASE.Smoke):
             self.record('deployment, identity and trusted HTTPS', self.start)
             if self.allow_mutations:
                 for name, fn in [('one-use pairing and expiry', self.pair), ('owned session lifecycle', self.lifecycle),
-                    ('real Mosh input resize and reconnect', self.terminal), ('fixture files and private upload', self.media),
+                    ('HTTPS input resize and reconnect', self.terminal), ('fixture files and private upload', self.media),
                     ('authenticated live browser proxy', self.previews), ('fault recovery', self.failures)]:
                     self.record(name, fn)
                 if self.metadata() != self.deployment:
@@ -462,8 +407,8 @@ class FlySmoke(BASE.Smoke):
             'mode': 'maintenance-window' if self.allow_mutations else 'read-only-preflight',
             'outcome': outcome, 'failure': failure, 'deployment': self.deployment, 'checks': self.results,
             'cleanup': 'complete' if self.cleanup_complete else 'incomplete; inspect before another run',
-            'coverage': 'Mac trusted HTTPS/API and upstream mosh-client; scripted demo only; no iOS UI or real-provider claim',
-            'retention': 'Cleanup archives only owned sessions, revokes only this device and releases only owned leases; archived worktrees/uploads follow sandbox retention. An uncertain pairing response cannot identify a registration to revoke safely.'}
+            'coverage': 'Mac trusted HTTPS/API and authenticated terminal WebSockets; scripted demo only; no iOS UI or real-provider claim',
+            'retention': 'Cleanup revokes only this device and releases only owned leases; created terminals/uploads follow sandbox retention. An uncertain pairing response cannot identify a registration to revoke safely.'}
         with os.fdopen(fd, 'w') as file:
             json.dump(report, file, indent=2)
             file.write('\n')
@@ -474,16 +419,15 @@ class FlySmoke(BASE.Smoke):
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--app', default='trill-demo')
-    parser.add_argument('--mosh-host', default='137.66.44.233', help='dedicated demo IPv4 expected in Mosh leases')
     parser.add_argument('--output', type=Path, required=True, help='new private JSON report; never overwritten')
     parser.add_argument('--allow-demo-mutations', action='store_true', help='authorize own sessions and GLOBAL faults during an exclusive sandbox maintenance window')
     args = parser.parse_args()
     if args.output.exists() or args.output.is_symlink():
         parser.error('output must be a new path')
-    if not shutil.which('fly') or (args.allow_demo_mutations and not shutil.which('mosh-client')):
-        parser.error('fly is required; full smoke also requires upstream mosh-client')
+    if not shutil.which('fly'):
+        parser.error('fly is required')
     try:
-        smoke = FlySmoke(args.app, args.output, args.allow_demo_mutations, args.mosh_host)
+        smoke = FlySmoke(args.app, args.output, args.allow_demo_mutations)
         return 0 if smoke.run() else 1
     except SmokeError:
         parser.error('invalid demo target configuration')

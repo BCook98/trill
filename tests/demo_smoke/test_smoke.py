@@ -20,9 +20,9 @@ SPEC.loader.exec_module(smoke)
 
 
 def status(**overrides):
-    value = {"kind": "trill-demo-v1", "running": True, "address": "https://localhost:19443", "profile": "mixed",
+    value = {"kind": "trill-demo-v1", "running": True, "address": "https://localhost:19443", "profile": "herdr",
              "fingerprint": "a" * 64, "previewPort": 18080, "pid": 12345,
-             "state": {"sessions": [{"id": "demo-xirp-1", "name": "Demo terminal", "provider": "xirp", "projectId": "demo-project",
+             "state": {"sessions": [{"id": "demo-herdr-1", "name": "Demo terminal", "provider": "xirp", "projectId": "demo-project",
                                      "attachable": True, "archived": False, "heading": "initial", "status": "running"}],
                        "projects": [{"id": "demo-project", "name": "Demo project"}], "uploads": []}}
     value.update(overrides)
@@ -182,7 +182,7 @@ class BackendTests(unittest.TestCase):
         value = status()
         value["state"]["sessions"][0].pop("heading")
         with self.assertRaises(smoke.Blocked):
-            smoke.StateView(value).heading("demo-xirp-1")
+            smoke.StateView(value).heading("demo-herdr-1")
         with self.assertRaises(smoke.SmokeError):
             smoke.StateView(status()).session("missing")
 
@@ -190,8 +190,8 @@ class BackendTests(unittest.TestCase):
         data = status()["state"]
         data["sessions"][0].pop("heading")
         view = smoke.StateView(status(state={"catalog": data, "heading": "global"}))
-        self.assertEqual(view.heading("demo-xirp-1"), "global")
-        self.assertEqual(view.live_session()["id"], "demo-xirp-1")
+        self.assertEqual(view.heading("demo-herdr-1"), "global")
+        self.assertEqual(view.live_session()["id"], "demo-herdr-1")
 
     def test_archived_sessions_never_chosen(self):
         value = status()
@@ -472,7 +472,7 @@ class PixelAndAdapterTests(Temporary):
 
     def test_pairing_prefers_visible_initial_fixture_after_lifecycle_runs(self):
         data=status();data["state"]["sessions"].append({**data["state"]["sessions"][0],"id":"demo-created-1"})
-        self.assertEqual(smoke.StateView(data).live_session()["id"],"demo-xirp-1")
+        self.assertEqual(smoke.StateView(data).live_session()["id"],"demo-herdr-1")
 
     def test_equal_welcome_names_are_disambiguated_by_provider(self):
         tree = [element(None, role="AXButton", label="Welcome, Running, Demo, Demo · xirp"),
@@ -483,25 +483,25 @@ class PixelAndAdapterTests(Temporary):
     def test_safe_status_adapter_uses_only_known_initial_fixture_html(self):
         backend = object.__new__(smoke.Backend)
         backend.path = self.root / "backend-a"
-        path = backend.path / "fixtures/demo-xirp/web/index.html"
+        path = backend.path / "fixtures/demo-herdr/web/index.html"
         path.parent.mkdir(parents=True, mode=0o700)
         path.write_text("<html><h1>public &amp; escaped</h1></html>")
         data = status()
-        data["state"]["sessions"][0].update(id="demo-xirp-1",projectId="demo-xirp")
+        data["state"]["sessions"][0].update(id="demo-herdr-1",projectId="demo-herdr")
         data["state"]["sessions"][0].pop("heading")
         data["state"]["sessions"][0].pop("attachable")
         view = backend.adapt(data)
-        self.assertEqual(view.heading("demo-xirp-1"), "public & escaped")
-        self.assertEqual(view.live_session()["id"], "demo-xirp-1")
+        self.assertEqual(view.heading("demo-herdr-1"), "public & escaped")
+        self.assertEqual(view.live_session()["id"], "demo-herdr-1")
 
     def test_redirected_html_receipt_is_blocked(self):
         backend = object.__new__(smoke.Backend)
         backend.path = self.root / "backend-a"
-        path = backend.path / "fixtures/demo-xirp/web/index.html"
+        path = backend.path / "fixtures/demo-herdr/web/index.html"
         path.parent.mkdir(parents=True, mode=0o700)
         target = self.root / "other.html"; target.write_text("<h1>other</h1>")
         path.symlink_to(target)
-        data = status(); data["state"]["sessions"][0].update(id="demo-xirp-1",projectId="demo-xirp")
+        data = status(); data["state"]["sessions"][0].update(id="demo-herdr-1",projectId="demo-herdr")
         data["state"]["sessions"][0].pop("heading")
         with self.assertRaises(smoke.Blocked):
             backend.adapt(data)

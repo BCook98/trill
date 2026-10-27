@@ -230,6 +230,12 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
     /// Double/triple tap selection still takes precedence.
     public var activatesLinksOnTap = false
 
+    /// A remote rendered surface can own history as well as application input.
+    /// Positive line counts move toward older output. Nil keeps local routing.
+    public var remoteScrollHandler: ((_ lines: Int, _ column: Int, _ row: Int) -> Void)? {
+        didSet { refreshProgramScrollGesture() }
+    }
+
     /// Controls link highlighting and link activation behavior.
     public var linkHighlightMode: LinkHighlightMode = .hover {
         didSet {
@@ -956,10 +962,11 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
         controlModifier = false
     }
 
-    /// Reports a complete primary-button click at a point and returns whether the running
-    /// application requested it.
+    /// Activates a local link or reports a complete primary-button click at a point.
+    /// Returns whether either route handled the tap.
     @discardableResult
     public func forwardTap(at point: CGPoint) -> Bool {
+        if activateLocalLink(at: point) { return true }
         let routing = withTerminal { terminal in
             (press: allowMouseReporting && terminal.mouseMode.sendButtonPress(),
              release: terminal.mouseMode.sendButtonRelease())
@@ -1024,18 +1031,7 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
         guard gestureRecognizer.view != nil,
               gestureRecognizer.state == .ended else { return }
 
-        let tapHit = calculateTapHit(gesture: gestureRecognizer).grid
-        if activatesLinksOnTap, linkReporting != .none,
-           let link = withTerminal({ terminal in
-               terminal.link(at: .buffer(tapHit), mode: linkReporting == .explicit ? .explicitOnly : .explicitAndImplicit)
-           }) {
-            terminalDelegate?.requestOpenLink(source: self, link: link, params: [:])
-            return
-        }
-        if let result = linkForClick(at: tapHit, hasCommandModifier: commandActive) {
-            terminalDelegate?.requestOpenLink(source: self, link: result.link, params: result.params)
-            return
-        }
+        if activateLocalLink(at: gestureRecognizer.location(in: self)) { return }
 
         // A tracking application owns the click even while the software keyboard is dismissed.
         // Spending the first tap only on focus makes TUI controls unreachable from a phone.
@@ -1062,38 +1058,61 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
             disableSelectionPanGesture()
             frameDriver.markDirty()
         } else {
-            let state = withTerminal { terminal -> (hadSelection: Bool, snapshot: SemanticPromptPointerSnapshot, cursor: Position) in
-                let snapshot = SemanticPromptPointerSnapshot(
-                    selectionWasActive: selection.active,
-                    didDrag: false,
-                    clickCount: 1,
-                    pressWasSemanticEligible: true,
-                    selectionIsActiveAtRelease: false)
-                let hadSelection = selection.active
-                if selection.active {
-                    selection.selectNone()
-                }
-                let buffer = terminal.displayBuffer
-                return (hadSelection, snapshot, Position(col: buffer.x, row: buffer.y + buffer.yBase))
+            localSingleTap(gestureRecognizer)
+        }
+    }
+
+    // Link activation must precede every primary-click entry point, including
+    // callers of forwardTap. Never send the same link tap to the remote host.
+    private func activateLocalLink(at point: CGPoint) -> Bool {
+        let tapHit = calculateTapHit(point: point).grid
+        if activatesLinksOnTap, linkReporting != .none,
+           let link = withTerminal({ terminal in
+               terminal.link(at: .buffer(tapHit), mode: linkReporting == .explicit ? .explicitOnly : .explicitAndImplicit)
+           }) {
+            terminalDelegate?.requestOpenLink(source: self, link: link, params: [:])
+            return true
+        }
+        if let result = linkForClick(at: tapHit, hasCommandModifier: commandActive) {
+            terminalDelegate?.requestOpenLink(source: self, link: result.link, params: result.params)
+            return true
+        }
+
+        return false
+    }
+
+    private func localSingleTap(_ gestureRecognizer: UITapGestureRecognizer) {
+        let state = withTerminal { terminal -> (hadSelection: Bool, snapshot: SemanticPromptPointerSnapshot, cursor: Position) in
+            let snapshot = SemanticPromptPointerSnapshot(
+                selectionWasActive: selection.active,
+                didDrag: false,
+                clickCount: 1,
+                pressWasSemanticEligible: true,
+                selectionIsActiveAtRelease: false)
+            let hadSelection = selection.active
+            if selection.active {
+                selection.selectNone()
             }
-            if state.hadSelection { disableSelectionPanGesture() }
-            if UIMenuController.shared.isMenuVisible {
-                UIMenuController.shared.hideMenu()
-            } else {
-                let location = gestureRecognizer.location(in: gestureRecognizer.view)
-                let tapLoc = calculateTapHit(gesture: gestureRecognizer).grid
-                let nearCursor = abs(tapLoc.col - state.cursor.col) < 4 &&
-                    abs(tapLoc.row - state.cursor.row) < 2
-                if TerminalTapPolicy.showsContextMenu(
-                    nearCursor: nearCursor, clearedSelection: state.hadSelection) {
-                    showContextMenu (forRegion: makeContextMenuRegionForTap (point: location), pos: tapLoc)
-                } else if !nearCursor {
-                    _ = withTerminal { terminal in
-                        terminal.handleSemanticPromptClick(
-                            at: tapHit,
-                            modifiers: semanticPromptModifiers(for: gestureRecognizer),
-                            snapshot: state.snapshot)
-                    }
+            let buffer = terminal.displayBuffer
+            return (hadSelection, snapshot, Position(col: buffer.x, row: buffer.y + buffer.yBase))
+        }
+        if state.hadSelection { disableSelectionPanGesture() }
+        if UIMenuController.shared.isMenuVisible {
+            UIMenuController.shared.hideMenu()
+        } else {
+            let location = gestureRecognizer.location(in: gestureRecognizer.view)
+            let tapLoc = calculateTapHit(gesture: gestureRecognizer).grid
+            let nearCursor = abs(tapLoc.col - state.cursor.col) < 4 &&
+                abs(tapLoc.row - state.cursor.row) < 2
+            if TerminalTapPolicy.showsContextMenu(
+                nearCursor: nearCursor, clearedSelection: state.hadSelection) {
+                showContextMenu (forRegion: makeContextMenuRegionForTap (point: location), pos: tapLoc)
+            } else if !nearCursor {
+                _ = withTerminal { terminal in
+                    terminal.handleSemanticPromptClick(
+                        at: tapLoc,
+                        modifiers: semanticPromptModifiers(for: gestureRecognizer),
+                        snapshot: state.snapshot)
                 }
             }
         }
@@ -1278,6 +1297,21 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
         let cellHeight = cellDimension.height
         guard cellHeight > 0 else { return }
 
+        if let remoteScrollHandler {
+            let lines = isPrecise
+                ? accumulator.takeWholeLines(distance: distance, cellHeight: cellHeight, route: .mouse)
+                : (distance == 0 ? 0 : (distance > 0 ? 1 : -1))
+            if lines != 0 {
+                let position = withTerminal { terminal in
+                    calculateTapHitLocked(point: point).grid.toScreenCoordinate(from: terminal.displayBuffer)
+                }
+                if let position {
+                    remoteScrollHandler(max(-200, min(200, lines)), position.col, position.row)
+                }
+            }
+            return
+        }
+
         // Keep routing, coordinate conversion, and reports in one terminal operation.
         let cursorLines = withTerminal { terminal -> Int in
             let route = ProgramScrollRouting.route(
@@ -1364,6 +1398,7 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
 
     func shouldCapturePointerScroll(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
         guard terminal != nil else { return false }
+        if remoteScrollHandler != nil { return true }
         return withTerminal { terminal in
             !shiftBypassesMouseReportingLocked(for: gestureRecognizer) &&
                 ProgramScrollRouting.capturesGesture(
@@ -3785,7 +3820,7 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
 
     private func refreshProgramScrollGesture(mouseMode: Terminal.MouseMode? = nil) {
         pointerScrollAccumulator.reset()
-        let capturesProgramScroll = withTerminal { terminal in
+        let capturesProgramScroll = remoteScrollHandler != nil || withTerminal { terminal in
             ProgramScrollRouting.capturesGesture(
                 allowMouseReporting: allowMouseReporting,
                 mouseTracking: (mouseMode ?? terminal.mouseMode) != .off,

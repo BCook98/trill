@@ -1,11 +1,8 @@
 import Foundation
 
 struct SessionCapabilities: Codable, Hashable {
+    var terminalStream: Bool? = nil
     var rename = false
-    var stop = false
-    var archive = false
-    var resume = false
-    var createAgent = false
     var createTerminal = false
     var worktree = false
     var files = false
@@ -83,7 +80,7 @@ struct Project: Codable, Identifiable, Hashable {
     var provider: String? = nil
     var providerName: String? = nil
     var capabilities: SessionCapabilities? = nil
-    var canCreate: Bool { capabilities.map { $0.createAgent || $0.createTerminal } ?? true }
+    var canCreate: Bool { capabilities?.createTerminal == true }
     let id: String
     let name: String
     let path: String
@@ -101,7 +98,7 @@ struct Health: Decodable {
     let readOnly: Bool
     var sessionManagement: Bool? = nil
 }
-struct MoshLease: Decodable { let host: String; let port: UInt16; let key: String; let leaseId: String }
+struct TerminalLease: Decodable { let leaseId: String }
 struct OKResponse: Decodable { let ok: Bool }
 struct APIError: Decodable { let error: String }
 
@@ -160,7 +157,7 @@ struct PhotoAttachment: Decodable {
 
 /// Immutable presentation identity; execution resolves fresh metadata by ID.
 struct SessionPrompt: Identifiable {
-    enum Action: String { case archive, stop, rename }
+    enum Action: String { case rename }
     let id = UUID()
     let action: Action
     let sessionID: String
@@ -168,11 +165,9 @@ struct SessionPrompt: Identifiable {
     let sessionName: String
     let computerName: String
     var title: String { "\(action.rawValue.capitalized) “\(sessionName)”?" }
-    var button: String { action == .rename ? "Save" : "\(action.rawValue.capitalized) session" }
+    var button: String { "Save" }
     var message: String {
         switch action {
-        case .archive: "Moves this session on \(computerName) to Projects → Archived. Archiving does not stop a running session."
-        case .stop: "Stops the session on \(computerName). Choose Disconnect from the session menu to leave it running."
         case .rename: "Choose a name for this session on \(computerName)."
         }
     }

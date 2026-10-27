@@ -34,27 +34,23 @@ type Project struct {
 }
 
 type rawSession struct {
-	ProviderKey          string   `json:"-"`
-	HerdrPane            string   `json:"-"`
-	HerdrTerminal        string   `json:"-"`
-	ID                   string   `json:"id"`
-	Name                 string   `json:"name"`
-	ProjectID            string   `json:"projectId"`
-	Status               string   `json:"status"`
-	ActivityState        string   `json:"activityState"`
-	CurrentAgent         string   `json:"currentAgent"`
-	Branch               string   `json:"branch"`
-	UpdatedAt            string   `json:"updatedAt"`
-	Mode                 string   `json:"mode"`
-	TmuxSession          string   `json:"tmuxSession"`
-	CLISessionID         string   `json:"cliSessionId"`
-	OriginalCLISessionID string   `json:"originalCliSessionId"`
-	Goal                 string   `json:"goal"`
-	TerminalLive         bool     `json:"terminalLive"`
-	HiddenFromSidebar    bool     `json:"hiddenFromSidebar"`
-	WorktreePath         string   `json:"worktreePath"`
-	Source               string   `json:"source"`
-	Tags                 []string `json:"tags"`
+	ProviderKey       string `json:"-"`
+	HerdrPane         string `json:"-"`
+	HerdrTerminal     string `json:"-"`
+	ID                string `json:"id"`
+	Name              string `json:"name"`
+	ProjectID         string `json:"projectId"`
+	Status            string `json:"status"`
+	ActivityState     string `json:"activityState"`
+	CurrentAgent      string `json:"currentAgent"`
+	Branch            string `json:"branch"`
+	UpdatedAt         string `json:"updatedAt"`
+	Mode              string `json:"mode"`
+	Goal              string `json:"goal"`
+	TerminalLive      bool   `json:"terminalLive"`
+	HiddenFromSidebar bool   `json:"hiddenFromSidebar"`
+	WorktreePath      string `json:"worktreePath"`
+	Source            string `json:"source"`
 }
 
 type CreateOptions struct {

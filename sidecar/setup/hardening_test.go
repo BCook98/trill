@@ -224,7 +224,7 @@ func TestControlRecoveryRefusesUnrelatedChanges(t *testing.T) {
 			old := c
 			old.AllowControl = !c.AllowControl
 			if change == "disk arguments" {
-				old.TmuxSocket = "/foreign/lab.sock"
+				old.RemovedTmuxSocket = "/foreign/lab.sock"
 			}
 			plist, _ := a.expected(old, dir, false)
 			if err := WritePrivate(a.path(false), plist, true); err != nil {

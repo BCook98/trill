@@ -1,6 +1,6 @@
 # Website design
 
-The website presents Trill as remote control for Xirp and Herdr on the user's own Mac. Product behavior and limitations come from [Architecture](ARCHITECTURE.md) and [Providers](PROVIDERS.md); public copy must not imply a hosted agent, reconstructed chat, or App Store availability without release evidence.
+The website presents Trill as remote control for Herdr on the user's own Mac. Product behavior and limitations come from [Architecture](ARCHITECTURE.md) and [Providers](PROVIDERS.md); public copy must not imply a hosted agent, reconstructed chat, or App Store availability without release evidence.
 
 ## Current composition
 
@@ -21,7 +21,7 @@ The static implementation and preview commands are in [website/README.md](../web
 
 Screen pixels must come from the native app in an authorized disposable environment. Trim, crop, and scale actual captures; do not invent terminal output, agent status, or successful operations. Keep source revision, executable hash, runtime, capture scenario, and export geometry in [the media manifest](../website/assets/demos/manifest.json). Use [DEMO_CREATION.md](DEMO_CREATION.md) for account isolation and [DEMOS.md](DEMOS.md) for capture/export procedures.
 
-Provider capabilities differ: Xirp supports coding-session creation; Herdr supplies direct terminals. File and browser previews require companion control. Saved computers allow one active computer at a time. Describe these boundaries without implying universal provider actions or unlimited file access.
+Herdr supplies spaces, linked worktrees and direct terminals. File and browser previews require companion control. Saved computers allow one active computer at a time. Describe these boundaries without implying universal provider actions or unlimited file access.
 
 ## Verification
 

@@ -14,7 +14,7 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "2554CA50B12F36EB8E9A7B79"
+               BlueprintIdentifier = "176083639EA1A282472CD169"
                BuildableName = "Trill.app"
                BlueprintName = "Trill"
                ReferencedContainer = "container:Trill.xcodeproj">
@@ -30,7 +30,7 @@
       <MacroExpansion>
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "2554CA50B12F36EB8E9A7B79"
+            BlueprintIdentifier = "176083639EA1A282472CD169"
             BuildableName = "Trill.app"
             BlueprintName = "Trill"
             ReferencedContainer = "container:Trill.xcodeproj">
@@ -41,7 +41,7 @@
             skipped = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "1695200190A7609FADA9429C"
+               BlueprintIdentifier = "B423FEFA3E641813C04B0D74"
                BuildableName = "TrillTests.xctest"
                BlueprintName = "TrillTests"
                ReferencedContainer = "container:Trill.xcodeproj">
@@ -51,7 +51,7 @@
             skipped = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "7976CE56AADC471AD48FBB2E"
+               BlueprintIdentifier = "0FD4755F0A0D62ABC0EEA7E4"
                BuildableName = "TrillUITests.xctest"
                BlueprintName = "TrillUITests"
                ReferencedContainer = "container:Trill.xcodeproj">
@@ -73,7 +73,7 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "2554CA50B12F36EB8E9A7B79"
+            BlueprintIdentifier = "176083639EA1A282472CD169"
             BuildableName = "Trill.app"
             BlueprintName = "Trill"
             ReferencedContainer = "container:Trill.xcodeproj">
@@ -90,7 +90,7 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "2554CA50B12F36EB8E9A7B79"
+            BlueprintIdentifier = "176083639EA1A282472CD169"
             BuildableName = "Trill.app"
             BlueprintName = "Trill"
             ReferencedContainer = "container:Trill.xcodeproj">

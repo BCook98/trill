@@ -68,7 +68,7 @@ class DemoLabSafetyTests(unittest.TestCase):
             project = Path(value) / "project"
             (project / ".git").mkdir(parents=True)
             data = {"session_name": lab.SESSION, "files_root": str(project), "preview_url": "http://localhost:18080/index.html"}
-            with patch.object(lab, "demo_panes", return_value=[[lab.SESSION, "%0", "zsh"]]), patch.object(lab.shutil, "which", return_value="/bin/codex"), patch.object(lab, "command"), patch.object(lab.time, "sleep"), patch.object(lab, "private_json") as persist:
+            with patch.object(lab, "demo_panes", return_value=[[lab.SESSION, "%0", "zsh"]]), patch.object(lab.shutil, "which", return_value="/bin/codex"), patch.object(lab, "herdr_command"), patch.object(lab.time, "sleep"), patch.object(lab, "private_json") as persist:
                 with self.assertRaisesRegex(RuntimeError, "not confirmed"):
                     lab.start_codex(Path(value), data)
                 persist.assert_not_called()

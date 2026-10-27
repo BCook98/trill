@@ -104,24 +104,16 @@ func (h *HTTP) filesCheckOpen() error {
 	return nil
 }
 
-// Production roots come only from metadata. Lab browsing requires an explicit
-// configured root, never the socket parent. An archived session may still have
-// an existing worktree; browsing never attaches to or resumes it.
+// Roots come from Herdr metadata. Browsing never attaches to a terminal.
 func (h *HTTP) filesRoot(ctx context.Context, id string, project bool) (string, error) {
 	if err := h.filesCheckOpen(); err != nil {
 		return "", err
-	}
-	if h.service.config.TmuxSocket != "" && h.service.config.LabFilesRoot == "" {
-		return "", errUnsupported
 	}
 	projectID := id
 	if !project {
 		session, err := h.service.find(ctx, id)
 		if err != nil {
 			return "", err
-		}
-		if h.service.config.TmuxSocket != "" {
-			return h.service.config.LabFilesRoot, nil
 		}
 		if session.WorktreePath != "" {
 			if !filepath.IsAbs(session.WorktreePath) {
@@ -138,9 +130,6 @@ func (h *HTTP) filesRoot(ctx context.Context, id string, project bool) (string, 
 	for _, p := range projects {
 		if p.ID != projectID {
 			continue
-		}
-		if h.service.config.TmuxSocket != "" {
-			return h.service.config.LabFilesRoot, nil
 		}
 		if !filepath.IsAbs(p.Path) {
 			return "", errUnavailable

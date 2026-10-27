@@ -1,4 +1,4 @@
-// Built as public trill and private legacy trillctl. Setup never invokes Xirp or tmux.
+// Built as public trill and private legacy trillctl. Setup never starts or replaces Herdr servers.
 package main
 
 import (
@@ -36,7 +36,7 @@ const help = `Usage: trill <command> [options]
   version     Print companion version, source commit and architecture as JSON
   doctor      Diagnose installation, dependencies, TLS and owned services
   update      Check for or install a verified signed companion release
-  demo        Run an isolated scripted demo with real HTTPS and Mosh
+  demo        Run an isolated scripted demo with HTTPS terminal streams
   serve       Run the foreground daemon with daemon flags (serve --help)
   setup       Set up or resume this companion, then offer a pairing QR
   pair        Approve one device; single-use invitation expires in 10 minutes
@@ -44,7 +44,7 @@ const help = `Usage: trill <command> [options]
   devices     List paired devices, including revoked devices
   revoke ID   Revoke a device and save the revocation
   status      Show configuration, TLS expiry, and owned LaunchAgent status
-  providers   Show or change Xirp/Herdr providers; restart only the owned companion
+  providers   Show or change Herdr servers; restart only the owned companion
   control     Explicitly enable/disable control; restart owned daemon if loaded
   start       Start the installed companion and certificate renewal agent
   stop        Stop only this companion's two LaunchAgents
@@ -96,10 +96,7 @@ func runWithSetupEnvironment(args []string, in io.Reader, out, errOut io.Writer,
 		return update(args[1:], out, errOut, home)
 	}
 	if command == "demo" {
-		file, ok := in.(*os.File)
-		if !ok && len(args) > 1 && args[1] == "terminal" {
-			return fmt.Errorf("demo terminal requires a PTY")
-		}
+		file, _ := in.(*os.File)
 		return demoapp.Run(args[1:], file, out, errOut)
 	}
 	if command == "serve" {
@@ -126,7 +123,7 @@ func runWithSetupEnvironment(args []string, in io.Reader, out, errOut io.Writer,
 		flags.PrintDefaults()
 	}
 	flags.StringVar(&dir, "state-dir", dir, "private state directory (includes devices.json)")
-	var mode, ip, name, daemon, tmuxSocket, png, hostname, tailscaleCLI, tailscaleSocket, tsnetHostname string
+	var mode, ip, name, daemon, png, hostname, tailscaleCLI, tailscaleSocket, tsnetHostname string
 	var backends, herdrPath, herdrSessions, herdrConfigHome string
 	var allowControl, noStart, noPair, yes, open, rawJSON, pasteURL, enable, disable bool
 	if command == "setup" {
@@ -140,13 +137,12 @@ func runWithSetupEnvironment(args []string, in io.Reader, out, errOut io.Writer,
 		flags.StringVar(&name, "name", host, "computer name shown on the phone")
 		flags.StringVar(&daemon, "daemon", "", "absolute trilld path (default beside trill)")
 		flags.BoolVar(&allowControl, "allow-control", false, "first setup only: enable terminal/session control; later use trill control --enable")
-		flags.StringVar(&tmuxSocket, "tmux-socket", "", "absolute dedicated tmux lab socket; isolates backend from Xirp")
 		flags.BoolVar(&noStart, "no-start", false, "create or reuse configuration only; leave services as they are")
 		flags.BoolVar(&noPair, "no-pair", false, "skip interactive pairing after setup")
 	}
 	if command == "setup" || command == "providers" {
 		flags.StringVar(&herdrConfigHome, "herdr-config-home", "", "absolute XDG config base containing herdr/ (default current XDG_CONFIG_HOME or ~/.config)")
-		flags.StringVar(&backends, "backends", "", "xirp (default), herdr, or xirp,herdr")
+		flags.StringVar(&backends, "backends", "", "herdr (the only supported backend)")
 		flags.StringVar(&herdrPath, "herdr-path", "", "Herdr executable (default herdr on PATH)")
 		flags.StringVar(&herdrSessions, "herdr-sessions", "", "comma-separated existing Herdr servers (default default)")
 	}
@@ -300,7 +296,7 @@ func runWithSetupEnvironment(args []string, in io.Reader, out, errOut io.Writer,
 		}
 		fmt.Fprintf(errOut, "Selected %s: %s (HTTPS port 7443).\n", n.Kind, n.Host)
 		if n.Kind == "lan" {
-			fmt.Fprintln(errOut, "LAN pairing requires Bonjour resolution of this .local hostname and both devices on the same reachable LAN. HTTPS uses the hostname; mosh uses the selected IP.")
+			fmt.Fprintln(errOut, "LAN pairing requires Bonjour resolution of this .local hostname and both devices on the same reachable LAN. HTTPS uses the hostname.")
 		}
 		if n.Kind == "lan" && len(n.Choices) > 1 {
 			fmt.Fprintln(errOut, "Multiple local addresses found; default-route interface and IPv4 are preferred. Use --network lan --ip ADDRESS to choose another:")
@@ -311,7 +307,7 @@ func runWithSetupEnvironment(args []string, in io.Reader, out, errOut io.Writer,
 		if n.BindIP != "" && n.Kind != "tsnet" {
 			fmt.Fprintf(errOut, "%s is not assigned to a local interface, as with a userspace-networking tailscaled. The companion binds %s, where tailscaled delivers inbound tailnet traffic, and advertises %s.\n", n.IP, n.BindIP, n.IP)
 		}
-		c := setup.Config{Backends: backends, HerdrConfigHome: herdrConfigHome, HerdrPath: herdrPath, HerdrSessions: herdrSessions, Version: 1, Name: name, Network: n.Kind, IP: n.IP, BindIP: n.BindIP, Address: "https://" + net.JoinHostPort(n.Host, setup.Port), Certificate: filepath.Join(dir, "tls.pem"), PrivateKey: filepath.Join(dir, "tls.pem"), TailscaleCLI: n.TailscaleCLI, TailscaleSocket: n.TailscaleSocket, AllowControl: allowControl, TmuxSocket: tmuxSocket, Daemon: daemon, CLI: cli, Path: setup.DependencyPath(home, os.Getenv("PATH"))}
+		c := setup.Config{Backends: backends, HerdrConfigHome: herdrConfigHome, HerdrPath: herdrPath, HerdrSessions: herdrSessions, Version: 1, Name: name, Network: n.Kind, IP: n.IP, BindIP: n.BindIP, Address: "https://" + net.JoinHostPort(n.Host, setup.Port), Certificate: filepath.Join(dir, "tls.pem"), PrivateKey: filepath.Join(dir, "tls.pem"), TailscaleCLI: n.TailscaleCLI, TailscaleSocket: n.TailscaleSocket, AllowControl: allowControl, Daemon: daemon, CLI: cli, Path: setup.DependencyPath(home, os.Getenv("PATH"))}
 		if n.Kind == "tsnet" {
 			c.TSNetHostname = tsnetHostname
 		}
@@ -373,7 +369,7 @@ func runWithSetupEnvironment(args []string, in io.Reader, out, errOut io.Writer,
 		return nil
 	case "providers":
 		if backends == "" && (herdrPath != "" || herdrSessions != "" || herdrConfigHome != "") {
-			return errors.New("changing providers requires --backends")
+			backends = "herdr"
 		}
 		if backends != "" {
 			if err = agents.Providers(ctx, c, dir, backends, herdrPath, herdrSessions, herdrConfigHome); err != nil {
@@ -384,13 +380,7 @@ func runWithSetupEnvironment(args []string, in io.Reader, out, errOut io.Writer,
 				return err
 			}
 		}
-		if c.Backends == "" {
-			if c.TmuxSocket != "" {
-				c.Backends = "terminal-lab"
-			} else {
-				c.Backends = "xirp"
-			}
-		}
+		c.Backends = "herdr"
 
 		b, err := json.MarshalIndent(struct {
 			Backends        string `json:"backends"`
@@ -405,7 +395,7 @@ func runWithSetupEnvironment(args []string, in io.Reader, out, errOut io.Writer,
 		return nil
 	case "control":
 		if c.AllowControl != enable {
-			fmt.Fprintln(errOut, "Changing control disconnects Trill transport and active mosh leases; underlying sessions remain alive. Only the owned companion daemon is restarted if loaded.")
+			fmt.Fprintln(errOut, "Changing control disconnects Trill transport and active terminal streams; underlying sessions remain alive. Only the owned companion daemon is restarted if loaded.")
 		}
 		if err = agents.Control(ctx, c, dir, enable); err != nil {
 			return err

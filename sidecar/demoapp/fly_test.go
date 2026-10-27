@@ -14,8 +14,6 @@ func flyOptions(t *testing.T) options {
 	o.flyEdgeTLS = true
 	o.listen = "0.0.0.0:8080"
 	o.address = "https://trill-demo.fly.dev"
-	o.moshBind = "fly-global-services"
-	o.moshHost = "192.0.2.10"
 	o.reviewPassword = "/private/password"
 	return o
 }
@@ -29,12 +27,6 @@ func TestFlyModeRequiresExplicitDeploymentContract(t *testing.T) {
 		func(o *options) { o.listen = "0.0.0.0:80" },
 		func(o *options) { o.address = "https://other.fly.dev" },
 		func(o *options) { o.cert = "cert.pem" },
-		func(o *options) { o.moshHost = "trill-demo.fly.dev" },
-		func(o *options) { o.moshHost = "127.0.0.1" },
-		func(o *options) { o.moshHost = "0.0.0.0" },
-		func(o *options) { o.moshHost = "192.168.1.1" },
-		func(o *options) { o.moshHost = "224.0.0.1" },
-		func(o *options) { o.moshBind = "0.0.0.0" },
 	} {
 		x := o
 		change(&x)

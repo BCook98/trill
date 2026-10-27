@@ -1,8 +1,8 @@
 # Trill
 
-Trill lets you control [Xirp](https://xirp.spotify.com/) and [Herdr](https://herdr.dev/) from your iPhone. Check on a coding session, send a prompt, browse its files, or preview a local web app beside the terminal. Your sessions keep running on your Mac when you disconnect.
+Trill lets you control [Herdr](https://herdr.dev/) from your iPhone. Check on a coding session, send a prompt, browse its files, or preview a local web app beside the terminal. Your sessions keep running on your Mac when you disconnect.
 
-The native iPhone app connects to a small Go companion on your Mac. It uses a real terminal over Mosh: tmux for Xirp, and Herdr's direct client for Herdr. **Install from source** using the steps below. [Watch the demo](https://trill.bcook.io/).
+The native iPhone app connects to a small Go companion on your Mac. It uses a real terminal: Herdr’s structured terminal stream over authenticated HTTPS. **Install from source** using the steps below. [Watch the demo](https://trill.bcook.io/).
 
 <p>
   <picture>
@@ -23,7 +23,7 @@ Before you start:
 
 | Where | What you need |
 | --- | --- |
-| Mac running your sessions | Go 1.26.10 or a newer patched release, `mosh-server`, and a running Xirp or Herdr installation. Xirp also needs `tmux`. |
+| Mac running your sessions | Go 1.26.10 or a newer patched release and a running Herdr installation. |
 | Mac building the app | Xcode 27.1+ with the iOS 27.1 SDK. |
 | iPhone | iOS 18.0 or later. |
 | Connection | Both devices on a reachable LAN, or Tailscale configured on both. |
@@ -45,7 +45,7 @@ The Xcode version needed to build Trill is separate from the minimum iPhone OS. 
    ./scripts/setup-companion.sh
    ```
 
-   Xirp is the default provider. Add `--backends herdr` to that command for Herdr alone, or `--backends xirp,herdr` for both. Setup prefers an already connected Tailscale client, otherwise your LAN. [Network prerequisites](docs/SETUP.md#choose-a-network) explain both options.
+   Herdr is the only provider. Setup prefers an already connected Tailscale client, otherwise your LAN. [Network prerequisites](docs/SETUP.md#choose-a-network) explain both options.
 
 4. Type `pair` at the Mac's approval prompt. In Trill, choose **Pair a computer → Scan pairing code**, review the computer, and tap **Pair**. A simulator can [paste a pairing link](docs/SETUP.md#pair-your-iphone) instead.
 
@@ -56,18 +56,18 @@ The Xcode version needed to build Trill is separate from the minimum iPhone OS. 
    trill control --enable
    ```
 
-   Changing control restarts the owned companion and disconnects its transports; the underlying sessions keep running. Select a session in Trill, tap **Open terminal**, and approve terminal access on the phone.
+   Changing control restarts the owned companion and disconnects its transports; the underlying sessions keep running. Select a session in Trill and approve terminal access on the phone. It opens directly.
 
 ## What you can do
 
 - Switch between saved computers and browse sessions by project, activity, or attention.
-- Create coding sessions and worktrees through Xirp, or a plain shell through either provider.
+- Create Herdr spaces, Git worktrees, and terminal tabs; start coding agents inside those terminals.
 - Type directly, write and dictate a draft, or upload a photo and insert its file path.
 - Read project files, view images and videos, preview static HTML, and open a Mac-local development server beside the terminal.
 
 [Usage guide](docs/USAGE.md) · [Setup, updates, removal, and troubleshooting](docs/SETUP.md) · [Provider capabilities](docs/PROVIDERS.md)
 
-Keep your Mac awake and reachable. Trill connects directly over HTTPS and Mosh UDP, with one saved computer active at a time. It has no push service. If iOS closes the app, reopen your terminal when you return. See [connection recovery and current limits](docs/USAGE.md#backgrounding-and-recovery), including physical-device roaming checks still needed before release.
+Keep your Mac awake and reachable. Trill connects directly over HTTPS, with one saved computer active at a time. It has no push service. If iOS closes the app, reopen your terminal when you return. See [connection recovery and current limits](docs/USAGE.md#backgrounding-and-recovery), including physical-device roaming checks still needed before release.
 
 ## Find your next step
 
@@ -83,4 +83,4 @@ Keep your Mac awake and reachable. Trill connects directly over HTTPS and Mosh U
 | Understand access or report a vulnerability | [Security](SECURITY.md) |
 
 
-Independent project; not affiliated with Spotify. Trill's original code, documentation, and artwork are [MIT-licensed](LICENSE). Third-party material retains its owners' rights; see [scope and notices](docs/THIRD_PARTY.md).
+Independent companion for Herdr. Trill's original code, documentation, and artwork are [MIT-licensed](LICENSE). Third-party material retains its owners' rights; see [scope and notices](docs/THIRD_PARTY.md).
