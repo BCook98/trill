@@ -75,3 +75,36 @@ func TestInstallationRefusesForeignDirectoryAndSymlink(t *testing.T) {
 		}
 	}
 }
+
+func TestHomebrewUsesStablePathsAcrossCaskVersions(t *testing.T) {
+	prefix, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(filepath.Join(prefix, "bin"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	stable := filepath.Join(prefix, "bin", "trill")
+	for _, version := range []string{"2026.10.25,first", "2026.10.25,second"} {
+		directory := filepath.Join(prefix, "Caskroom", "trill", version)
+		if err := os.MkdirAll(directory, 0755); err != nil {
+			t.Fatal(err)
+		}
+		executable := filepath.Join(directory, "trill")
+		if err := os.WriteFile(executable, []byte("fixture"), 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(executable, stable); err != nil {
+			t.Fatal(err)
+		}
+		if HomebrewPrefix(executable) != prefix || StableCLI("/unrelated/home", executable) != stable {
+			t.Fatal("recorded a version-specific Homebrew path")
+		}
+		if err := os.Remove(stable); err != nil {
+			t.Fatal(err)
+		}
+		if HomebrewPrefix(executable) != "" {
+			t.Fatal("adopted an executable without Homebrew's stable link")
+		}
+	}
+}

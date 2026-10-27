@@ -209,6 +209,9 @@ func runWithSetupEnvironment(args []string, in io.Reader, out, errOut io.Writer,
 			if err != nil {
 				return fmt.Errorf("cannot safely resume saved configuration; no settings changed: %w", err)
 			}
+			if err := requireMatchingHomebrewInstallation(c); err != nil {
+				return err
+			}
 			if err := compatibleSetupFlags(flags, c, dir); err != nil {
 				return err
 			}
@@ -344,6 +347,9 @@ func runWithSetupEnvironment(args []string, in io.Reader, out, errOut io.Writer,
 	if err != nil {
 		return err
 	}
+	if err := requireMatchingHomebrewInstallation(c); err != nil {
+		return err
+	}
 	switch command {
 	case "tailnet-login":
 		if c.Network != "tsnet" {
@@ -466,6 +472,18 @@ func runWithSetupEnvironment(args []string, in io.Reader, out, errOut io.Writer,
 			fmt.Fprintln(out, "Renewed certificate; daemon loads it on new TLS handshakes.")
 		}
 		return nil
+	}
+	return nil
+}
+
+func requireMatchingHomebrewInstallation(config setup.Config) error {
+	executable, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	prefix := distribution.HomebrewPrefix(executable)
+	if prefix != "" && (config.CLI != filepath.Join(prefix, "bin", "trill") || config.Daemon != filepath.Join(prefix, "bin", "trilld")) {
+		return fmt.Errorf("saved configuration belongs to another installation; use %s with the same --state-dir or explicitly migrate it before using Homebrew", config.CLI)
 	}
 	return nil
 }

@@ -13,8 +13,26 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  release:
+  validation:
     if: github.repository == 'BCook98/trill' && startsWith(github.ref, 'refs/tags/v')
+    name: Reuse main validation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      actions: read
+      checks: read
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Require successful main checks for this exact commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/ci-require-main-checks.sh
+
+  release:
+    needs: validation
     runs-on: macos-15
     environment: companion-release
     timeout-minutes: 90
@@ -29,6 +47,10 @@ jobs:
         with:
           go-version: '1.26.10'
           cache-dependency-path: sidecar/go.sum
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.15'
+          check-latest: true
       - name: Check immutable tag and public signing configuration
         env:
           RELEASE_TAG: ${{ github.ref_name }}
@@ -41,11 +63,6 @@ jobs:
           if not re.fullmatch(r'[A-Z0-9]{10}', team):
               raise SystemExit('Configure the public signing team before enabling releases')
           PY
-      - name: Test companion
-        working-directory: sidecar
-        run: |
-          go test ./...
-          go vet ./...
       - name: Sign and notarize both architectures
         env:
           COMPANION_SIGNING_CERTIFICATE_BASE64: ${{ secrets.COMPANION_SIGNING_CERTIFICATE_BASE64 }}
@@ -81,5 +98,5 @@ jobs:
         run: |
           set -euo pipefail
           test -f .build/companion-release/manifest.json
-          gh release create "$RELEASE_TAG" --verify-tag --draft --title "Trill ${RELEASE_TAG#v}" --notes 'Shared iOS and Mac companion release tag. Signed and notarized companion downloads are attached here; iOS distribution runs through Xcode Cloud/TestFlight. Download install-companion.sh, inspect it, then run it with this exact release tag. Existing signed installations can use trill update.' .build/companion-release/*.zip .build/companion-release/manifest.json .build/companion-release/install-companion.sh
+          gh release create "$RELEASE_TAG" --verify-tag --draft --title "Trill ${RELEASE_TAG#v}" --notes 'Shared iOS and Mac companion release tag. Signed and notarized companion downloads are attached here; iOS distribution runs through Xcode Cloud/TestFlight. Download install-companion.sh, inspect it, then run it with this exact release tag. Existing signed installations can use trill update. The attached trill.rb is the checksummed Homebrew cask for this release.' .build/companion-release/*.zip .build/companion-release/manifest.json .build/companion-release/install-companion.sh .build/companion-release/trill.rb
           gh release edit "$RELEASE_TAG" --draft=false --latest=false

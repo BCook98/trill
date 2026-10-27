@@ -54,6 +54,53 @@ def notarize(archive):
         raise ValueError('Apple did not accept notarization; inspect the submission with notarytool log before retrying')
 
 
+def render_homebrew_cask(manifest):
+    version, commit, build_number = (manifest[key] for key in ('version', 'commit', 'build'))
+    tag = manifest['tag']
+    if (not VERSION_PATTERN.fullmatch(version) or not re.fullmatch(r'[0-9a-f]{40}', commit)
+            or tag != f'v{version}-build.{commit[:12]}' or not re.fullmatch(r'[1-9][0-9]{0,8}', build_number)):
+        raise ValueError('Invalid release identity for Homebrew cask')
+    for architecture in ('arm64', 'amd64'):
+        artifact = manifest['artifacts'][architecture]
+        if (artifact['name'] != f'trill-companion-{version}-darwin-{architecture}.zip'
+                or not re.fullmatch(r'[0-9a-f]{64}', artifact['sha256'])):
+            raise ValueError('Invalid release artifact for Homebrew cask')
+    return f'''cask "trill" do
+  arch arm: "arm64", intel: "amd64"
+
+  version "{version},{build_number}"
+  sha256 arm:   "{manifest['artifacts']['arm64']['sha256']}",
+         intel: "{manifest['artifacts']['amd64']['sha256']}"
+
+  url "https://github.com/BCook98/trill/releases/download/{tag}/trill-companion-#{{version.csv.first}}-darwin-#{{arch}}.zip"
+  name "Trill Companion"
+  desc "Secure access to terminal sessions from your phone"
+  homepage "https://trill.bcook.io/"
+
+  livecheck do
+    skip "Updated from the signed release manifest"
+  end
+
+  depends_on macos: :monterey
+
+  binary "trill"
+  binary "trilld"
+
+  caveats <<~EOS
+    Run trill setup to configure this Mac and pair your iPhone.
+    Use trill doctor to check the installation.
+
+    After upgrading, run trill stop and trill start with your usual --state-dir
+    to load the new daemon. This disconnects phone terminals; provider sessions
+    and paired devices are preserved.
+
+    Before removing this cask, run trill uninstall with your usual --state-dir
+    to remove its owned LaunchAgents. Configuration and pairings are retained.
+  EOS
+end
+'''
+
+
 def build(output, unsigned=False):
     version, commit, team = configuration(unsigned)
     tag = f'v{version}-build.{commit[:12]}'
@@ -83,7 +130,7 @@ def build(output, unsigned=False):
                 requirement = (f'anchor apple generic and certificate 1[field.1.2.840.113635.100.6.2.6] exists '
                                f'and certificate leaf[field.1.2.840.113635.100.6.1.13] exists '
                                f'and certificate leaf[subject.OU] = "{team}" and identifier "{identifier}"')
-                run(['codesign', '--verify', '--strict', '--all-architectures', '--test-requirement', requirement, str(path)])
+                run(['codesign', '--verify', '--strict', '--all-architectures', '--test-requirement', '=' + requirement, str(path)])
         shutil.copy2(binaries / 'trill', binaries / 'trillctl')
         name = f'trill-companion-{version}-darwin-{architecture}.zip'
         archive = output / name
@@ -108,6 +155,7 @@ def build(output, unsigned=False):
         (output / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
         installer = (ROOT / 'scripts/install-companion.sh').read_text().replace('UNCONFIGURED_SIGNING_TEAM', team)
         (output / 'install-companion.sh').write_text(installer)
+        (output / 'trill.rb').write_text(render_homebrew_cask(manifest))
     print(f'Built {"UNSIGNED development fixtures" if unsigned else "signed and notarized release"}: {output}')
 
 

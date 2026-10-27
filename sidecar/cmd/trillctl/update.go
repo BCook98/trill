@@ -42,6 +42,14 @@ func update(args []string, output, errorOutput io.Writer, home string) error {
 	if runtime.GOOS != "darwin" {
 		return errors.New("companion updates require macOS")
 	}
+	executable, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	if distribution.HomebrewPrefix(executable) != "" {
+		_, err := fmt.Fprintln(output, "Homebrew manages this installation. Run: brew upgrade --cask bcook98/tap/trill")
+		return err
+	}
 	if _, err := distribution.SigningTeam(); err != nil {
 		return err
 	}

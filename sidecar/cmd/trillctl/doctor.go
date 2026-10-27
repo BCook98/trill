@@ -48,6 +48,11 @@ func doctor(args []string, output, errorOutput io.Writer, home string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	findings := []doctorFinding{{"version", "ok", fmt.Sprintf("%s (%s), %s/%s", buildinfo.Current().Version, buildinfo.Current().Commit, buildinfo.Current().OS, buildinfo.Current().Architecture), ""}}
+	homebrewInstallation := false
+	if executable, err := os.Executable(); err == nil && distribution.HomebrewPrefix(executable) != "" {
+		homebrewInstallation = true
+		findings = append(findings, doctorFinding{"installation", "ok", "Managed by Homebrew; update with brew upgrade --cask bcook98/tap/trill", ""})
+	}
 	add := func(check string, failure error, detail, remedy string) {
 		if failure != nil {
 			findings = append(findings, doctorFinding{check, "fail", failure.Error(), remedy})
@@ -67,6 +72,7 @@ func doctor(args []string, output, errorOutput io.Writer, home string) error {
 	c, configErr := setup.LoadConfig(absoluteStateDir)
 	add("configuration", configErr, "Private configuration and permissions are valid", "Run trill setup with the intended --state-dir; preserve existing state.")
 	if configErr == nil {
+		add("installation-ownership", requireMatchingHomebrewInstallation(c), "Configuration matches this installation", "Use the CLI recorded in the saved configuration or explicitly migrate before using Homebrew.")
 		expiry, certificateErr := setup.NewCertificates().Check(c)
 		add("certificate", certificateErr, "Certificate identity, hostname and expiry are valid", "Run trill status, then trill renew for a managed Tailscale certificate; preserve LAN identity.")
 		if certificateErr == nil && time.Until(expiry) < 7*24*time.Hour {
@@ -89,7 +95,11 @@ func doctor(args []string, output, errorOutput io.Writer, home string) error {
 		if runningErr == nil && (version != buildinfo.Current().Version || commit != buildinfo.Current().Commit) {
 			runningErr = errors.New("running daemon differs from this CLI build")
 		}
-		add("running-version", runningErr, "Running daemon and CLI versions match", "Use trill update for a signed installation; source builds may need an owned service stop/start after rebuilding.")
+		versionRemedy := "Use trill update for a signed installation; source builds may need an owned service stop/start after rebuilding."
+		if homebrewInstallation {
+			versionRemedy = "Run brew upgrade --cask bcook98/tap/trill, then trill stop and trill start with the same --state-dir to load the new daemon."
+		}
+		add("running-version", runningErr, "Running daemon and CLI versions match", versionRemedy)
 		if _, err := os.Lstat(filepath.Join(absoluteStateDir, ".binary-update.json")); err == nil {
 			add("update-recovery", errors.New("a binary update was interrupted"), "", "Run trill update with the same --state-dir to restore the previous release and services.")
 		}

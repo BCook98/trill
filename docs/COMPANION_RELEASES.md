@@ -17,6 +17,13 @@ trill update --tag v2026.10.25-build.0123456789ab
 
 `version` prints companion version, source commit, OS and architecture as JSON. Source builds identify as `dev`. `trilld --version` reports the daemon's identity without starting it.
 
+Homebrew packaging is prepared in [packaging/homebrew](../packaging/homebrew/README.md).
+Once its tap is published, `brew install --cask bcook98/tap/trill` installs the
+checksummed signed assets. Install and run Herdr separately. Homebrew installations
+use stable prefix paths and delegate `trill update` to `brew upgrade`; the standalone
+updater never rewrites Homebrew-owned binaries. Existing source/standalone
+configurations require an explicit migration before Homebrew setup can use them.
+
 `doctor` is read-only and returns exit code 1 for failed checks, 0 when there are no failures (warnings alone do not fail). It checks private configuration permissions, executable availability, signatures/notarization for configured distributions, both owned LaunchAgents, TLS identity/expiry, local HTTPS, running daemon versus CLI build, pending update recovery, and Herdr executable on the saved service PATH. `--state-dir` selects an existing configuration. It never creates a pairing credential, repairs services, executes provider commands, or changes settings. Phone HTTPS reachability and Herdr authentication still need a phone-side check.
 
 `update --check` reads official stable companion release metadata over HTTPS without changing files or services. It uses the shared release tags and ignores draft/prerelease releases. Normal updates reject older versions/builds and development/source builds. Repeated releases of the same marketing version are ordered by the full main-history commit count, embedded in signed binaries and the manifest; it is independent of Xcode Cloud’s build number. A check is advisory: payload signatures are verified during installation, not by the metadata-only check.
@@ -71,7 +78,7 @@ The standalone installer contains the expected public team ID. It downloads only
 
 3. Validate the first release manually before enabling general distribution. From a clean tested main commit, use `python3 scripts/release.py plan` and publish its exact `vVERSION-build.COMMIT12` tag once for both platforms. Never move a released tag or replace published assets. The separate [workflow](../.github/workflows/companion-release.yml) runs on those tags, or manually when the same shared tag is selected. It checks the shared version, commit suffix and main ancestry. It cannot publish from a branch or a fork. No release is triggered by this feature branch alone.
 
-The workflow tests Go, imports the certificate into a temporary Keychain, builds both architectures, signs with timestamp and hardened runtime, notarizes both archives, and confirms the tickets are available. Only then does it produce a publishable manifest and installer. It creates a draft GitHub release containing the full set, then publishes it under the same shared tag used by Xcode Cloud. Existing releases are not overwritten. A failed publish may leave a draft for inspection; inspect it before retrying. Signing files and the temporary Keychain are removed on exit.
+The workflow requires a successful main `Checks` run for the exact tagged commit, then imports the certificate into a temporary Keychain, builds both architectures, signs with timestamp and hardened runtime, notarizes both archives, and confirms the tickets are available. Only then does it produce a publishable manifest and installer. It creates a draft GitHub release containing the full set, then publishes it under the same shared tag used by Xcode Cloud. Existing releases are not overwritten. A failed publish may leave a draft for inspection; inspect it before retrying. Signing files and the temporary Keychain are removed on exit. Validation runs once on main; a lightweight Linux gate waits for that run instead of repeating Go tests/vet. The macOS signing runner starts only after the gate succeeds. A missing, failed or cancelled check run blocks signing. Rerun the original main check run and the release job to retry a cancelled validation.
 
 For a local signed build, use the same builder with an existing Keychain identity and either `COMPANION_NOTARY_PROFILE` or the three key-file variables (`COMPANION_NOTARY_KEY_PATH`, `COMPANION_NOTARY_KEY_ID`, `COMPANION_NOTARY_ISSUER_ID`):
 
