@@ -7,7 +7,7 @@ Run commands from the repository root unless a command changes directory. This g
 | Area | Requirement | Dependency source |
 | --- | --- | --- |
 | Companion | Go 1.26.10 module minimum; CI pins Go 1.26.10 on Linux and macOS and checks reachable vulnerabilities | `sidecar/go.mod` and `sidecar/go.sum` |
-| Python tools | Python 3.12+ recommended; CI checks 3.12 and 3.14 | Standard library only; no pip install required |
+| Python tools | Python 3.15.2 or a newer patched release recommended; CI uses the latest 3.15 patch | Standard library only; no pip install required |
 | Website checks | Node.js 22+; Node.js 24 LTS is used in CI, npm with lockfile v3 support | `website/package.json` and `website/package-lock.json` |
 | Project generation | Ruby 3.3+ recommended, Bundler 4.0.11, xcodeproj 1.28.1 | Root `Gemfile` and `Gemfile.lock` |
 | Native build/test | macOS, Xcode with iOS **SDK 27.1 or later**, compatible simulator runtime | Select with `DEVELOPER_DIR` or `xcode-select` |
@@ -25,7 +25,7 @@ xcrun --sdk iphonesimulator --show-sdk-version
 xcodebuild -version
 ```
 
-GitHub Actions runs Go, Python tooling, and website browser checks on `main` in [checks.yml](../.github/workflows/checks.yml). Native tests run separately in Xcode Cloud, pinned to Xcode 27.1 with iPhone Duo on iOS 27.1 and iPhone 17 Pro on iOS 27.0. Cloud rejected the iPhone 17 Pro/iOS 27.1 pairing even though its API advertised it; verify actual completed runs before claiming device coverage. Pull requests do not trigger either service. The local native test command below remains available for contributors.
+GitHub Actions runs Go tests on Linux and macOS, one Linux static/vulnerability analysis, Python tooling on 3.15, and website browser checks on `main` in [checks.yml](../.github/workflows/checks.yml). Native tests run separately in Xcode Cloud, pinned to Xcode 27.1 with iPhone Duo on iOS 27.1 and iPhone 17 Pro on iOS 27.0. Cloud rejected the iPhone 17 Pro/iOS 27.1 pairing even though its API advertised it; verify actual completed runs before claiming device coverage. The companion release workflow reuses the successful `Checks` run for its exact source commit instead of repeating those tests. Pull requests do not trigger either service. The local native test command below remains available for contributors.
 
 ## Clean-clone checks
 

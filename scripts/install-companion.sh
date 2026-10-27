@@ -36,7 +36,7 @@ archive_url="https://github.com/BCook98/trill/releases/download/${release_tag}/t
   /usr/bin/unzip -P '' -p "$staging_directory/release.zip" trill > "$staging_directory/trill"
 )
 requirement="anchor apple generic and certificate 1[field.1.2.840.113635.100.6.2.6] exists and certificate leaf[field.1.2.840.113635.100.6.1.13] exists and certificate leaf[subject.OU] = \"$expected_signing_team\" and identifier \"io.bcook.trill.cli\""
-/usr/bin/codesign --verify --strict --all-architectures --test-requirement "$requirement" "$staging_directory/trill"
+/usr/bin/codesign --verify --strict --all-architectures --test-requirement "=$requirement" "$staging_directory/trill"
 /usr/bin/codesign --verify --check-notarization "$staging_directory/trill"
 chmod 700 "$staging_directory/trill"
 "$staging_directory/trill" update --install --tag "$release_tag"

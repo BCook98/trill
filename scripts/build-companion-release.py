@@ -83,7 +83,7 @@ def build(output, unsigned=False):
                 requirement = (f'anchor apple generic and certificate 1[field.1.2.840.113635.100.6.2.6] exists '
                                f'and certificate leaf[field.1.2.840.113635.100.6.1.13] exists '
                                f'and certificate leaf[subject.OU] = "{team}" and identifier "{identifier}"')
-                run(['codesign', '--verify', '--strict', '--all-architectures', '--test-requirement', requirement, str(path)])
+                run(['codesign', '--verify', '--strict', '--all-architectures', '--test-requirement', '=' + requirement, str(path)])
         shutil.copy2(binaries / 'trill', binaries / 'trillctl')
         name = f'trill-companion-{version}-darwin-{architecture}.zip'
         archive = output / name

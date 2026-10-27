@@ -33,13 +33,19 @@ func VerifyExecutable(ctx context.Context, path, identifier string) error {
 		return errors.New("signature verification requires macOS")
 	}
 	requirement := fmt.Sprintf(`anchor apple generic and certificate 1[field.1.2.840.113635.100.6.2.6] exists and certificate leaf[field.1.2.840.113635.100.6.1.13] exists and certificate leaf[subject.OU] = "%s" and identifier "%s"`, team, identifier)
-	if err := exec.CommandContext(ctx, "/usr/bin/codesign", "--verify", "--strict", "--all-architectures", "--test-requirement", requirement, path).Run(); err != nil {
+	if err := verifyRequirement(ctx, path, requirement); err != nil {
 		return fmt.Errorf("%s: expected Developer ID signature from team %s (%s)", path, team, identifier)
 	}
 	if err := exec.CommandContext(ctx, "/usr/bin/codesign", "--verify", "--check-notarization", path).Run(); err != nil {
 		return fmt.Errorf("%s: Apple notarization could not be verified; internet access and an accepted notarization ticket are required", path)
 	}
 	return nil
+}
+
+func verifyRequirement(ctx context.Context, path, requirement string) error {
+	// codesign treats bare requirement arguments as filenames. '=' selects
+	// literal source; keep it inside the argument, not just shell assignment.
+	return exec.CommandContext(ctx, "/usr/bin/codesign", "--verify", "--strict", "--all-architectures", "--test-requirement", "="+requirement, path).Run()
 }
 
 const CLIIdentifier = "io.bcook.trill.cli"

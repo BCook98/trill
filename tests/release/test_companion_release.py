@@ -17,6 +17,8 @@ class CompanionReleaseTests(unittest.TestCase):
     def fake_build_command(self, arguments, **kwargs):
         if arguments[:2] == ['go', 'build']:
             Path(arguments[arguments.index('-o') + 1]).write_text('binary fixture')
+        if arguments[0] == 'codesign' and '--test-requirement' in arguments:
+            self.assertTrue(arguments[arguments.index('--test-requirement') + 1].startswith('=anchor apple generic'))
         return subprocess.CompletedProcess(arguments, 0, stdout='{"status":"Accepted"}')
 
     def test_unsigned_fixture_cannot_look_like_a_publishable_release(self):
@@ -67,6 +69,7 @@ class CompanionReleaseTests(unittest.TestCase):
             installer = (output / 'install-companion.sh').read_text()
             self.assertIn('expected_signing_team="ABCDEFGHIJ"', installer)
             self.assertNotIn('UNCONFIGURED_SIGNING_TEAM', installer)
+            self.assertIn('--test-requirement "=$requirement"', installer)
 
     def test_missing_public_team_fails_before_signing(self):
         with tempfile.TemporaryDirectory() as temporary:
