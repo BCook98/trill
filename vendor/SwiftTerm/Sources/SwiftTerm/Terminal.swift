@@ -10052,3 +10052,50 @@ public extension TerminalDelegate {
     func createImage (source: Terminal, data: TerminalData, width: ImageSizeRequest, height: ImageSizeRequest, preserveAspectRatio: Bool) {
     }    
 }
+
+#if !SWIFTTERM_EMBEDDED
+extension Terminal {
+    /// Copies the visible VT screen and the modes needed to interpret a later
+    /// screen diff. Intended for grid-based state synchronization, not a full
+    /// application/session snapshot. Acquires the terminal lock.
+    public func screenState() -> TerminalScreenState {
+        terminalLock.withLock {
+            let content = contentSnapshotLocked(region: .history(maximumScrollbackRows: 0), buffer: .active)
+            func mode(_ number: Int, _ enabled: Bool) -> String { "\u{1b}[?\(number)\(enabled ? "h" : "l")" }
+            var state = "\u{1b}[\(buffer.scrollTop + 1);\(buffer.scrollBottom + 1)r"
+            state += mode(6, originMode)
+            let cursorRow = originMode ? buffer.y - buffer.scrollTop : buffer.y
+            state += "\u{1b}[\(cursorRow + 1);\(min(buffer.x, cols - 1) + 1)H"
+            // A cursor one past the last column represents deferred autowrap.
+            if buffer.x >= cols, content.rows.indices.contains(buffer.y),
+               let column = content.rows[buffer.y].cells.indices.last(where: { content.rows[buffer.y].cells[$0].width > 0 }) {
+                let cell = content.rows[buffer.y].cells[column]
+                state += "\u{1b}[\(cursorRow + 1);\(column + 1)H"
+                state += cell.attribute.screenStateSGR + (cell.text.isEmpty || cell.text == "\u{0}" ? " " : cell.text)
+            }
+            state += curAttr.screenStateSGR
+            state += mode(7, wraparound) + mode(5, reverseColors) + mode(25, !cursorHidden)
+            state += "\u{1b}[\(insertMode ? "4h" : "4l")"
+            var inputModes = mode(1, applicationCursor) + (applicationKeypad ? "\u{1b}=" : "\u{1b}>")
+            inputModes += "\u{1b}[?9l\u{1b}[?1000l\u{1b}[?1002l\u{1b}[?1003l"
+            switch mouseMode {
+            case .off: break
+            case .x10: inputModes += mode(9, true)
+            case .vt200: inputModes += mode(1000, true)
+            case .buttonEventTracking: inputModes += mode(1002, true)
+            case .anyEvent: inputModes += mode(1003, true)
+            }
+            inputModes += "\u{1b}[?1005l\u{1b}[?1006l\u{1b}[?1015l\u{1b}[?1016l"
+            switch mouseProtocol {
+            case .x10: break
+            case .utf8: inputModes += mode(1005, true)
+            case .sgr: inputModes += mode(1006, true)
+            case .urxvt: inputModes += mode(1015, true)
+            case .sgrPixel: inputModes += mode(1016, true)
+            }
+            inputModes += mode(1004, sendFocus) + mode(2004, bracketedPasteMode) + mode(1007, alternateScrollMode)
+            return TerminalScreenState(content: content, parserState: state, inputModes: inputModes)
+        }
+    }
+}
+#endif

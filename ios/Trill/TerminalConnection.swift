@@ -610,13 +610,17 @@ final class TerminalConnection: NSObject, TerminalViewDelegate {
     }
     private func consumeHostOps(_ ops: [MoshHostOp], from session: any TerminalTransport) {
         guard client === session else { return }
+        var output: [UInt8] = []
         if !ops.isEmpty, !receivedHostOp {
-            terminal.feed(text: "\u{1b}c")
+            output.append(contentsOf: "\u{1b}c".utf8)
             receivedHostOp = true
         }
         for op in ops {
-            if case .hostBytes(let bytes) = op { terminal.feed(byteArray: Array(bytes)[...]) }
+            if case .hostBytes(let bytes) = op { output.append(contentsOf: bytes) }
         }
+        // A state repair must be parsed with its host update before a renderer
+        // can sample the viewport, rather than exposing an intermediate screen.
+        if !output.isEmpty { terminal.feed(byteArray: output[...]) }
     }
 
     func key(_ text: String) {

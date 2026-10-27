@@ -16,6 +16,7 @@ let package = Package(
         .library(name: "MoshCompression", targets: ["MoshCompression"]),
         .library(name: "MoshBootstrap", targets: ["MoshBootstrap"])
     ],
+    dependencies: [.package(path: "../SwiftTerm")],
     targets: [
         .target(name: "MoshWire"),
         .target(name: "MoshProtoLite"),
@@ -33,7 +34,8 @@ let package = Package(
                 "MoshTransport",
                 "MoshProtoLite",
                 "MoshCryptoOCB",
-                "MoshCompression"
+                "MoshCompression",
+                .product(name: "SwiftTerm", package: "SwiftTerm")
             ]
         ),
         .testTarget(

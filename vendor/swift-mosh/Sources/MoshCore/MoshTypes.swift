@@ -103,6 +103,7 @@ struct SessionStateBlob: Sendable, Codable, Hashable {
     var pendingOutbound: [PendingOutboundSnapshot]
     var lastAckReportedNum: UInt64
     var appliedRemoteStateNums: Set<UInt64>
+    var remoteScreens: [UInt64: MoshRemoteScreen]
 
     init(
         config: MoshClientConfig,
@@ -112,7 +113,8 @@ struct SessionStateBlob: Sendable, Codable, Hashable {
         latestReceivedStateNum: UInt64,
         pendingOutbound: [PendingOutboundSnapshot],
         lastAckReportedNum: UInt64,
-        appliedRemoteStateNums: Set<UInt64>
+        appliedRemoteStateNums: Set<UInt64>,
+        remoteScreens: [UInt64: MoshRemoteScreen] = [0: .initial]
     ) {
         self.config = config
         self.transport = transport
@@ -122,6 +124,7 @@ struct SessionStateBlob: Sendable, Codable, Hashable {
         self.pendingOutbound = pendingOutbound
         self.lastAckReportedNum = lastAckReportedNum
         self.appliedRemoteStateNums = appliedRemoteStateNums
+        self.remoteScreens = remoteScreens
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -133,6 +136,7 @@ struct SessionStateBlob: Sendable, Codable, Hashable {
         case pendingOutbound
         case lastAckReportedNum
         case appliedRemoteStateNums
+        case remoteScreens
     }
 
     init(from decoder: Decoder) throws {
@@ -160,6 +164,7 @@ struct SessionStateBlob: Sendable, Codable, Hashable {
             Set<UInt64>.self,
             forKey: .appliedRemoteStateNums
         ) ?? []
+        remoteScreens = try container.decodeIfPresent([UInt64: MoshRemoteScreen].self, forKey: .remoteScreens) ?? [0: .initial]
     }
 }
 
