@@ -18,6 +18,11 @@ final class AppStore {
     private var drafts: [UUID: [String: String]] = [:]
     private var selections: [UUID: String] = [:]
     var sessionBrowserMode: SessionBrowserMode = .sessions
+    // Presentation intent lives with the app, beyond adaptive SwiftUI rebuilds.
+    var sessionColumnVisibility = NavigationSplitViewVisibility.all
+    var workspacePresented = false
+    var workspaceTab = WorkspaceTab.files
+    var workspacePreviewAddress: String?
     var sessions: [RemoteSession] = []
     var projects: [Project] = []
     var providerWarnings: [String] = []
@@ -33,6 +38,7 @@ final class AppStore {
         guard let caps = session.capabilities else { return false }
         switch action {
         case "rename": return caps.rename
+        case "close": return caps.closeTerminal == true
         default: return false
         }
     }
@@ -368,19 +374,42 @@ final class AppStore {
     }
     func confirm(_ prompt: SessionPrompt, name: String) async {
         guard canConfirm(prompt), let latest = sessions.first(where: { $0.id == prompt.sessionID }) else { return }
-        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-        await rename(latest, name: trimmed)
+        if prompt.action == .close {
+            await closeSession(latest)
+        } else {
+            let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return }
+            await rename(latest, name: trimmed)
+        }
     }
 
+    func closeSession(_ session: RemoteSession) async {
+        guard supports("close", session: session), let api, !busy, !readOnly, !changingComputer else { return }
+        let generation = refreshGeneration
+        busy = true; defer { busy = false }
+        do {
+            try await api.closeSession(id: session.id)
+            guard generation == refreshGeneration else { return }
+            await connections[session.id]?.disconnect()
+            workspaces[session.id]?.close()
+            workspaces.removeValue(forKey: session.id)
+            connections.removeValue(forKey: session.id)
+            if selectedID == session.id { selectedID = nil }
+            if let refreshTask { _ = await refreshTask.value }
+            if !(await refresh()), generation == refreshGeneration { actionError = "The terminal closed, but Trill couldn’t refresh Spaces. " + (error ?? "Check your connection.") }
+        } catch {
+            guard generation == refreshGeneration else { return }
+            actionError = "Couldn’t close “\(session.name)”. " + error.localizedDescription
+        }
+    }
     func canCreateTerminal(projectID: String) -> Bool {
         projects.contains { $0.id == projectID && $0.capabilities?.createTerminal == true }
     }
-    func createTerminal(projectID: String) async throws {
+    func createTerminal(projectID: String, directory: String = "") async throws {
         guard canCreateTerminal(projectID: projectID) else { throw SessionCreationPreflightError.unsupportedProject }
         guard let api, !busy, !readOnly, !changingComputer else { throw SessionCreationPreflightError.unavailable }
         busy = true; defer { busy = false }
-        try await api.createTerminal(projectID: projectID)
+        try await api.createTerminal(projectID: projectID, directory: directory)
         if let refreshTask { _ = await refreshTask.value }
         await refresh()
     }

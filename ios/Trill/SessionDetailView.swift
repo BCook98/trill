@@ -38,7 +38,7 @@ struct SessionDetailView: View {
         VStack(spacing: 0) {
             if connection.isOpen || isFailed {
                 TerminalInteractionRegion(tabletop: $tabletop) {
-                    ZStack(alignment: .top) {
+                    ZStack(alignment: .center) {
                         TerminalSurface(connection: connection)
                             .background(.black)
                         if connection.phase == .connecting || connection.phase == .reconnecting {
@@ -224,6 +224,8 @@ struct SessionDetailView: View {
         Divider()
         Button("Session details", systemImage: "info.circle") { showInfo = true }
         Button("Rename", systemImage: "pencil") { store.requestSessionPrompt(.rename, sessionID: session.id) }.disabled(store.readOnly || !store.supports("rename", session: session))
+        Button("Close terminal…", systemImage: "xmark", role: .destructive) { store.requestSessionPrompt(.close, sessionID: session.id) }
+            .disabled(store.readOnly || !store.supports("close", session: session))
         ControlGroup {
             Button("Smaller text", systemImage: "textformat.size.smaller") { fontSize = max(10, fontSize - 1) }
             Button("Larger text", systemImage: "textformat.size.larger") { fontSize = min(28, fontSize + 1) }
@@ -289,7 +291,7 @@ struct TerminalKeys<Actions: View>: View {
                     }.accessibilityHint("Send Return to the terminal").accessibilityIdentifier("terminal-return").accessibilityShowsLargeContentViewer()
                     Divider().frame(height: 20).padding(.horizontal, 4)
                     key("esc", name: "Escape", sequence: "\u{1b}")
-                    key("tab", name: "Tab", sequence: "\t")
+                    key("tab", name: "Tab", sequence: "\t", repeats: true)
                     Button { connection.controlHeld.toggle() } label: {
                         Text("ctrl").font(.system(size: 17, weight: .medium, design: .monospaced)).frame(minWidth: 48, minHeight: 44)
                             .background(connection.controlHeld ? Color.accentColor.opacity(0.2) : Color.clear, in: RoundedRectangle(cornerRadius: 8))
@@ -308,20 +310,21 @@ struct TerminalKeys<Actions: View>: View {
                         .accessibilityHint("Applies to the next terminal key, including Return and Tab. Tap again to turn off.")
                         .accessibilityIdentifier("terminal-shift").accessibilityShowsLargeContentViewer()
                     Divider().frame(height: 20).padding(.horizontal, 4)
-                    arrow("arrow.up", name: "Up arrow", sequence: "\u{1b}[A")
-                    arrow("arrow.down", name: "Down arrow", sequence: "\u{1b}[B")
-                    arrow("arrow.left", name: "Left arrow", sequence: "\u{1b}[D")
-                    arrow("arrow.right", name: "Right arrow", sequence: "\u{1b}[C")
+                    repeatingKey("delete.left", name: "Backspace", sequence: "\u{7f}")
+                    repeatingKey("arrow.up", name: "Up arrow", sequence: "\u{1b}[A")
+                    repeatingKey("arrow.down", name: "Down arrow", sequence: "\u{1b}[B")
+                    repeatingKey("arrow.left", name: "Left arrow", sequence: "\u{1b}[D")
+                    repeatingKey("arrow.right", name: "Right arrow", sequence: "\u{1b}[C")
                     key("^C", name: "Interrupt, Control C", sequence: "\u{03}")
                 }.disabled(!connection.connected)
             }.padding(.horizontal, 8).padding(.vertical, 3)
         }.scrollIndicators(.hidden).background(.bar)
     }
-    func key(_ title: String, name: String, sequence: String) -> some View {
-        Button { connection.key(sequence) } label: { Text(title).font(.system(size: 17, weight: .medium, design: .monospaced)).frame(minWidth: 48, minHeight: 44) }.accessibilityLabel(name).accessibilityShowsLargeContentViewer { Label(name, systemImage: "keyboard") }
+    func key(_ title: String, name: String, sequence: String, repeats: Bool = false) -> some View {
+        Button { connection.key(sequence) } label: { Text(title).font(.system(size: 17, weight: .medium, design: .monospaced)).frame(minWidth: 48, minHeight: 44) }.buttonRepeatBehavior(repeats ? .enabled : .disabled).accessibilityLabel(name).accessibilityShowsLargeContentViewer { Label(name, systemImage: "keyboard") }
     }
-    func arrow(_ symbol: String, name: String, sequence: String) -> some View {
-        Button { connection.key(sequence) } label: { Image(systemName: symbol).font(.system(size: 17, weight: .medium)).frame(minWidth: 44, minHeight: 44) }.accessibilityLabel(name).accessibilityShowsLargeContentViewer { Label(name, systemImage: "keyboard") }
+    func repeatingKey(_ symbol: String, name: String, sequence: String) -> some View {
+        Button { connection.key(sequence) } label: { Image(systemName: symbol).font(.system(size: 17, weight: .medium)).frame(minWidth: 44, minHeight: 44) }.buttonRepeatBehavior(.enabled).accessibilityLabel(name).accessibilityIdentifier("terminal-" + symbol.replacingOccurrences(of: ".", with: "-")).accessibilityShowsLargeContentViewer { Label(name, systemImage: "keyboard") }
     }
 }
 

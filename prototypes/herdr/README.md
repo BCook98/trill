@@ -9,7 +9,7 @@ swift build --package-path tools/TransportProbe --product HerdrTransportProbe
 python3 prototypes/herdr/through-sidecar.py --herdr /absolute/path/herdr
 ```
 
-The Swift client renders frames using SwiftTerm and verifies input, exact resize, explicit history scroll, OSC 8 targets and shell state across three attachments. The Python harness checks real socket event invalidation and terminal survival after release. The probe refuses non-lab sessions. Only its own server and children are stopped, and its private diagnostic directory is reported on completion.
+The Swift client renders frames using SwiftTerm and verifies input, exact resize, explicit history scroll, OSC 8 targets and shell state across three attachments. The Python harness checks real socket event invalidation and terminal survival after release, then creates a native tab in an owned folder containing spaces and shell syntax, confirms its cwd through the file API, and closes exactly that tab. The probe refuses non-lab sessions. Only its own server and children are stopped, and its private diagnostic directory is reported on completion.
 
 The loopback probe permits explicit HTTP development transport. Production and phone builds use authenticated HTTPS/WSS. This is not evidence of physical-device roaming, battery behavior or loss recovery.
 

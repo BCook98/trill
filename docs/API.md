@@ -10,14 +10,18 @@ All endpoints use HTTPS and bearer authentication except `POST /v1/pair`. The co
 | `GET /v1/projects` | `{projects,providers}`; Herdr spaces and linked worktrees |
 | `GET /v1/sessions` | `{sessions,providers}`; current Herdr terminal metadata |
 | `GET /v1/changes` | Bounded long poll returning `{changed}` after a native event or timeout |
+| `GET /v1/folders?path=` | Browse folder names on the Mac; defaults to the home directory |
+| `DELETE /v1/sessions/{id}` | Close the current native pane and its running program, confirmed by readback |
 | `PATCH /v1/sessions/{id}` | `{name}`; rename the current native pane label |
-| `POST /v1/sessions` | `{projectId,kind:"terminal",useWorktree:false}`; create a terminal tab |
+| `POST /v1/sessions` | `{projectId,kind:"terminal",useWorktree:false,directory?}`; create a terminal tab in an optional existing Mac folder |
 | `POST /v1/sessions` | `{projectId,kind:"worktree",useWorktree:true,branch,name?}`; native linked worktree |
 | `POST /v1/spaces` | `{providerId,name,directory}`; space in an existing absolute directory |
 
-Per-item capabilities include `terminalStream`, `rename`, `createTerminal`, `worktree`, and `files`. Provider records carry `id`, `name`, `available`, optional `message`, and `createSpace`. The client does not infer support when capabilities are absent. Unavailable named servers do not hide healthy ones; all unavailable is an error.
+Per-item capabilities include `terminalStream`, `rename`, `closeTerminal`, `createTerminal`, `worktree`, and `files`. Provider records carry `id`, `name`, `available`, optional `message`, and `createSpace`. The client does not infer support when capabilities are absent. Unavailable named servers do not hide healthy ones; all unavailable is an error.
 
 Session identities bind the pinned configuration home, named server and stable terminal ID. `done` is a live idle terminal. Native mutations are issued once then checked by metadata readback. HTTP 409 with an unconfirmed-outcome message requires inspection before a manual retry. No generic Herdr API or remote command proxy is exposed.
+
+Folder browsing requires control and returns directory names and paths only, using bounded listings. Paths must be canonical absolute paths. Demo and lab browsing/creation stay confined to their owned fixture roots. The optional terminal `directory` is validated before any mutation and passed as one literal `--cwd` argument. Space defaults remain in use when omitted. Closure resolves the stable terminal’s current pane, sends one native close and confirms that exact terminal disappeared; an uncertain result never triggers an automatic retry.
 
 ## Terminal stream
 

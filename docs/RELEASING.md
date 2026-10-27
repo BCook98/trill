@@ -70,7 +70,7 @@ To create the app record through Xcode, open **Reports → Cloud**, Control-clic
 
 ## Encryption answers and upload validation
 
-Use the actual result of Apple’s encryption questionnaire. `ITSAppUsesNonExemptEncryption` describes whether documentation is required, not whether the app encrypts data at all. The owner’s initial internal-beta answers were standard third-party AES-128/OCB, no proprietary cryptography, and no French App Store distribution. Apple returned “No documentation required,” so the app sets the key to NO. Review this decision again if cryptography or distribution changes; French store availability has not been cleared by this beta workflow. Applicable government reporting obligations require separate review.
+Use the actual result of Apple’s encryption questionnaire. `ITSAppUsesNonExemptEncryption` describes whether documentation is required, not whether the app encrypts data at all. The owner’s initial internal-beta answers were standard third-party AES-128/OCB, no proprietary cryptography, and no French App Store distribution. The current Herdr-only iOS client uses system HTTPS/WSS; the former transport’s AES/OCB code was removed. Apple returned “No documentation required,” so the app sets the key to NO. Review this decision again if cryptography or distribution changes; French store availability has not been cleared by this beta workflow. Applicable government reporting obligations require separate review.
 
 When Apple requires documentation, keep the key YES and use the approved `ITSEncryptionExportComplianceCode` supplied by Apple. Never invent a code or change the flag merely to suppress an upload error. A no-documentation outcome may leave no declaration record in the API.
 

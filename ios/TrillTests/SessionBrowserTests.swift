@@ -534,3 +534,74 @@ extension SessionBrowserTests {
         XCTAssertFalse(store.selectSession(id: "removed"))
     }
 }
+
+extension SessionBrowserTests {
+    @MainActor func testCloseConfirmationRevalidatesCapabilitiesAndTerminalIdentity() async throws {
+        let fixture = Fixture()
+        var terminal = session("close-target")
+        var capabilities = SessionCapabilities(); capabilities.closeTerminal = true
+        terminal.capabilities = capabilities
+        fixture.rows = [terminal]
+        let store = try await fixture.makeStore()
+        store.requestSessionPrompt(.close, sessionID: terminal.id)
+        let prompt = try XCTUnwrap(store.sessionPrompt)
+        XCTAssertTrue(store.canConfirm(prompt))
+        XCTAssertEqual(prompt.button, "Close terminal")
+        XCTAssertTrue(prompt.message.contains("running program"))
+        store.sessions = []
+        XCTAssertFalse(store.canConfirm(prompt), "A disappeared terminal must not be replaced by another row")
+        store.sessions = [terminal]
+        store.health = Health(name: "Fixture", version: "1", readOnly: true)
+        XCTAssertFalse(store.canConfirm(prompt), "Control must still be enabled at confirmation")
+        store.health = Health(name: "Fixture", version: "1", readOnly: false)
+        terminal.capabilities?.closeTerminal = false
+        store.sessions = [terminal]
+        XCTAssertFalse(store.canConfirm(prompt), "A stale capability must not authorize closure")
+    }
+
+    @MainActor func testPanelIntentSurvivesAdaptiveRootRecreationAndBackgrounding() async throws {
+        let fixture = Fixture()
+        fixture.rows = [session("one", attachable: false)]
+        let store = try await fixture.makeStore()
+        XCTAssertTrue(store.selectSession(id: "one"))
+        store.workspacePresented = true
+        store.workspaceTab = .browser
+        store.sessionColumnVisibility = .all
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+        let originalWindow = scene.windows.first { $0.isKeyWindow }
+        let window = UIWindow(windowScene: scene)
+        defer { window.isHidden = true; originalWindow?.makeKey() }
+        for (sizeClass, phase) in [(UserInterfaceSizeClass.regular, ScenePhase.active), (.compact, .active), (.compact, .inactive), (.regular, .background), (.regular, .active)] {
+            window.rootViewController = UIHostingController(rootView: RootView().environment(store).environment(\.horizontalSizeClass, sizeClass).environment(\.scenePhase, phase))
+            window.makeKeyAndVisible()
+            try await Task.sleep(for: .milliseconds(120))
+            window.layoutIfNeeded()
+            XCTAssertTrue(store.workspacePresented, "Adaptation must not dismiss the requested workspace")
+            XCTAssertEqual(store.workspaceTab, .browser)
+            XCTAssertEqual(store.sessionColumnVisibility, .all, "Opening the workspace must not hide Sessions")
+        }
+        store.selectedID = nil
+        window.rootViewController = UIHostingController(rootView: RootView().environment(store).environment(\.horizontalSizeClass, .regular).environment(\.scenePhase, .active))
+        try await Task.sleep(for: .milliseconds(120))
+        XCTAssertTrue(store.workspacePresented, "A temporarily absent detail must not erase panel preference")
+        XCTAssertTrue(store.selectSession(id: "one"))
+        store.workspacePresented = false
+        store.sessionColumnVisibility = .detailOnly
+        await store.background()
+        await store.foreground()
+        for sizeClass in [UserInterfaceSizeClass.compact, .regular] {
+            window.rootViewController = UIHostingController(rootView: RootView().environment(store).environment(\.horizontalSizeClass, sizeClass).environment(\.scenePhase, .active))
+            try await Task.sleep(for: .milliseconds(120))
+            window.layoutIfNeeded()
+            XCTAssertFalse(store.workspacePresented, "Resizing must not reopen a manually closed panel")
+            XCTAssertEqual(store.sessionColumnVisibility, .detailOnly)
+        }
+        XCTAssertFalse(store.workspacePresented, "A manually closed panel must stay closed")
+        XCTAssertEqual(store.sessionColumnVisibility, .detailOnly)
+    }
+
+    func testOlderCompanionCapabilitiesDoNotInventCloseSupport() throws {
+        let capabilities = try JSONDecoder().decode(SessionCapabilities.self, from: Data(#"{"rename":true,"createTerminal":true,"worktree":false,"files":true}"#.utf8))
+        XCTAssertNil(capabilities.closeTerminal)
+    }
+}

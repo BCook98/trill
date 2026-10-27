@@ -22,12 +22,13 @@ Existing installations configured for removed providers fail with an explicit mi
 
 - Browse Spaces in Herdr order, with linked worktrees nested under their primary space, branch labels and desktop focus.
 - Open existing terminals directly by selecting a session. The first attachment still asks for terminal consent.
-- Rename pane labels and create terminal tabs using native Herdr operations.
+- Rename pane labels and create terminal tabs using native Herdr operations, optionally choosing their starting folder with the Mac folder browser.
+- Close a terminal from its menu or long-press menu after confirming that its running program will also close.
 - Create a space in an existing absolute Mac directory, or a linked Git worktree from a primary repository space. Herdr chooses checkout placement; repository trust checks remain in force.
 - Browse authoritative project/terminal files, upload photos, and preview local web servers.
 - Detect coding agents running inside terminals. Launch agents from the terminal rather than through a separate session-creation API.
 
-Archive, resume-history and stop-session actions are absent. Close terminals and manage history in Herdr. A finished agent turn remains a live idle terminal. Closing a pane does not create a resumable archive.
+Archive, resume-history and stop-session actions are absent. Closing a terminal uses native pane closure; Disconnect leaves its program running. Manage history in Herdr. A finished agent turn remains a live idle terminal. Closing a pane does not create a resumable archive.
 
 Native mutations are sent once and confirmed by correlated metadata readback. An uncertain result asks you to inspect Spaces before retrying. Trill never passes `--trust-repository` or runs direct Git mutations against personal repositories.
 

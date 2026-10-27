@@ -234,6 +234,7 @@ struct NewSessionView: View {
     @Environment(AppStore.self) private var store
     @Environment(\.dismiss) private var dismiss
     @State private var projectID = ""
+    @State private var directory = ""
     @State private var creating = false
     @State private var creationUncertain = false
     @State private var error: String?
@@ -245,18 +246,21 @@ struct NewSessionView: View {
                         Text("Select a space").tag("")
                         ForEach(store.creatableProjects) { Text($0.displayName).tag($0.id) }
                     }
-                    Text("Opens a shell in this Herdr space. Start your coding agent in its terminal.")
+                    MacFolderField(directory: $directory, initialDirectory: store.projects.first { $0.id == projectID }?.path, allowsSpaceDefault: true)
+                        .accessibilityIdentifier("new-session-folder")
+                    Text("Opens a shell in this Herdr space, using your chosen folder on the Mac.")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
                 if let error { Text(error).foregroundStyle(.red) }
             }
+            .disabled(creating)
             .navigationTitle("New terminal")
             .safeAreaInset(edge: .bottom) {
                 Button(creating ? "Creating…" : "Create terminal") {
                     guard !creating, !creationUncertain else { return }
                     creating = true
                     Task {
-                        do { try await store.createTerminal(projectID: projectID); dismiss() }
+                        do { try await store.createTerminal(projectID: projectID, directory: directory); dismiss() }
                         catch {
                             let failure = SessionCreationFailure(error)
                             self.error = failure.message
@@ -310,13 +314,18 @@ struct NewHerdrItemView: View {
                 Section {
                     TextField(isWorktree ? "Name (optional)" : "Space name", text: $name)
                         .accessibilityIdentifier("new-herdr-name")
-                    TextField(isWorktree ? "New branch, e.g. feature/search" : "Folder path on your Mac", text: $directoryOrBranch)
-                        .textInputAutocapitalization(.never).autocorrectionDisabled()
-                        .accessibilityIdentifier("new-herdr-location")
+                    if isWorktree {
+                        TextField("New branch, e.g. feature/search", text: $directoryOrBranch)
+                            .textInputAutocapitalization(.never).autocorrectionDisabled()
+                            .accessibilityIdentifier("new-herdr-location")
+                    } else {
+                        MacFolderField(directory: $directoryOrBranch)
+                            .accessibilityIdentifier("new-herdr-location")
+                    }
                 } footer: {
                     Text(isWorktree
                          ? "Herdr creates a branch and worktree from the selected primary repository space and opens a shell there. It appears beneath its repository space."
-                         : "Use the full path to an existing folder, for example /Users/you/code/app. Herdr opens a space with a shell in that folder.")
+                         : "Choose an existing folder on your Mac. Herdr opens a space with a shell in that folder.")
                 }
                 Section {
                     Label("Creates in Herdr on your computer", systemImage: "laptopcomputer")

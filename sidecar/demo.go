@@ -375,7 +375,7 @@ func (d *Demo) catalog() (catalog, error) {
 		if !d.available(p.Provider) {
 			continue
 		}
-		caps := &Capabilities{TerminalStream: true, Rename: true, CreateTerminal: true, Files: true}
+		caps := &Capabilities{TerminalStream: true, Rename: true, CloseTerminal: true, CreateTerminal: true, Files: true}
 
 		c.Projects = append(c.Projects, Project{ID: p.ID, Name: p.Name, Provider: p.Provider, ProviderName: "Demo · " + p.Provider, Path: filepath.Join(d.rootPath, "fixtures", p.ID), Capabilities: caps})
 	}
@@ -420,6 +420,19 @@ func (d *Demo) create(projectID, name, goal string, options CreateOptions) error
 	}
 	raw := rawSession{ID: id, Name: name, ProjectID: projectID, Status: "running", ActivityState: "idle", CurrentAgent: "Demo", Mode: "terminal", TerminalLive: true, Goal: goal, Source: options.Kind, UpdatedAt: time.Now().UTC().Format(time.RFC3339)}
 	directory := "fixtures/" + projectID
+	if options.Directory != "" {
+		canonicalRoot, err := filepath.EvalSymlinks(d.rootPath)
+		if err != nil {
+			d.state = before
+			return errFolderUnavailable
+		}
+		relativeDirectory, err := filepath.Rel(canonicalRoot, options.Directory)
+		if err != nil || !filepath.IsLocal(relativeDirectory) {
+			d.state = before
+			return errFolderUnavailable
+		}
+		directory = filepath.ToSlash(relativeDirectory)
+	}
 	v := demoSession{Session: raw, Directory: directory, Screen: DemoSnapshot{Text: "Trill Demo — new sample session.\nType help to explore.\n", Revision: 1, Live: true, Columns: 80, Rows: 24}}
 	if err := d.fixture(directory); err != nil {
 		d.state = before
@@ -462,6 +475,22 @@ func (d *Demo) mutate(id, action, value string) error {
 	v.Session.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
 	return d.commit(before)
 }
+func (d *Demo) closeSession(id string) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if _, err := d.session(id); err != nil {
+		return err
+	}
+	before := d.copyState()
+	for index, session := range d.state.Sessions {
+		if session.Session.ID == id {
+			d.state.Sessions = append(d.state.Sessions[:index], d.state.Sessions[index+1:]...)
+			return d.commit(before)
+		}
+	}
+	return errNotFound
+}
+
 func (d *Demo) append(v *demoSession, text string) {
 	v.Screen.Text += demoSafeText(text)
 	if len(v.Screen.Text) > demoMaxTranscript {

@@ -3,25 +3,26 @@ import SwiftUI
 struct RootView: View {
     @Environment(AppStore.self) private var store
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.scenePhase) private var scenePhase
     @State private var preferredSessionColumn = NavigationSplitViewColumn.sidebar
-    @State private var sessionColumns = NavigationSplitViewVisibility.all
-    @State private var showWorkspace = false
     @State private var showProjects = false
-    @State private var workspaceTab: WorkspaceTab = .files
-    @State private var previewAddress: String?
     var body: some View {
         @Bindable var store = store
         Group {
             if store.computer == nil {
                 NavigationStack { SessionListView(openProjects: openProjects) }
             } else {
-                NavigationSplitView(columnVisibility: $sessionColumns, preferredCompactColumn: $preferredSessionColumn) {
+                NavigationSplitView(columnVisibility: Binding(get: { store.selectedID == nil ? .all : store.sessionColumnVisibility }, set: { visibility in
+                    // Collapsing columns and background snapshots are layout changes,
+                    // not a request to overwrite the expanded sidebar preference.
+                    if store.selectedID != nil, scenePhase == .active, horizontalSizeClass == .regular, visibility != .automatic { store.sessionColumnVisibility = visibility }
+                }), preferredCompactColumn: $preferredSessionColumn) {
                     SessionListView(openProjects: openProjects)
                         .id(store.activeComputerID)
                         .navigationSplitViewColumnWidth(ideal: 320)
                 } detail: {
                     if let id = store.selectedID, let session = store.currentSessions.first(where: { $0.id == id }) {
-                        SessionDetailView(session: session, connection: store.connection(for: id), showWorkspace: $showWorkspace, workspaceTab: $workspaceTab, previewAddress: $previewAddress)
+                        SessionDetailView(session: session, connection: store.connection(for: id), showWorkspace: $store.workspacePresented, workspaceTab: $store.workspaceTab, previewAddress: $store.workspacePreviewAddress)
                             .id("\(store.activeComputerID?.uuidString ?? "unpaired"):\(id)")
                     } else {
                         ContentUnavailableView("Choose a session", systemImage: "terminal", description: Text("Select a session to open its terminal."))
@@ -29,37 +30,28 @@ struct RootView: View {
                 }
                 .navigationSplitViewStyle(.balanced)
                 .inspector(isPresented: Binding(
-                    get: { showWorkspace && store.selectedID != nil },
-                    set: { showWorkspace = $0 && store.selectedID != nil }
+                    get: { store.workspacePresented && store.selectedID != nil },
+                    set: { shown in
+                        if scenePhase == .active, store.selectedID != nil { store.workspacePresented = shown }
+                    }
                 )) {
-                    if showWorkspace, let api = store.api, let id = store.selectedID,
+                    if store.workspacePresented, let api = store.api, let id = store.selectedID,
                        let session = store.currentSessions.first(where: { $0.id == id }),
                        let workspace = store.workspace(for: id) {
-                        WorkspacePanel(api: api, session: session, tab: $workspaceTab, presented: $showWorkspace, initialAddress: $previewAddress, state: workspace)
+                        WorkspacePanel(api: api, session: session, tab: $store.workspaceTab, presented: $store.workspacePresented, initialAddress: $store.workspacePreviewAddress, state: workspace)
                             .id("\(store.activeComputerID?.uuidString ?? "unpaired"):\(id)")
                     }
                 }
-                .onChange(of: showWorkspace) { _, shown in
-                    if shown { withAnimation { sessionColumns = .detailOnly } }
-                }
             }
         }
-        .task(id: horizontalSizeClass) {
-            // A fold transition may need to make room for the inspector, but
-            // dismissing it must not change the user's session-sidebar choice.
-            await Task.yield()
-            if showWorkspace && store.selectedID != nil { sessionColumns = .detailOnly }
-            else if store.selectedID == nil { sessionColumns = .all }
-        }
         .onChange(of: store.activeComputerID) { _, _ in
-            showProjects = false; showWorkspace = false; previewAddress = nil; store.actionError = nil
+            showProjects = false; store.workspacePresented = false; store.workspacePreviewAddress = nil; store.actionError = nil
         }
         .modifier(SessionAlerts(enabled: !showProjects))
         .disabled(store.changingComputer)
         .onChange(of: store.selectedID) { _, id in
-            showWorkspace = false; previewAddress = nil
+            store.workspacePreviewAddress = nil
             preferredSessionColumn = id == nil ? .sidebar : .detail
-            if id == nil { sessionColumns = .all }
         }
         .onChange(of: store.selectedTab) { _, tab in
             // Selecting or reopening even the already-selected session returns to detail.
@@ -90,14 +82,14 @@ struct RootView: View {
                     .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { store.connectionDetailsPresented = false } } }
             }
         }
-        .sheet(isPresented: $store.newSessionPresented) { NewSessionView() }
+        .sheet(isPresented: $store.newSessionPresented) { NewSessionView().id(store.activeComputerID) }
         .sheet(isPresented: $store.newSpacePresented) { NewHerdrItemView(isWorktree: false).id(store.activeComputerID) }
         .sheet(isPresented: $store.newWorktreePresented) { NewHerdrItemView(isWorktree: true).id(store.activeComputerID) }
         .sheet(isPresented: $store.computersPresented) { ComputersView() }
     }
 
     private func openProjects() {
-        showWorkspace = false
+        store.workspacePresented = false
         store.selectedTab = .projects
         showProjects = true
     }
@@ -116,7 +108,7 @@ private struct SessionAlerts: ViewModifier {
             ), presenting: store.sessionPrompt) { prompt in
                 if prompt.action == .rename { TextField("Session name", text: $store.renameDraft) }
                 Button("Cancel", role: .cancel) { store.sessionPrompt = nil }
-                Button(prompt.button) {
+                Button(prompt.button, role: prompt.action == .close ? .destructive : nil) {
                     let name = store.renameDraft
                     Task { await store.confirm(prompt, name: name) }
                 }
@@ -484,6 +476,8 @@ private struct SessionRowContextMenu: ViewModifier {
                 .disabled(store.changingComputer)
             Button("Rename…", systemImage: "pencil") { store.requestSessionPrompt(.rename, sessionID: sessionID) }
                 .disabled(store.readOnly || store.busy || store.changingComputer)
+            Button("Close terminal…", systemImage: "xmark", role: .destructive) { store.requestSessionPrompt(.close, sessionID: sessionID) }
+                .disabled(store.readOnly || store.busy || store.changingComputer || !store.sessions.contains { $0.id == sessionID && store.supports("close", session: $0) })
         }
     }
 }

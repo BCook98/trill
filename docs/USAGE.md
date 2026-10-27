@@ -16,11 +16,11 @@ Under **More → Connection details**, you can check the connection, see the add
 
 Select a live session to open its terminal directly. Read-only installations show metadata; run `trill control --enable` on the Mac to allow terminal access and changes.
 
-Touch and hold a session to open or rename it. **Disconnect** closes the phone attachment and leaves work running. Manage terminal closure and history in Herdr. Spaces remain browsable even without terminals.
+Touch and hold a session to open, rename, or close it. **Close terminal…** asks for confirmation and ends that terminal’s running program. **Disconnect** closes the phone attachment and leaves work running. Manage history in Herdr. Spaces remain browsable even without terminals.
 
 ### Create work
 
-The **+** menu offers **New session**, **New space**, and **New worktree** when supported. A session is a terminal tab in an existing space. Start a coding agent in that terminal. A space uses an existing absolute directory on the Mac; a worktree uses a primary repository space and a branch name. If creation is unconfirmed, inspect Spaces before trying again.
+The **+** menu offers **New session**, **New space**, and **New worktree** when supported. A session is a terminal tab in an existing space. Tap **Folder** to browse folders on the Mac and choose its starting directory, or keep **Space default**. New space uses the same picker. Start a coding agent in that terminal. A space uses an existing absolute directory on the Mac; a worktree uses a primary repository space and a branch name. If creation is unconfirmed, inspect Spaces before trying again.
 
 ## Terminals, writing, and dictation
 
@@ -28,7 +28,7 @@ On the first terminal connection, review the phone's access prompt. You can reme
 
 For Herdr, leaving a session's detail view or backgrounding Trill automatically returns terminal control and sizing to the Mac. Your programs keep running, and Trill retains its last screen and your draft. Returning to a previously opened session reconnects automatically; **Disconnect** cancels automatic return. If another direct controller has connected meanwhile, Trill reports that the terminal is busy. A cleanup warning means Trill could not confirm that the phone attachment closed.
 
-Use **Keyboard** for direct input, including a hardware keyboard. The key strip provides Return, Escape, Tab, arrows, Ctrl, and one-shot Shift. Tap Shift, then a character or special key. Modifiers reset when the connection pauses or disconnects.
+Use **Keyboard** for direct input, including a hardware keyboard. The key strip provides Return, Escape, Tab, arrows, Ctrl, and one-shot Shift. Hold Backspace, Tab, or an arrow in the key strip to repeat it using the native button behavior. Tap Shift, then a character or special key. Modifiers reset when the connection pauses or disconnects.
 
 **Write** opens a local draft with the native iPhone keyboard. Use its microphone to dictate, then review the text. If the microphone is missing, enable **Settings → General → Keyboard → Enable Dictation** on the phone.
 
@@ -45,6 +45,8 @@ Swipe the terminal to scroll through Herdr’s history. Gestures send explicit s
 Leaving the terminal or backgrounding the app returns control and sizing to Herdr. Returning obtains a fresh HTTPS stream after cleanup. Input remains disabled until connected. Temporary failures retry while foreground with increasing delays; **Retry now** requests an earlier attempt.
 
 Explicit Disconnect or forgetting a computer cancels recovery. An access rejection or closed terminal requires user action. Unsent drafts and terminal input are never replayed. After process eviction, select the live terminal again. Your Mac and Herdr must remain reachable. There is no push service.
+
+Panel visibility follows your last choice while resizing or returning from the background. Opening Files and browser does not automatically hide Sessions.
 
 ## Files, images, and videos
 

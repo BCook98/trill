@@ -289,11 +289,14 @@ func (s *Service) renameHerdr(ctx context.Context, id, name string) error {
 	return errOutcomeUnknown
 }
 
-// Herdr selects the workspace's own default directory. The phone cannot supply
-// a path or launch command. Creation is sent once and confirmed by terminal ID.
+// An optional existing directory becomes the new tab’s cwd. No launch command
+// is accepted. Creation is sent once and confirmed by terminal ID and cwd.
 func (s *Service) createHerdrTerminal(ctx context.Context, projectID string, options CreateOptions) error {
 	if options.Kind != "terminal" || options.UseWorktree || options.Branch != "" {
 		return errUnsupported
+	}
+	if err := s.validateTerminalDirectory(options.Directory); err != nil {
+		return err
 	}
 	projects, err := s.Projects(ctx)
 	if err != nil {
@@ -309,7 +312,11 @@ func (s *Service) createHerdrTerminal(ctx context.Context, projectID string, opt
 	if workspace == "" {
 		return errNotFound
 	}
-	b, err := s.herdrCommand(ctx, "--session", s.config.HerdrSession, "tab", "create", "--workspace", workspace, "--no-focus")
+	arguments := []string{"--session", s.config.HerdrSession, "tab", "create", "--workspace", workspace, "--no-focus"}
+	if options.Directory != "" {
+		arguments = append(arguments, "--cwd", options.Directory)
+	}
+	b, err := s.herdrCommand(ctx, arguments...)
 	if err != nil {
 		return errOutcomeUnknown
 	}
@@ -327,7 +334,7 @@ func (s *Service) createHerdrTerminal(ctx context.Context, projectID string, opt
 	id := s.herdrID("terminal", response.Result.RootPane.Terminal)
 	if s.confirm(ctx, func(rows []rawSession) bool {
 		v, ok := targetRow(rows, id)
-		return ok && v.ProjectID == projectID && v.TerminalLive
+		return ok && v.ProjectID == projectID && v.TerminalLive && (options.Directory == "" || samePath(v.WorktreePath, options.Directory))
 	}) {
 		return nil
 	}

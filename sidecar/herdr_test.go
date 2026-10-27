@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -189,7 +191,13 @@ func (r *herdrCreateRunner) Run(ctx context.Context, name string, args ...string
 		if paneID == "" {
 			paneID = args[5] + ":p2"
 		}
-		snapshot["panes"] = append(panes, map[string]any{"pane_id": paneID, "terminal_id": "term_new", "workspace_id": args[5], "cwd": "/tmp", "agent_status": "unknown"})
+		cwd := "/tmp"
+		for index, argument := range args {
+			if argument == "--cwd" {
+				cwd = args[index+1]
+			}
+		}
+		snapshot["panes"] = append(panes, map[string]any{"pane_id": paneID, "terminal_id": "term_new", "workspace_id": args[5], "cwd": cwd, "agent_status": "unknown"})
 		b, _ := json.Marshal(value)
 		r.snapshot = string(b)
 		return []byte(r.reply), nil
@@ -525,5 +533,92 @@ func TestHerdrRejectsLinkedWorktreeSourcesBeforeMutation(t *testing.T) {
 				t.Fatalf("linked source: %v, mutations=%d", err, runner.mutations)
 			}
 		})
+	}
+}
+
+func TestHerdrTerminalCreationUsesSelectedMacDirectoryAsLiteralArgument(t *testing.T) {
+	directory := filepath.Join(t.TempDir(), "Folder with 'quotes' $(no-shell)")
+	if err := os.Mkdir(directory, 0700); err != nil {
+		t.Fatal(err)
+	}
+	runner := &herdrCreateRunner{herdrRunner: herdrRunner{snapshot: herdrFixture}, reply: `{"result":{"root_pane":{"terminal_id":"term_new","workspace_id":"w1"}}}`}
+	service, err := NewService(Config{HerdrPath: "/tmp/herdr", HerdrSessions: "test-server"}, runner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer service.Close()
+	projects, err := service.Projects(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := service.Create(context.Background(), projects[0].ID, "", "", CreateOptions{Kind: "terminal", Directory: directory}); err != nil {
+		t.Fatal(err)
+	}
+	count := 0
+	for _, command := range runner.commands {
+		if len(command.args) > 3 && command.args[2] == "tab" && command.args[3] == "create" {
+			count++
+			if !reflect.DeepEqual(command.args, []string{"--session", "test-server", "tab", "create", "--workspace", "w1", "--no-focus", "--cwd", directory}) {
+				t.Fatal(command.args)
+			}
+		}
+	}
+	if count != 1 {
+		t.Fatal(count)
+	}
+	if err := service.Create(context.Background(), projects[0].ID, "", "", CreateOptions{Kind: "terminal", Directory: filepath.Join(directory, "missing")}); !errors.Is(err, errFolderUnavailable) || runner.creates != 1 {
+		t.Fatal("invalid folder mutated Herdr", err, runner.creates)
+	}
+}
+
+type herdrCloseRunner struct {
+	herdrRunner
+	closes     []string
+	applyClose bool
+}
+
+func (runner *herdrCloseRunner) Run(ctx context.Context, name string, args ...string) ([]byte, error) {
+	if len(args) == 5 && args[2] == "pane" && args[3] == "close" {
+		runner.closes = append(runner.closes, args[4])
+		if runner.applyClose {
+			var value map[string]any
+			_ = json.Unmarshal([]byte(runner.snapshot), &value)
+			snapshot := value["result"].(map[string]any)["snapshot"].(map[string]any)
+			remaining := []any{}
+			for _, entry := range snapshot["panes"].([]any) {
+				if entry.(map[string]any)["pane_id"] != args[4] {
+					remaining = append(remaining, entry)
+				}
+			}
+			snapshot["panes"] = remaining
+			data, _ := json.Marshal(value)
+			runner.snapshot = string(data)
+		}
+		return nil, errors.New("lost close response")
+	}
+	return runner.herdrRunner.Run(ctx, name, args...)
+}
+func (runner *herdrCloseRunner) RunWithEnv(ctx context.Context, name string, args, env []string) ([]byte, error) {
+	return runner.Run(ctx, name, args...)
+}
+func TestHerdrCloseResolvesMovedPaneAndConfirmsWithoutRetry(t *testing.T) {
+	for _, applyClose := range []bool{true, false} {
+		runner := &herdrCloseRunner{herdrRunner: herdrRunner{snapshot: herdrFixture}, applyClose: applyClose}
+		service, err := NewService(Config{HerdrPath: "/tmp/herdr", HerdrSession: "test-server", AllowControl: true}, runner)
+		if err != nil {
+			t.Fatal(err)
+		}
+		func() {
+			defer service.Close()
+			sessions, err := service.Sessions(context.Background())
+			if err != nil {
+				t.Fatal(err)
+			}
+			runner.snapshot = strings.Replace(herdrFixture, "w1:p1", "w1:p3", 1)
+			err = service.CloseSession(context.Background(), sessions[0].ID)
+			if (err == nil) != applyClose || (!applyClose && !errors.Is(err, errOutcomeUnknown)) || !reflect.DeepEqual(runner.closes, []string{"w1:p3"}) {
+				t.Fatal(err, runner.closes)
+			}
+		}()
 	}
 }

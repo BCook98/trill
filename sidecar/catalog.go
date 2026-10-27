@@ -11,6 +11,7 @@ import (
 type Capabilities struct {
 	TerminalStream bool `json:"terminalStream,omitempty"`
 	Rename         bool `json:"rename"`
+	CloseTerminal  bool `json:"closeTerminal"`
 	CreateTerminal bool `json:"createTerminal"`
 	Worktree       bool `json:"worktree"`
 	Files          bool `json:"files"`
@@ -60,7 +61,7 @@ func (s *Service) providerName() string {
 	return "Herdr"
 }
 func (s *Service) capabilities(files bool) *Capabilities {
-	return &Capabilities{TerminalStream: true, Rename: true, CreateTerminal: true, Files: files}
+	return &Capabilities{TerminalStream: true, Rename: true, CloseTerminal: true, CreateTerminal: true, Files: files}
 }
 func (s *Service) localCatalog(ctx context.Context) (catalog, error) {
 	ctx, cancel := context.WithTimeout(ctx, 12*time.Second)

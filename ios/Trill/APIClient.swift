@@ -136,9 +136,15 @@ final class APIClient: @unchecked Sendable {
         let change: Change = try await request("GET", "v1/changes")
         return change.changed
     }
+    func closeSession(id: String) async throws { let _: OKResponse = try await request("DELETE", "v1/sessions/\(id)") }
     func rename(id: String, name: String) async throws { let _: OKResponse = try await request("PATCH", "v1/sessions/\(id)", body: ["name": name]) }
-    func createTerminal(projectID: String) async throws {
-        let _: OKResponse = try await request("POST", "v1/sessions", body: ["projectId": projectID, "kind": "terminal", "useWorktree": false])
+    func folders(directory: String? = nil) async throws -> MacFolderListing {
+        try await request("GET", "v1/folders", query: directory.flatMap { $0.isEmpty ? nil : [URLQueryItem(name: "path", value: $0)] } ?? [])
+    }
+    func createTerminal(projectID: String, directory: String = "") async throws {
+        var body: [String: Any] = ["projectId": projectID, "kind": "terminal", "useWorktree": false]
+        if !directory.isEmpty { body["directory"] = directory }
+        let _: OKResponse = try await request("POST", "v1/sessions", body: body)
     }
     func createSpace(providerID: String, name: String, directory: String) async throws {
         let _: OKResponse = try await request("POST", "v1/spaces", body: ["providerId": providerID, "name": name, "directory": directory])

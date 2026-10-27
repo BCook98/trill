@@ -66,6 +66,7 @@ func NewHTTPWithPairing(service *Service, token string, store *pairing.Store) *H
 		close(h.watchDone)
 	}
 	h.registerFiles()
+	h.mux.HandleFunc("GET /v1/folders", h.folders)
 	h.registerStaticFiles()
 	h.mux.HandleFunc("GET /v1/health", h.health)
 	h.mux.HandleFunc("GET /v1/sessions", h.sessions)
@@ -74,6 +75,7 @@ func NewHTTPWithPairing(service *Service, token string, store *pairing.Store) *H
 	h.mux.HandleFunc("POST /v1/sessions", h.create)
 	h.mux.HandleFunc("POST /v1/spaces", h.createSpace)
 	h.mux.HandleFunc("PATCH /v1/sessions/{id}", h.rename)
+	h.mux.HandleFunc("DELETE /v1/sessions/{id}", h.closeSession)
 	h.mux.HandleFunc("POST /v1/sessions/{id}/terminal", h.attachTerminal)
 	h.mux.HandleFunc("GET /v1/leases/{id}/terminal", h.herdrTerminal)
 	h.mux.HandleFunc("POST /v1/sessions/{id}/attachments", h.attachPhoto)
@@ -140,6 +142,8 @@ func ok(w http.ResponseWriter) { writeJSON(w, http.StatusOK, map[string]bool{"ok
 
 func (h *HTTP) fail(w http.ResponseWriter, err error) {
 	switch {
+	case errors.Is(err, errFolderUnavailable):
+		writeError(w, 400, errFolderUnavailable.Error())
 	case errors.Is(err, errNotFound):
 		writeError(w, 404, "not found")
 	case errors.Is(err, errUnsupported):
@@ -258,6 +262,7 @@ func (h *HTTP) create(w http.ResponseWriter, r *http.Request) {
 		Kind        json.RawMessage `json:"kind"`
 		UseWorktree json.RawMessage `json:"useWorktree"`
 		Branch      json.RawMessage `json:"branch"`
+		Directory   json.RawMessage `json:"directory"`
 	}
 	if !decodeBody(w, r, &v) {
 		return
@@ -266,7 +271,8 @@ func (h *HTTP) create(w http.ResponseWriter, r *http.Request) {
 	name, nameOK := optionalCreateText(v.Name)
 	goal, goalOK := optionalCreateText(v.Goal)
 	branch, branchOK := optionalCreateText(v.Branch)
-	options := CreateOptions{Kind: kind, Branch: branch}
+	directory, directoryOK := optionalCreateText(v.Directory)
+	options := CreateOptions{Kind: kind, Branch: branch, Directory: directory}
 	if len(v.Kind) == 0 {
 		options.Kind = "terminal"
 	}
@@ -281,12 +287,12 @@ func (h *HTTP) create(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	valid := idPattern.MatchString(v.ProjectID) && kindOK && nameOK && goalOK && branchOK
+	valid := idPattern.MatchString(v.ProjectID) && kindOK && nameOK && goalOK && branchOK && directoryOK
 	switch options.Kind {
 	case "worktree":
-		valid = valid && options.UseWorktree && validBranch(branch) && (name == "" || validText(name, 200)) && v.Goal == nil
+		valid = valid && options.UseWorktree && validBranch(branch) && (name == "" || validText(name, 200)) && v.Goal == nil && v.Directory == nil
 	case "terminal":
-		valid = valid && !options.UseWorktree && v.Name == nil && v.Goal == nil && v.Branch == nil
+		valid = valid && !options.UseWorktree && v.Name == nil && v.Goal == nil && v.Branch == nil && (v.Directory == nil || validMacFolderPath(directory))
 	default:
 		valid = false
 	}
@@ -295,6 +301,20 @@ func (h *HTTP) create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.service.Create(r.Context(), v.ProjectID, name, goal, options); err != nil {
+		h.fail(w, err)
+		return
+	}
+	ok(w)
+}
+func (h *HTTP) closeSession(w http.ResponseWriter, r *http.Request) {
+	if !h.control(w) {
+		return
+	}
+	if !idPattern.MatchString(r.PathValue("id")) {
+		writeError(w, 400, "invalid session ID")
+		return
+	}
+	if err := h.service.CloseSession(r.Context(), r.PathValue("id")); err != nil {
 		h.fail(w, err)
 		return
 	}
