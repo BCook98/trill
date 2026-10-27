@@ -15,6 +15,103 @@ The companion opens Herdr's native Unix event API even when the phone is suspend
 - Disable deletes the registration. Forget/re-pair waits for deletion before discarding credentials; if offline, it explains that cleanup needs reconnection or device revocation on the Mac. Revocation atomically removes the registration from the pairing store. APNs `Unregistered`, `BadDeviceToken`, and `DeviceTokenNotForTopic` retire the matching token without erasing a newer rotated token.
 - iOS permission changes are reconciled for all opted-in computers when Trill becomes active. iOS does not notify an absent app of Settings revocation: the companion may continue attempting generic alerts until the next reconciliation, device revocation, APNs invalidation, or lease expiry. Registration expires after seven days without renewal; expired registrations are excluded immediately and physically removed on the next pairing-store write.
 
+## Notification flow
+
+This is the configured delivery path; the current build defaults remain disabled. Enrollment uses the phone's existing pairing credential. Alert delivery continues on the Mac without requiring Trill to run on the phone.
+
+```mermaid
+sequenceDiagram
+    actor Person
+    participant App as Trill on iPhone or iPad
+    participant Apple as iOS and APNs
+    participant Companion as Mac companion
+    participant Herdr as Native Herdr event API
+    participant Relay as Private push relay
+
+    Person->>App: Enable attention or completion for one computer
+    App->>Apple: Request notification permission
+    alt Permission granted and push build configured
+        App->>Apple: Register for remote notifications
+        Apple-->>App: Device token
+        App->>Companion: HTTPS PUT /v1/notifications with pairing credential
+        Note over App,Companion: Token, environment, computer UUID and preferences
+        Companion->>Companion: Authenticate pairing and save seven-day registration
+    else Permission denied
+        App-->>Person: Offer system Notification Settings
+    end
+
+    Note over Companion,Relay: Requires configured companion and private relay
+    Companion->>Herdr: Read snapshot
+    Herdr-->>Companion: Current states
+    Companion->>Companion: Seed baseline silently
+    Companion->>Herdr: Subscribe to native events
+    Herdr-->>Companion: Agent status change or explicit done on release
+    Companion->>Companion: Suppress repeated states and advance baseline
+    opt New eligible transition and active opted-in registration
+        Companion->>Companion: Recheck pairing, preferences, expiry and token
+        Companion->>Relay: HTTPS POST /v1/alerts with relay credential
+        Note over Companion,Relay: Device token, environment, opaque routing IDs and alert kind
+        Relay->>Relay: Authenticate, rate-limit, validate and reject replays
+        Relay->>Apple: Signed provider request with fixed generic alert
+        Note over Relay,Apple: No terminal content, names, paths or credentials in payload
+        Apple-->>App: Present alert if delivery and iOS settings permit
+        Note over App,Apple: Trill may be suspended or not running until the tap
+        Person->>App: Tap notification
+        App->>Companion: Authenticate and refresh the exact saved computer
+        Companion-->>App: Current session catalog
+        App-->>Person: Open exact session or show an unavailable error
+    end
+```
+
+There is no automatic retry or outbox. A rejected APNs device token is reported through the relay so the companion can remove that matching registration. Disable, forget/re-pair, and device revocation clean up registrations as described above; an alert already handed to Apple cannot be recalled.
+
+## How the relay trusts a companion
+
+The relay trusts **possession of an operator-provisioned bearer credential**. The operator creates a different random 32-byte secret for each trusted companion and installs the same secret in that companion's private credential file and the relay's private allowlist. The phone pairing credential and the Apple signing key are separate credentials for separate boundaries.
+
+```mermaid
+flowchart TD
+    Operator["Trusted operator: provision one random secret per companion"]
+    CompanionSecret["Companion: owned 0600 credential file"]
+    RelayAllowlist["Relay: owned 0600 configuration allowlist"]
+    Pairing["Phone pairing credential: authorizes registration on its Mac"]
+    Companion["Companion enforces opt-in, pairing revocation and registration expiry"]
+    TLS["Companion verifies relay HTTPS certificate; redirects refused"]
+    Auth["Relay compares SHA-256 of supplied Bearer header against allowlist using constant-time comparison"]
+    Authenticated{"Credential matches?"}
+    Unauthorized["401: no forwarding"]
+    Limits["Per-credential limit: 60 requests per minute"]
+    Validation["Validate bounded JSON, allowed fields, routing IDs, token and alert kind"]
+    Replay["Reserve event identity in bounded one-hour replay guard"]
+    Forward["Construct fixed generic APNs payload"]
+    AppleKey["Relay-only APNs private key: signs ES256 provider JWT"]
+    APNs["APNs: fixed Trill topic and allowed sandbox or production host"]
+    Revoke["Operator revokes companion: remove its secret and restart relay"]
+
+    Operator --> CompanionSecret
+    Operator --> RelayAllowlist
+    Pairing --> Companion
+    CompanionSecret --> Companion
+    Companion --> TLS --> Auth
+    RelayAllowlist --> Auth
+    Auth --> Authenticated
+    Authenticated -->|No| Unauthorized
+    Authenticated -->|Yes| Limits
+    Limits -->|Within limit| Validation
+    Limits -->|Exceeded| RateLimited["429: no forwarding"]
+    Validation -->|Valid| Replay
+    Validation -->|Invalid| Invalid["400 or 415: no forwarding"]
+    Replay -->|New identity and capacity available| Forward
+    Replay -->|Already attempted| Duplicate["200: do not forward again"]
+    Replay -->|Capacity exhausted| RateLimited
+    Forward --> APNs
+    AppleKey --> JWT["Relay signs provider JWT; private key never leaves relay"]
+    JWT --> Forward
+    Revoke -.-> RelayAllowlist
+```
+
+This authenticates the credential holder, not the companion binary or Mac hardware: there is no mutual TLS, device attestation, or automatic enrollment. The relay does not independently verify that a supplied APNs token belongs to a phone paired with that companion, or that the claimed Herdr event occurred. It relies on the trusted companion to enforce those rules. Anyone holding a valid companion secret can submit otherwise valid alerts within these limits, which is why this implementation is restricted to a manually provisioned trusted pilot. Removing a relay credential blocks subsequent requests after restart; it cannot recall requests already forwarded to Apple.
+
 ## Delivery limits
 
 The Mac must be awake, online, running both Herdr and the configured companion. The relay must be available and Apple must accept/deliver the alert. Focus, device settings, and network conditions affect presentation. There is deliberately **no replay/outbox and no automatic send retry**: state advances before a send, and ambiguous network failures may drop alerts rather than duplicate them. Subscription gaps, topology changes, companion/Herdr restarts and backpressure can miss transitions. APNs uses the event UUID for `apns-id` and `apns-collapse-id` and `apns-expiration: 0` to avoid stale delivery queues. This is best-effort alerting, not an audit log or exactly-once transport. An alert already handed to Apple cannot be recalled by revocation.
