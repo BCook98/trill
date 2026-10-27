@@ -113,6 +113,41 @@ def main():
         passed('Real socket event invalidates the companion catalog')
         assert cli('pane', 'get', pane)['result']
         passed('Herdr terminal survives stream release')
+        # Exercise native creation and destructive closure only on this owned
+        # server. The lab's ordinary controller remains alive throughout.
+        folder = root / "Selected folder 'quotes' $(no-shell)"
+        folder.mkdir()
+        (folder / 'selected-folder.txt').write_text('owned folder selection proof')
+        with socket.socket() as listener:
+            listener.bind(('127.0.0.1', 0))
+            mutation_port = listener.getsockname()[1]
+        mutation_address = f'http://127.0.0.1:{mutation_port}'
+        start([str(sidecar), '--listen', f'127.0.0.1:{mutation_port}', '--insecure-loopback',
+               '--token-file', str(token_file), '--allow-control', '--herdr-path', binary,
+               '--herdr-config-home', str(root/'config'), '--herdr-sessions', 'trill-prototype'], 'native-mutations.log')
+        def native_request(method, path, value=None):
+            request = urllib.request.Request(mutation_address + path, method=method,
+                headers={'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json'},
+                data=json.dumps(value).encode() if value is not None else None)
+            with urllib.request.urlopen(request, timeout=20) as response:
+                return json.load(response)
+        wait_until(lambda: native_request('GET', '/v1/health'))
+        from urllib.parse import quote
+        listing = native_request('GET', '/v1/folders?path=' + quote(str(root), safe=''))
+        assert any(item['path'] == str(folder) for item in listing['folders'])
+        before_rows = native_request('GET', '/v1/sessions')['sessions']
+        before = {row['id'] for row in before_rows}
+        production_session = next(row for row in before_rows if row['id'] == session_id)
+        native_request('POST', '/v1/sessions', {'projectId': production_session['projectId'], 'kind': 'terminal', 'directory': str(folder)})
+        made = [row for row in native_request('GET', '/v1/sessions')['sessions'] if row['id'] not in before]
+        assert len(made) == 1 and made[0]['capabilities']['closeTerminal']
+        files = native_request('GET', '/v1/sessions/' + made[0]['id'] + '/files')
+        assert any(item['name'] == 'selected-folder.txt' for item in files['entries'])
+        passed('Native terminal starts in the selected Mac folder; spaces and shell syntax remain literal')
+        native_request('DELETE', '/v1/sessions/' + made[0]['id'])
+        remaining = {row['id'] for row in native_request('GET', '/v1/sessions')['sessions']}
+        assert made[0]['id'] not in remaining and before <= remaining
+        passed('Native terminal closure removes only the newly created owned tab')
         report['success'] = True
     except Exception as error:
         report['error']=str(error)

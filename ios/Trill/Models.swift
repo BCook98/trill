@@ -3,6 +3,7 @@ import Foundation
 struct SessionCapabilities: Codable, Hashable {
     var terminalStream: Bool? = nil
     var rename = false
+    var closeTerminal: Bool? = nil
     var createTerminal = false
     var worktree = false
     var files = false
@@ -157,7 +158,7 @@ struct PhotoAttachment: Decodable {
 
 /// Immutable presentation identity; execution resolves fresh metadata by ID.
 struct SessionPrompt: Identifiable {
-    enum Action: String { case rename }
+    enum Action: String { case rename, close }
     let id = UUID()
     let action: Action
     let sessionID: String
@@ -165,10 +166,11 @@ struct SessionPrompt: Identifiable {
     let sessionName: String
     let computerName: String
     var title: String { "\(action.rawValue.capitalized) “\(sessionName)”?" }
-    var button: String { "Save" }
+    var button: String { action == .rename ? "Save" : "Close terminal" }
     var message: String {
         switch action {
         case .rename: "Choose a name for this session on \(computerName)."
+        case .close: "Closes this terminal and its running program on \(computerName). To leave work running, choose Disconnect instead."
         }
     }
 }

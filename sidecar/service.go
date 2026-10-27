@@ -208,6 +208,9 @@ func samePath(a, b string) bool {
 
 func (s *Service) Create(ctx context.Context, projectID, name, goal string, options CreateOptions) error {
 	if s.demo != nil {
+		if err := s.validateTerminalDirectory(options.Directory); err != nil {
+			return err
+		}
 		return s.demo.create(projectID, name, goal, options)
 	}
 	if len(s.sources) > 0 {
@@ -234,6 +237,25 @@ func (s *Service) Rename(ctx context.Context, id, name string) error {
 		return owner.Rename(ctx, id, name)
 	}
 	return s.renameHerdr(ctx, id, name)
+}
+
+// Close only the freshly resolved native terminal. No implicit retry or takeover.
+func (s *Service) CloseSession(ctx context.Context, id string) error {
+	if s.demo != nil {
+		return s.demo.closeSession(id)
+	}
+	owner, before, err := s.sessionOwner(ctx, id)
+	if err != nil {
+		return err
+	}
+	if owner.config.HerdrLabRoot != "" {
+		return errUnsupported
+	}
+	_, _ = owner.herdrCommand(ctx, "--session", owner.config.HerdrSession, "pane", "close", before.HerdrPane)
+	if owner.confirm(ctx, func(rows []rawSession) bool { _, present := targetRow(rows, id); return !present }) {
+		return nil
+	}
+	return errOutcomeUnknown
 }
 
 type TerminalLease struct {

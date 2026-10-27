@@ -54,6 +54,7 @@ type rawSession struct {
 }
 
 type CreateOptions struct {
+	Directory   string
 	Kind        string
 	UseWorktree bool
 	Branch      string

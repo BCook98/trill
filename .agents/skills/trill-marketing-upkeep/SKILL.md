@@ -19,11 +19,11 @@ Build the intended native app into a dedicated build directory. Record the execu
 
 ## Record real, isolated work
 
-Use the existing runner and owned demo lab. Demonstrate an actual terminal/tmux session and actual agent work. Never manufacture Claude/Codex transcripts, successful creation screens, backend metadata, or terminal pixels.
+Use the existing runner and owned demo lab. Demonstrate an actual Herdr terminal session and actual agent work. Never manufacture Claude/Codex transcripts, successful creation screens, backend metadata, or terminal pixels.
 
-Protect personal work: interact only with verified runner-owned simulators, the isolated lab's tmux socket and disposable project. Never attach to, type into, steal, archive, stop, or kill personal sessions; never restart the user's companion or globally kill idb/tmux to fix a recording. Serialize captures and respect the runner lock and ownership records. Private invites, credentials, logs, and raw captures stay out of public assets.
+Protect personal work: interact only with verified runner-owned simulators, the isolated lab’s Herdr server and configuration root and disposable project. Never attach to, type into, steal, archive, stop, or kill personal sessions; never restart the user's companion or globally kill idb or Herdr to fix a recording. Serialize captures and respect the runner lock and ownership records. Private invites, credentials, logs, and raw captures stay out of public assets.
 
-Start in Sessions, open the real demo session, show the keyboard, type a useful request, explicitly insert and submit it, then show the real changed file and preview. Resolve agent consent before recording. Read `docs/DEMO_CREATION.md` before including session creation: the terminal lab cannot create sessions, and a separate database or environment override is not proof of isolation from personal Xirp.
+Start in Sessions, open the real demo session, show the keyboard, type a useful request, explicitly insert and submit it, then show the real changed file and preview. Resolve agent consent before recording. Read `docs/DEMO_CREATION.md` before including session creation: the scripted fixture does not prove native creation, and the real lab must use its own Herdr configuration, server and disposable project.
 
 When the app or runner drifts, repair the existing scenario, navigation, accessibility mapping, or helper before final capture. Inspect the new native UI and exact build/runtime geometry; **never merely replace a map's app hash to bypass validation**. Run relevant runner tests and a smoke capture, then rerecord the affected final sequence. After an uncertain submit, inspect the real lab state; do not blindly replay input or pretend a timeout succeeded. Stop dependent actions if ownership or isolation cannot be established, and report the specific blocker while completing independent work.
 
@@ -35,7 +35,7 @@ Update `website/assets/demos/manifest.json`, all affected consumers, alt text, a
 
 The homepage has no standalone hero screenshot; keep video as its main product visual. Still images belong to player posters, reduced-motion and error/no-script fallbacks. The homepage `#demo` is the primary player; `/demo` is a compatibility redirect. Preserve automatic browser theme matching, Duo unfolding, subtle pause/replay, reduced-motion stills, offscreen pausing, and no-JavaScript/error fallbacks. The fold frame is illustrative presentation around real footage, not captured device motion.
 
-Update feature claims and setup/support copy when behavior changes. Position Trill as remote control for Xirp and Herdr on the user's own computer. Keep privacy/support routes and App Store review information intact; keep `website/privacy/index.html` consistent with `ios/Trill/PrivacyPolicy.txt`. Do not invent App Store availability, Apple approval, provider features, or privacy guarantees.
+Update feature claims and setup/support copy when behavior changes. Position Trill as remote control for Herdr on the user's own computer. Keep privacy/support routes and App Store review information intact; keep `website/privacy/index.html` consistent with `ios/Trill/PrivacyPolicy.txt`. Do not invent App Store availability, Apple approval, provider features, or privacy guarantees.
 
 ## Verify, maintain this skill, and deliver
 

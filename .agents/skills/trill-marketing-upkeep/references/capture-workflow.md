@@ -5,7 +5,7 @@ These are entry points, not frozen assumptions. Read the current files and CLI h
 ## Sources and ownership
 
 - `scripts/demo.py`: prepare/capture/run, simulator ownership, UI map validation, manifests and recording.
-- `scripts/demo-lab.py`: dedicated companion, disposable fixture and isolated tmux socket.
+- `scripts/demo-lab.py`: dedicated companion, disposable fixture and isolated Herdr server/configuration root.
 - `scripts/demo/screen_text.swift`: native screen-text helper.
 - `demos/profiles/{iphone-17-pro,iphone-duo}.json`: device/runtime profiles.
 - `demos/profiles/maps/{iphone-17-pro,iphone-duo}.json`: exact-build UI mappings.
@@ -61,7 +61,9 @@ python3 -B -m unittest discover -s tests/demo_lab -v
 
 ## UI drift and mutation recovery
 
-The October 26 review measures the Sessions/Agents switch, session row and expanded native draft. The connected terminal now has an empty navigation title: wait for the exact enabled `remote-terminal` accessibility identifier, not visible “Mosh” text. This readiness check uses native AX even with a reviewed coordinate map. Keep the independent pixel identity and credential checks. For this build, enable the verified isolated lab's tmux status (`status on`, `status-format '#S'`, `status-style 'fg=colour250,bg=colour235'`) so its actual session name remains visible without the old app title. Scope every tmux command to the owned socket and returned session name; never substitute a fabricated terminal label. Dismiss the simulator's first-use keyboard tutorial before recording.
+The October 26 published media is historical Codex/tmux footage, with its original provenance retained. The current app uses Herdr HTTPS streams and opens a selected live session directly after consent. Wait for the exact enabled `remote-terminal` identifier; do not tap the removed `open-terminal` screen. Keep pixel identity and credential checks. The migrated lab uses its returned Herdr pane/terminal IDs and its own configuration root; never substitute a personal server or fabricated terminal label. Current layouts need a fresh native review before repinning an old capture map’s executable hash. Dismiss first-use keyboard tutorials before recording.
+
+A polish-release review does not itself claim new recordings. Keep published captures and their dates intact when the demonstrated journey is unchanged; record any stale or unqualified media in the release handoff. A requested or major UI refresh still requires complete new light/dark footage and validation before replacement. New terminal/space creation now uses a Mac folder browser; terminal menus include confirmed closure, and panel visibility is sticky. Review those controls explicitly if a capture scenario uses them.
 
 The Duo profile explicitly sets `orientation: PORTRAIT`; hinge angle alone does not clear a retained landscape orientation. Inspect every changed step on each new build before repinning maps. Fresh pairing review also needs the same owned-app terminate/launch as capture: retained detail navigation can otherwise survive pairing.
 

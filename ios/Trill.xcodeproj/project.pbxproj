@@ -34,6 +34,7 @@
 		A4A3CD36CC838633484F49C1 /* Acknowledgements.txt in Resources */ = {isa = PBXBuildFile; fileRef = AD69E8F982EA8FFDFB0D0CE4 /* Acknowledgements.txt */; };
 		A96860450BBA644956F56677 /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; productRef = C9294CCACBAD12D1FC37A842 /* SwiftTerm */; };
 		B2DBEC48B507B8DDC703D5CE /* ComputerLibraryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14D2076523B63A69AC91D72C /* ComputerLibraryTests.swift */; };
+		C85782A3905BA1B97EF658CA /* MacFolderPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A7F66252ADD0F61CD1A3461 /* MacFolderPicker.swift */; };
 		D40289EA384ED0FBF3D47DFF /* TrillUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA01AC07509CCB1650D6D3DB /* TrillUITests.swift */; };
 		DDC888C4661E5C6A124BF9A7 /* ComputersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D4FB9CED906D2EC4CD5BBAE /* ComputersView.swift */; };
 /* End PBXBuildFile section */
@@ -73,6 +74,7 @@
 		6B52A1576EFBB1109809ABA7 /* TerminalViewportRegion.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TerminalViewportRegion.swift; sourceTree = "<group>"; };
 		73249FA13D3AB9FEC4490B98 /* ComputerLibrary.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ComputerLibrary.swift; sourceTree = "<group>"; };
 		88177B568BA50F225A4E62AD /* TerminalInputTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TerminalInputTests.swift; sourceTree = "<group>"; };
+		8A7F66252ADD0F61CD1A3461 /* MacFolderPicker.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MacFolderPicker.swift; sourceTree = "<group>"; };
 		92141E42A345860073BD01DA /* TrillUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TrillUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		97D2C12A7115A13D36785847 /* SessionBrowserTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SessionBrowserTests.swift; sourceTree = "<group>"; };
 		993726B6E84849F6E6EBB809 /* PrivacyView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PrivacyView.swift; sourceTree = "<group>"; };
@@ -193,6 +195,7 @@
 				33EA8F05B1DDA42E669AE5FD /* PrivacyInfo.xcprivacy */,
 				2F0617BEDF95942A1A63F092 /* PrivacyPolicy.txt */,
 				AD69E8F982EA8FFDFB0D0CE4 /* Acknowledgements.txt */,
+				8A7F66252ADD0F61CD1A3461 /* MacFolderPicker.swift */,
 			);
 			name = Trill;
 			path = Trill;
@@ -360,6 +363,7 @@
 				8727084B33B3DA832813FAD2 /* TerminalConnection.swift in Sources */,
 				A3193E046051FCEB29847E8D /* TerminalViewportRegion.swift in Sources */,
 				4F8ACA5734CB465B0608895D /* WorkspaceView.swift in Sources */,
+				C85782A3905BA1B97EF658CA /* MacFolderPicker.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
