@@ -4,6 +4,7 @@ import Security
 struct SavedComputer: Codable, Identifiable, Equatable {
     let id: UUID
     var computer: Computer
+    var notificationPreferences: AgentNotificationPreferences?
 
     init(id: UUID = UUID(), computer: Computer) {
         self.id = id

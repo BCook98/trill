@@ -6,6 +6,10 @@ enum SessionBrowserMode: Hashable { case sessions, agents }
 
 @MainActor @Observable
 final class AppStore {
+    var notificationSyncErrors: [UUID: String] = [:]
+    var notificationRouteRevision = UUID()
+    private var notificationNavigationTask: Task<Void, Never>?
+    private var notificationTasks: [UUID: Task<Void, Error>] = [:]
     var computer: Computer?
     private var library = ComputerLibrary()
     private var libraryAvailable = true
@@ -71,6 +75,7 @@ final class AppStore {
     private let checkHealth: (APIClient) async throws -> Health
     private let fetchSessions: (APIClient) async throws -> [RemoteSession]
     private let fetchProjects: (APIClient) async throws -> [Project]
+    private let deleteNotificationRegistration: (APIClient) async throws -> Void
     private let performRename: (APIClient, String, String) async throws -> Void
 
     init(loadSavedPairing: Bool = true,
@@ -82,6 +87,7 @@ final class AppStore {
          checkHealth: @escaping (APIClient) async throws -> Health = { try await $0.health() },
          fetchSessions: @escaping (APIClient) async throws -> [RemoteSession] = { try await $0.sessions() },
          fetchProjects: @escaping (APIClient) async throws -> [Project] = { try await $0.projects() },
+         deleteNotificationRegistration: @escaping (APIClient) async throws -> Void = { try await $0.deleteNotifications() },
          performRename: @escaping (APIClient, String, String) async throws -> Void = { try await $0.rename(id: $1, name: $2) }) {
         self.saveLibrary = saveLibrary
         self.savePairing = savePairing
@@ -89,6 +95,7 @@ final class AppStore {
         self.checkHealth = checkHealth
         self.fetchSessions = fetchSessions
         self.fetchProjects = fetchProjects
+        self.deleteNotificationRegistration = deleteNotificationRegistration
         self.performRename = performRename
         guard loadSavedPairing else { return }
         #if DEBUG
@@ -234,6 +241,10 @@ final class AppStore {
         let health = try await checkHealth(client)
         var next = library
         let pairedID = next.upsert(computer)
+        if let previous = library.computers.first(where: { $0.id == pairedID }), previous.notificationPreferences != nil {
+            try await removeNotificationRegistration(for: previous)
+            if let index = next.computers.firstIndex(where: { $0.id == pairedID }) { next.computers[index].notificationPreferences = nil }
+        }
         try saveLibrary(next)
         if let previous = library.computers.first(where: { $0.id == pairedID }) {
             TerminalConsentPreference.clear(previous.computer)
@@ -242,7 +253,7 @@ final class AppStore {
         if let paired = next.selected { TerminalConsentPreference.clear(paired.computer); PhotoConsentPreference.clear(paired.computer) }
         await activate(next, client: client, health: health)
     }
-    func selectComputer(id: UUID) async throws {
+    func selectComputer(id: UUID, restoreSelection: Bool = true) async throws {
         guard library.activeID != id else { return }
         try beginComputerChange()
         defer { busy = false; changingComputer = false }
@@ -252,12 +263,13 @@ final class AppStore {
         try saveLibrary(next)
         // Selecting an offline computer is still allowed. Refresh explains the
         // connection failure, and the other saved computers remain available.
-        await activate(next, client: client, health: nil)
+        await activate(next, client: client, health: nil, restoreSelection: restoreSelection)
     }
     func forgetComputer(id: UUID) async throws {
         try beginComputerChange()
         defer { busy = false; changingComputer = false }
         guard let forgotten = library.computers.first(where: { $0.id == id }) else { return }
+        if forgotten.notificationPreferences != nil { try await removeNotificationRegistration(for: forgotten) }
         var next = library; next.remove(id: id)
         let client = try next.selected.map { try APIClient(computer: $0.computer) }
         try saveLibrary(next)
@@ -266,8 +278,74 @@ final class AppStore {
         if library.activeID == id { await activate(next, client: client, health: nil) }
         else { library = next }
         drafts[id] = nil; selections[id] = nil
+        notificationTasks[id] = nil; notificationSyncErrors[id] = nil
     }
-    private func activate(_ next: ComputerLibrary, client: APIClient?, health: Health?) async {
+    private func removeNotificationRegistration(for saved: SavedComputer) async throws {
+        if let pending = notificationTasks[saved.id] { _ = await pending.result }
+        let client = try APIClient(computer: saved.computer)
+        do { try await deleteNotificationRegistration(client) }
+        catch let error as APIRequestError where error.status == 401 { /* Revocation already removes server registration. */ }
+        catch { throw TrillError.message("Couldn’t remove this computer’s alert registration. Reconnect and try again, or revoke this device on the Mac before forgetting it.") }
+        await AgentNotificationDelegate.removeDelivered(computerID: saved.id)
+    }
+    func setNotificationPreferences(_ preferences: AgentNotificationPreferences, computerID: UUID) throws {
+        guard !changingComputer, let index = library.computers.firstIndex(where: { $0.id == computerID }) else { throw TrillError.message("This computer is no longer available.") }
+        var next = library; next.computers[index].notificationPreferences = preferences
+        try saveLibrary(next); library = next
+    }
+    func notificationStatus(computerID: UUID) async throws -> AgentNotificationStatus {
+        guard let saved = computers.first(where: { $0.id == computerID }) else { throw TrillError.message("This computer is no longer saved.") }
+        return try await APIClient(computer: saved.computer).notificationStatus()
+    }
+    func syncNotifications(computerID: UUID, notifications: AgentNotificationDelegate) async throws {
+        guard !changingComputer else { return }
+        let previous = notificationTasks[computerID]
+        let task = Task { @MainActor in
+            if let previous { _ = await previous.result }
+            guard !changingComputer, let saved = computers.first(where: { $0.id == computerID }),
+                  let preferences = saved.notificationPreferences else { return }
+            let client = try APIClient(computer: saved.computer)
+            if !preferences.enabled || !notifications.authorized || AgentNotificationDelegate.environment == nil {
+                try await deleteNotificationRegistration(client)
+                await AgentNotificationDelegate.removeDelivered(computerID: computerID)
+            } else if let token = notifications.deviceToken, let environment = AgentNotificationDelegate.environment {
+                try await client.registerNotifications(token: token, environment: environment, computerID: computerID, preferences: preferences)
+            }
+        }
+        notificationTasks[computerID] = task
+        try await task.value
+    }
+    func refreshNotificationRegistrations(_ notifications: AgentNotificationDelegate) async {
+        await notifications.refreshAuthorization()
+        if notifications.authorized && AgentNotificationDelegate.environment != nil && computers.contains(where: { $0.notificationPreferences?.enabled == true }) {
+            UIApplication.shared.registerForRemoteNotifications()
+        }
+        for saved in computers where saved.notificationPreferences != nil {
+            do { try await syncNotifications(computerID: saved.id, notifications: notifications); notificationSyncErrors[saved.id] = nil }
+            catch { notificationSyncErrors[saved.id] = "Couldn’t update alerts on this computer. Reconnect and check notification settings." }
+        }
+    }
+    func openNotification(_ route: AgentNotificationRoute) async {
+        let previous = notificationNavigationTask
+        let task = Task { @MainActor in
+            if let previous { await previous.value }
+            await navigateToNotification(route)
+        }
+        notificationNavigationTask = task
+        await task.value
+    }
+    private func navigateToNotification(_ route: AgentNotificationRoute) async {
+        do {
+            guard computers.contains(where: { $0.id == route.computerID }) else { throw TrillError.message("This alert belongs to a computer that is no longer saved.") }
+            try await selectComputer(id: route.computerID, restoreSelection: false)
+            guard await refresh(), activeComputerID == route.computerID else { throw TrillError.message("Couldn’t open the alert’s computer. Check its connection and try again.") }
+            guard selectSession(id: route.sessionID) else { throw TrillError.message("This agent session is no longer available on this computer.") }
+            connectionDetailsPresented = false; computersPresented = false; pairingPresented = false
+            newSessionPresented = false; newSpacePresented = false; newWorktreePresented = false
+            notificationRouteRevision = UUID()
+        } catch { actionError = error.localizedDescription }
+    }
+    private func activate(_ next: ComputerLibrary, client: APIClient?, health: Health?, restoreSelection: Bool = true) async {
         refreshGeneration = UUID()
         for workspace in workspaces.values { workspace.close() }
         workspaces.removeAll()
@@ -285,7 +363,7 @@ final class AppStore {
         refreshedAt = nil; error = nil; actionError = nil
         // Other callers remain paused until activation and its initial poll finish.
         _ = await refreshCurrentComputer()
-        if let id = next.activeID, let selection = selections[id], currentSessions.contains(where: { $0.id == selection }) {
+        if restoreSelection, let id = next.activeID, let selection = selections[id], currentSessions.contains(where: { $0.id == selection }) {
             selectedID = selection
         }
     }
@@ -464,14 +542,22 @@ final class AppStore {
 
 @main
 struct TrillApp: App {
+    @UIApplicationDelegateAdaptor(AgentNotificationDelegate.self) private var notifications
     @State private var store = AppStore()
     @Environment(\.scenePhase) private var scenePhase
     var body: some Scene {
         WindowGroup {
-            RootView().environment(store).tint(Color("AccentColor"))
+            RootView().environment(store).environment(notifications).tint(Color("AccentColor"))
                 .task(id: "\(store.activeComputerID?.uuidString ?? "")-\(scenePhase)-\(store.sessions.contains(where: { $0.provider == "herdr" }))") {
                     guard scenePhase == .active else { return }
                     await store.watchHerdrChanges()
+                }
+                .task { await store.refreshNotificationRegistrations(notifications) }
+                .onChange(of: notifications.deviceToken) { _, _ in Task { await store.refreshNotificationRegistrations(notifications) } }
+                .task(id: notifications.pendingRoute?.eventID) {
+                    guard let route = notifications.pendingRoute else { return }
+                    await store.openNotification(route)
+                    if notifications.pendingRoute == route { notifications.pendingRoute = nil }
                 }
                 .task {
                     while !Task.isCancelled {
@@ -487,7 +573,7 @@ struct TrillApp: App {
                 .onChange(of: scenePhase) { _, phase in
                     Task {
                         if phase == .background { await store.background() }
-                        if phase == .active { await store.foreground(); await store.refresh() }
+                        if phase == .active { await store.foreground(); await store.refresh(); await store.refreshNotificationRegistrations(notifications) }
                     }
                 }
         }

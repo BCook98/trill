@@ -35,6 +35,7 @@ type Project struct {
 
 type rawSession struct {
 	ProviderKey       string `json:"-"`
+	HerdrAgentStatus  string `json:"-"`
 	HerdrPane         string `json:"-"`
 	HerdrTerminal     string `json:"-"`
 	ID                string `json:"id"`

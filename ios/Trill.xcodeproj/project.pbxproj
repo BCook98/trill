@@ -16,6 +16,7 @@
 		2692236150212D8001FE9FF2 /* PrivacyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 993726B6E84849F6E6EBB809 /* PrivacyView.swift */; };
 		332E74EF5FCF569FA7EE5C7A /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F68329A2F5C4746FAB2536B6 /* RootView.swift */; };
 		3E0636CA26BD9C88A9C9ECA6 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5B380E9F5847DC72365528D /* APIClient.swift */; };
+		3FBFC4E3F7E6CE4E8E879CD0 /* AgentNotificationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C686E321AF3A4E89E8575BDF /* AgentNotificationTests.swift */; };
 		4181228AF3E8F6956E9E6998 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 33EA8F05B1DDA42E669AE5FD /* PrivacyInfo.xcprivacy */; };
 		4E1A3255C461206BFDCFC880 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4F012ECC39A4E083EDE18D52 /* Foundation.framework */; };
 		4F8ACA5734CB465B0608895D /* WorkspaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06B481BDFAE41D276E493FFC /* WorkspaceView.swift */; };
@@ -36,6 +37,7 @@
 		B2DBEC48B507B8DDC703D5CE /* ComputerLibraryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14D2076523B63A69AC91D72C /* ComputerLibraryTests.swift */; };
 		C85782A3905BA1B97EF658CA /* MacFolderPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A7F66252ADD0F61CD1A3461 /* MacFolderPicker.swift */; };
 		D40289EA384ED0FBF3D47DFF /* TrillUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA01AC07509CCB1650D6D3DB /* TrillUITests.swift */; };
+		DCEC292DB53CD77179E2AD67 /* AgentNotifications.swift in Sources */ = {isa = PBXBuildFile; fileRef = E463D4E427A2B0DFBDA9BCBC /* AgentNotifications.swift */; };
 		DDC888C4661E5C6A124BF9A7 /* ComputersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D4FB9CED906D2EC4CD5BBAE /* ComputersView.swift */; };
 /* End PBXBuildFile section */
 
@@ -84,7 +86,9 @@
 		AD69E8F982EA8FFDFB0D0CE4 /* Acknowledgements.txt */ = {isa = PBXFileReference; includeInIndex = 1; path = Acknowledgements.txt; sourceTree = "<group>"; };
 		BB8682EB07A28168C27E5F5D /* Assets.xcassets */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		BC5E798B88995FB0B36FD982 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		C686E321AF3A4E89E8575BDF /* AgentNotificationTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AgentNotificationTests.swift; sourceTree = "<group>"; };
 		C7E9B936E2D538B938A7F0E1 /* SessionDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SessionDetailView.swift; sourceTree = "<group>"; };
+		E463D4E427A2B0DFBDA9BCBC /* AgentNotifications.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AgentNotifications.swift; sourceTree = "<group>"; };
 		E7CD470FD1FFB8B63D0F53F5 /* Version.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; path = Version.xcconfig; sourceTree = "<group>"; };
 		EA01AC07509CCB1650D6D3DB /* TrillUITests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TrillUITests.swift; sourceTree = "<group>"; };
 		F5B380E9F5847DC72365528D /* APIClient.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
@@ -141,6 +145,7 @@
 				97D2C12A7115A13D36785847 /* SessionBrowserTests.swift */,
 				88177B568BA50F225A4E62AD /* TerminalInputTests.swift */,
 				284E14E488D5502ED2A1F69C /* WorkspacePreviewTests.swift */,
+				C686E321AF3A4E89E8575BDF /* AgentNotificationTests.swift */,
 			);
 			name = TrillTests;
 			path = TrillTests;
@@ -196,6 +201,7 @@
 				2F0617BEDF95942A1A63F092 /* PrivacyPolicy.txt */,
 				AD69E8F982EA8FFDFB0D0CE4 /* Acknowledgements.txt */,
 				8A7F66252ADD0F61CD1A3461 /* MacFolderPicker.swift */,
+				E463D4E427A2B0DFBDA9BCBC /* AgentNotifications.swift */,
 			);
 			name = Trill;
 			path = Trill;
@@ -342,6 +348,7 @@
 				57EFBFA7F931B871E6BDF5E7 /* SessionBrowserTests.swift in Sources */,
 				6B0A04AB56E23AC196B65C22 /* TerminalInputTests.swift in Sources */,
 				07FD6A4D9FD2ED7283D8CBAA /* WorkspacePreviewTests.swift in Sources */,
+				3FBFC4E3F7E6CE4E8E879CD0 /* AgentNotificationTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -364,6 +371,7 @@
 				A3193E046051FCEB29847E8D /* TerminalViewportRegion.swift in Sources */,
 				4F8ACA5734CB465B0608895D /* WorkspaceView.swift in Sources */,
 				C85782A3905BA1B97EF658CA /* MacFolderPicker.swift in Sources */,
+				DCEC292DB53CD77179E2AD67 /* AgentNotifications.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -510,6 +518,7 @@
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
+				TRILL_PUSH_ENVIRONMENT = disabled;
 				VALIDATE_PRODUCT = YES;
 			};
 			name = Release;
@@ -622,6 +631,7 @@
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
+				TRILL_PUSH_ENVIRONMENT = disabled;
 			};
 			name = Debug;
 		};

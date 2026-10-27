@@ -45,7 +45,8 @@ type Device struct {
 
 type credential struct {
 	Device
-	TokenHash string `json:"tokenHash"`
+	TokenHash string            `json:"tokenHash"`
+	Push      *PushRegistration `json:"push,omitempty"`
 }
 type invitation struct {
 	Hash      string    `json:"hash"`
@@ -167,7 +168,7 @@ func (s *Store) Redeem(code, name string) (device Device, token string, err erro
 			return e
 		}
 		device = Device{ID: id, Name: name, CreatedAt: now}
-		v.Devices = append(v.Devices, credential{device, digest(token)})
+		v.Devices = append(v.Devices, credential{Device: device, TokenHash: digest(token)})
 		v.Invitations = append(v.Invitations[:index], v.Invitations[index+1:]...)
 		return nil
 	})
@@ -218,6 +219,7 @@ func (s *Store) Revoke(id string) error {
 						now = v.Devices[j].CreatedAt
 					}
 					v.Devices[j].RevokedAt = &now
+					v.Devices[j].Push = nil
 				}
 				return nil
 			}
@@ -320,6 +322,11 @@ func (s *Store) access(write bool, fn func(*state) error) error {
 		return err
 	}
 	if write {
+		for index := range v.Devices {
+			if registration := v.Devices[index].Push; registration != nil && !time.Now().Before(registration.ExpiresAt) {
+				v.Devices[index].Push = nil
+			}
+		}
 		return replaceState(path, v)
 	}
 	return nil
@@ -351,6 +358,9 @@ func validState(v state) bool {
 	ids, hashes := map[string]bool{}, map[string]bool{}
 	for _, d := range v.Devices {
 		if !validHex(d.ID, 32) || !ValidName(d.Name) || !validHex(d.TokenHash, 64) || d.CreatedAt.IsZero() || ids[d.ID] || hashes[d.TokenHash] || d.RevokedAt != nil && d.RevokedAt.Before(d.CreatedAt) {
+			return false
+		}
+		if d.Push != nil && (!d.Push.Registration.Valid() || d.Push.ExpiresAt.IsZero() || d.RevokedAt != nil) {
 			return false
 		}
 		ids[d.ID], hashes[d.TokenHash] = true, true

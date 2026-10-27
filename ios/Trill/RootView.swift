@@ -45,7 +45,10 @@ struct RootView: View {
             }
         }
         .onChange(of: store.activeComputerID) { _, _ in
-            showProjects = false; store.workspacePresented = false; store.workspacePreviewAddress = nil; store.actionError = nil
+            showProjects = false; store.workspacePresented = false; store.workspacePreviewAddress = nil
+        }
+        .onChange(of: store.notificationRouteRevision) { _, _ in
+            showProjects = false; preferredSessionColumn = .detail
         }
         .modifier(SessionAlerts(enabled: !showProjects))
         .disabled(store.changingComputer)

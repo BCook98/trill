@@ -128,6 +128,12 @@ final class APIClient: @unchecked Sendable {
         _ = try Computer.validate(address: draft.address, token: enrollment.token, fingerprint: draft.fingerprint)
         return Computer(name: draft.name, address: draft.address, token: enrollment.token, fingerprint: draft.fingerprint)
     }
+    func notificationStatus() async throws -> AgentNotificationStatus { try await request("GET", "v1/notifications") }
+    func registerNotifications(token: String, environment: String, computerID: UUID, preferences: AgentNotificationPreferences) async throws {
+        let _: OKResponse = try await request("PUT", "v1/notifications", body: ["token": token, "environment": environment,
+            "computerId": computerID.uuidString, "attention": preferences.attention, "completion": preferences.completion])
+    }
+    func deleteNotifications() async throws { let _: OKResponse = try await request("DELETE", "v1/notifications") }
     func health() async throws -> Health { try await request("GET", "v1/health") }
     func sessions() async throws -> [RemoteSession] { let r: SessionsResponse = try await request("GET", "v1/sessions"); recordProviders(r.providers ?? []); return r.sessions }
     func projects() async throws -> [Project] { let r: ProjectsResponse = try await request("GET", "v1/projects"); return r.projects }

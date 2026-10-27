@@ -27,18 +27,19 @@ var (
 )
 
 type HTTP struct {
-	service     *Service
-	tokenHash   [32]byte
-	mux         *http.ServeMux
-	legacy      bool
-	store       *pairing.Store
-	mu          sync.Mutex
-	owners      map[string]string
-	closed      bool
-	closeOnce   sync.Once
-	done        chan struct{}
-	watchDone   chan struct{}
-	changeSlots chan struct{}
+	service       *Service
+	tokenHash     [32]byte
+	mux           *http.ServeMux
+	legacy        bool
+	store         *pairing.Store
+	mu            sync.Mutex
+	owners        map[string]string
+	closed        bool
+	closeOnce     sync.Once
+	done          chan struct{}
+	watchDone     chan struct{}
+	changeSlots   chan struct{}
+	notifications *agentNotifications
 
 	previews        *previewManager
 	attachmentRoot  string
@@ -72,6 +73,9 @@ func NewHTTPWithPairing(service *Service, token string, store *pairing.Store) *H
 	h.mux.HandleFunc("GET /v1/sessions", h.sessions)
 	h.mux.HandleFunc("GET /v1/projects", h.projects)
 	h.mux.HandleFunc("GET /v1/changes", h.herdrChanges)
+	h.mux.HandleFunc("GET /v1/notifications", h.notificationStatus)
+	h.mux.HandleFunc("PUT /v1/notifications", h.registerNotifications)
+	h.mux.HandleFunc("DELETE /v1/notifications", h.deleteNotifications)
 	h.mux.HandleFunc("POST /v1/sessions", h.create)
 	h.mux.HandleFunc("POST /v1/spaces", h.createSpace)
 	h.mux.HandleFunc("PATCH /v1/sessions/{id}", h.rename)
@@ -506,6 +510,10 @@ func (h *HTTP) sweepDevices() {
 func (h *HTTP) Close() {
 	h.closeOnce.Do(func() {
 		h.previews.Close()
+		if h.notifications != nil {
+			h.notifications.cancel()
+			<-h.notifications.done
+		}
 		h.mu.Lock()
 		h.closed = true
 		close(h.done)

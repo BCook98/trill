@@ -30,6 +30,13 @@ struct ComputerView: View {
                     Button("Edit pairing", systemImage: "pencil") { editPairing = true }
                     Button("Forget computer", systemImage: "link.badge.plus", role: .destructive) { showForget = true }
                 } footer: { Text("This device keeps your pairing details in Keychain. Your sessions run on your Mac.") }
+                if let computerID = store.activeComputerID {
+                    Section {
+                        NavigationLink { AgentNotificationSettingsView(computerID: computerID) } label: {
+                            Label("Agent Notifications", systemImage: "bell.badge")
+                        }
+                    }
+                }
                 Section {
                     LabeledContent("Terminal permission", value: TerminalConsentPreference.contains(computer, in: terminalConsent) ? "Remembered" : "Ask each time")
                     if TerminalConsentPreference.contains(computer, in: terminalConsent) {
