@@ -49,6 +49,9 @@ func OpenInstallation(home string, create bool) (string, error) {
 }
 
 func StableCLI(home, executable string) string {
+	if prefix := HomebrewPrefix(executable); prefix != "" {
+		return filepath.Join(prefix, "bin", "trill")
+	}
 	root := InstallationRoot(home)
 	marker, err := setup.ReadPrivate(filepath.Join(root, ".trill-distribution"))
 	if err != nil || string(marker) != ownershipMarker {
@@ -60,6 +63,25 @@ func StableCLI(home, executable string) string {
 		return stable
 	}
 	return executable
+}
+
+// HomebrewPrefix recognizes our cask only when Homebrew's stable CLI link
+// resolves to this exact executable. Never infer ownership from PATH alone.
+func HomebrewPrefix(executable string) string {
+	resolvedExecutable, err := filepath.EvalSymlinks(executable)
+	if err != nil {
+		return ""
+	}
+	caskDirectory := filepath.Dir(filepath.Dir(resolvedExecutable))
+	if filepath.Base(caskDirectory) != "trill" || filepath.Base(filepath.Dir(caskDirectory)) != "Caskroom" {
+		return ""
+	}
+	prefix := filepath.Dir(filepath.Dir(caskDirectory))
+	stableExecutable, err := filepath.EvalSymlinks(filepath.Join(prefix, "bin", "trill"))
+	if err != nil || stableExecutable != resolvedExecutable {
+		return ""
+	}
+	return prefix
 }
 
 func PreflightLinks(home, root string) error {
