@@ -929,3 +929,18 @@ func TestPairedBootstrapRacingShutdown(t *testing.T) {
 		})
 	}
 }
+func TestMoshBindsLocalAddressAndAdvertisesHost(t *testing.T) {
+	h, f, s := setup(t, true, true)
+	s.config.MoshHost, s.config.MoshBind = "100.73.54.69", "127.0.0.1"
+	w := request(h, "POST", "/v1/sessions/lab-1/mosh", "secret", `{"cols":80,"rows":24}`)
+	if w.Code != 200 {
+		t.Fatal(w.Body.String())
+	}
+	var info MoshInfo
+	if err := json.Unmarshal(w.Body.Bytes(), &info); err != nil {
+		t.Fatal(err)
+	}
+	if info.Host != "100.73.54.69" || len(f.moshArgs) < 3 || f.moshArgs[1] != "-i" || f.moshArgs[2] != "127.0.0.1" {
+		t.Fatalf("advertised %s, mosh args %q", info.Host, f.moshArgs)
+	}
+}

@@ -8,20 +8,23 @@ import (
 
 func TestNetworkGuards(t *testing.T) {
 	for _, tc := range []struct {
-		listen, cert, key, mosh string
-		insecure                bool
-		valid                   bool
+		listen, cert, key, mosh, bind string
+		insecure                      bool
+		valid                         bool
 	}{
-		{"127.0.0.1:7443", "", "", "127.0.0.1", true, true},
-		{"127.0.0.1:7443", "cert", "key", "127.0.0.1", false, true},
-		{"0.0.0.0:7443", "cert", "key", "192.0.2.1", false, true},
-		{"0.0.0.0:7443", "", "", "192.0.2.1", true, false},
-		{"0.0.0.0:7443", "cert", "key", "127.0.0.1", false, false},
-		{"127.0.0.1:7443", "", "", "127.0.0.1", false, false},
-		{"localhost:7443", "cert", "key", "127.0.0.1", false, false},
-		{"127.0.0.1:7443", "cert", "", "127.0.0.1", false, false},
+		{"127.0.0.1:7443", "", "", "127.0.0.1", "", true, true},
+		{"127.0.0.1:7443", "cert", "key", "127.0.0.1", "", false, true},
+		{"0.0.0.0:7443", "cert", "key", "192.0.2.1", "", false, true},
+		{"0.0.0.0:7443", "", "", "192.0.2.1", "", true, false},
+		{"0.0.0.0:7443", "cert", "key", "127.0.0.1", "", false, false},
+		{"127.0.0.1:7443", "", "", "127.0.0.1", "", false, false},
+		{"localhost:7443", "cert", "key", "127.0.0.1", "", false, false},
+		{"127.0.0.1:7443", "cert", "", "127.0.0.1", "", false, false},
+		{"127.0.0.1:7443", "cert", "key", "100.73.54.69", "127.0.0.1", false, true},
+		{"127.0.0.1:7443", "cert", "key", "100.73.54.69", "0.0.0.0", false, false},
+		{"127.0.0.1:7443", "cert", "key", "100.73.54.69", "localhost", false, false},
 	} {
-		err := validateNetwork(tc.listen, tc.cert, tc.key, tc.insecure, tc.mosh)
+		err := validateNetwork(tc.listen, tc.cert, tc.key, tc.insecure, tc.mosh, tc.bind)
 		if (err == nil) != tc.valid {
 			t.Errorf("listen=%s insecure=%t: %v", tc.listen, tc.insecure, err)
 		}

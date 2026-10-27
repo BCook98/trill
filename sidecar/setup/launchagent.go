@@ -384,7 +384,7 @@ func (a Agents) Start(ctx context.Context, c Config, dir string) error {
 		if check == nil {
 			check = CheckListener
 		}
-		if err := check(c.IP); err != nil {
+		if err := check(c.ListenIP()); err != nil {
 			return err
 		}
 		if _, err := a.Runner.Run(ctx, "/bin/launchctl", "bootstrap", a.domain(), a.path(false)); err != nil {

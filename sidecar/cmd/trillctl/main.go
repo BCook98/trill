@@ -103,13 +103,15 @@ func runWithSetupEnvironment(args []string, in io.Reader, out, errOut io.Writer,
 		flags.PrintDefaults()
 	}
 	flags.StringVar(&dir, "state-dir", dir, "private state directory (includes devices.json)")
-	var mode, ip, name, daemon, tmuxSocket, png, hostname string
+	var mode, ip, name, daemon, tmuxSocket, png, hostname, tailscaleCLI, tailscaleSocket string
 	var backends, herdrPath, herdrSessions, herdrConfigHome string
 	var allowControl, noStart, noPair, yes, open, rawJSON, pasteURL, enable, disable bool
 	if command == "setup" {
 		flags.StringVar(&mode, "network", "auto", "new setup: auto prefers connected Tailscale, otherwise LAN; reruns keep saved network")
 		flags.StringVar(&ip, "ip", "", "override with an address assigned to this Mac")
 		flags.StringVar(&hostname, "hostname", "", "LAN Bonjour name override, e.g. my-mac.local (must resolve on phone)")
+		flags.StringVar(&tailscaleCLI, "tailscale-cli", "", "absolute Tailscale CLI path (default tailscale on PATH, then the Tailscale app)")
+		flags.StringVar(&tailscaleSocket, "tailscale-socket", "", "absolute tailscaled socket, for a second tailnet such as a userspace tailscaled")
 		host, _ := os.Hostname()
 		flags.StringVar(&name, "name", host, "computer name shown on the phone")
 		flags.StringVar(&daemon, "daemon", "", "absolute trilld path (default beside trill)")
@@ -221,6 +223,18 @@ func runWithSetupEnvironment(args []string, in io.Reader, out, errOut io.Writer,
 			return err
 		}
 		discovery := environment.discovery
+		if tailscaleCLI != "" || tailscaleSocket != "" {
+			if mode == "lan" {
+				return errors.New("--tailscale-cli and --tailscale-socket require --network tailscale")
+			}
+			mode = "tailscale"
+			for _, path := range []string{tailscaleCLI, tailscaleSocket} {
+				if path != "" && (!filepath.IsAbs(path) || filepath.Clean(path) != path) {
+					return errors.New("--tailscale-cli and --tailscale-socket must be absolute clean paths")
+				}
+			}
+			discovery.TailscaleCLI, discovery.TailscaleSocket = tailscaleCLI, tailscaleSocket
+		}
 		if hostname != "" {
 			discovery.LocalHostname = func(context.Context) (string, error) { return setup.NormalizeLANHostname(hostname) }
 		}
@@ -244,10 +258,13 @@ func runWithSetupEnvironment(args []string, in io.Reader, out, errOut io.Writer,
 				fmt.Fprintf(errOut, "  %s  %s\n", choice.Interface, choice.IP)
 			}
 		}
-		if err = environment.checkListener(n.IP); err != nil {
+		if n.BindIP != "" {
+			fmt.Fprintf(errOut, "%s is not assigned to a local interface, as with a userspace-networking tailscaled. The companion binds %s, where tailscaled delivers inbound tailnet traffic, and advertises %s.\n", n.IP, n.BindIP, n.IP)
+		}
+		c := setup.Config{Backends: backends, HerdrConfigHome: herdrConfigHome, HerdrPath: herdrPath, HerdrSessions: herdrSessions, Version: 1, Name: name, Network: n.Kind, IP: n.IP, BindIP: n.BindIP, Address: "https://" + net.JoinHostPort(n.Host, setup.Port), Certificate: filepath.Join(dir, "tls.pem"), PrivateKey: filepath.Join(dir, "tls.pem"), TailscaleCLI: n.TailscaleCLI, TailscaleSocket: n.TailscaleSocket, AllowControl: allowControl, TmuxSocket: tmuxSocket, Daemon: daemon, CLI: cli, Path: setup.DependencyPath(home, os.Getenv("PATH"))}
+		if err = environment.checkListener(c.ListenIP()); err != nil {
 			return err
 		}
-		c := setup.Config{Backends: backends, HerdrConfigHome: herdrConfigHome, HerdrPath: herdrPath, HerdrSessions: herdrSessions, Version: 1, Name: name, Network: n.Kind, IP: n.IP, Address: "https://" + net.JoinHostPort(n.Host, setup.Port), Certificate: filepath.Join(dir, "tls.pem"), PrivateKey: filepath.Join(dir, "tls.pem"), TailscaleCLI: n.TailscaleCLI, AllowControl: allowControl, TmuxSocket: tmuxSocket, Daemon: daemon, CLI: cli, Path: setup.DependencyPath(home, os.Getenv("PATH"))}
 		if strings.Contains(","+backends+",", ",herdr,") {
 			c.HerdrConfigHome, err = providers.HerdrHome(herdrConfigHome)
 			if err != nil {
@@ -341,7 +358,14 @@ func runWithSetupEnvironment(args []string, in io.Reader, out, errOut io.Writer,
 		_, err = fmt.Fprintf(out, "Revoked %s.\n", id)
 		return err
 	case "status":
-		fmt.Fprintf(out, "%s\nAddress: %s\nNetwork: %s\nRead-only: %t\nState: %s\n", c.Name, c.Address, c.Network, !c.AllowControl, dir)
+		fmt.Fprintf(out, "%s\nAddress: %s\nNetwork: %s\n", c.Name, c.Address, c.Network)
+		if c.BindIP != "" {
+			fmt.Fprintf(out, "Listening: %s (tailnet %s)\n", c.BindIP, c.IP)
+		}
+		if c.TailscaleSocket != "" {
+			fmt.Fprintf(out, "Tailscale socket: %s\n", c.TailscaleSocket)
+		}
+		fmt.Fprintf(out, "Read-only: %t\nState: %s\n", !c.AllowControl, dir)
 		expiry, tlsErr := certs.Check(c)
 		if tlsErr != nil {
 			fmt.Fprintf(out, "TLS: invalid (%v)\n", tlsErr)
@@ -422,8 +446,14 @@ func probe(ctx context.Context, c setup.Config) error {
 			return leaf.VerifyHostname(u.Hostname())
 		}
 	}
+	// A loopback-bound companion is reachable from this Mac only on loopback;
+	// the tailnet name may resolve to another tailnet's route here.
+	target := u.Host
+	if c.BindIP != "" {
+		target = net.JoinHostPort(c.BindIP, setup.Port)
+	}
 	d := tls.Dialer{NetDialer: &net.Dialer{Timeout: 5 * time.Second}, Config: config}
-	conn, err := d.DialContext(ctx, "tcp", u.Host)
+	conn, err := d.DialContext(ctx, "tcp", target)
 	if err != nil {
 		return fmt.Errorf("cannot reach companion HTTPS at %s: %w; check Bonjour/Tailscale connectivity, TCP 7443, and the saved certificate", c.Address, err)
 	}

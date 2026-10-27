@@ -520,3 +520,16 @@ func TestSetupProviderFlagsCompareEffectiveSelection(t *testing.T) {
 		})
 	}
 }
+
+func TestTailscaleSocketFlagsConflictWithSavedConfiguration(t *testing.T) {
+	env, services, home := fakeSetup(t)
+	_, dir := fixture(t)
+	before := privateSnapshot(t, dir, "config.json", "tls.pem")
+	for _, flag := range []string{"--tailscale-socket", "--tailscale-cli"} {
+		_, _, err := runSetupTest([]string{"setup", "--state-dir", dir, "--no-pair", flag, "/run/ts.sock"}, "", env, home)
+		if err == nil || !strings.Contains(err.Error(), flag) || services.installs != 0 {
+			t.Fatalf("%s: accepted a different Tailscale daemon for saved state: %v", flag, err)
+		}
+	}
+	assertSnapshot(t, dir, before)
+}

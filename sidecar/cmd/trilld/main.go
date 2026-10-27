@@ -29,7 +29,7 @@ func main() {
 }
 
 func run() error {
-	var listen, cert, key, tokenFile, pairingFile, tmuxSocket, labFilesRoot, moshHost, ports string
+	var listen, cert, key, tokenFile, pairingFile, tmuxSocket, labFilesRoot, moshHost, moshBind, ports string
 	var insecure, allowControl bool
 	var backends, herdrPath, herdrSessions, herdrLabRoot, herdrConfigHome string
 	var leaseTTL time.Duration
@@ -42,7 +42,8 @@ func run() error {
 	flag.BoolVar(&allowControl, "allow-control", false, "enable session control and mosh bootstrap")
 	flag.StringVar(&tmuxSocket, "tmux-socket", "", "absolute isolated tmux socket; enables terminal lab backend")
 	flag.StringVar(&labFilesRoot, "lab-files-root", "", "opt in to file browsing in terminal lab: absolute existing directory; requires --tmux-socket")
-	flag.StringVar(&moshHost, "mosh-host", "127.0.0.1", "mosh bind and advertised IP address")
+	flag.StringVar(&moshHost, "mosh-host", "127.0.0.1", "mosh advertised IP address, also bound unless --mosh-bind is set")
+	flag.StringVar(&moshBind, "mosh-bind", "", "local IP address mosh-server binds when it differs from --mosh-host")
 	flag.StringVar(&ports, "udp-ports", "60000:60010", "mosh UDP port range")
 	flag.DurationVar(&leaseTTL, "lease-ttl", 12*time.Hour, "maximum mosh lease lifetime")
 	flag.StringVar(&backends, "backends", "", "session providers: xirp (default), herdr, or xirp,herdr")
@@ -54,10 +55,10 @@ func run() error {
 	if flag.NArg() != 0 {
 		return fmt.Errorf("unexpected arguments")
 	}
-	if err := validateNetwork(listen, cert, key, insecure, moshHost); err != nil {
+	if err := validateNetwork(listen, cert, key, insecure, moshHost, moshBind); err != nil {
 		return err
 	}
-	svc, err := sidecar.NewService(sidecar.Config{Backends: backends, HerdrConfigHome: herdrConfigHome, HerdrPath: herdrPath, HerdrSessions: herdrSessions, HerdrLabRoot: herdrLabRoot, AllowControl: allowControl, TmuxSocket: tmuxSocket, LabFilesRoot: labFilesRoot, MoshHost: moshHost, UDPPorts: ports, LeaseTTL: leaseTTL}, nil)
+	svc, err := sidecar.NewService(sidecar.Config{Backends: backends, HerdrConfigHome: herdrConfigHome, HerdrPath: herdrPath, HerdrSessions: herdrSessions, HerdrLabRoot: herdrLabRoot, AllowControl: allowControl, TmuxSocket: tmuxSocket, LabFilesRoot: labFilesRoot, MoshHost: moshHost, MoshBind: moshBind, UDPPorts: ports, LeaseTTL: leaseTTL}, nil)
 	if err != nil {
 		return err
 	}
@@ -102,7 +103,7 @@ func run() error {
 	return err
 }
 
-func validateNetwork(listen, cert, key string, insecure bool, moshHost string) error {
+func validateNetwork(listen, cert, key string, insecure bool, moshHost, moshBind string) error {
 	host, _, err := net.SplitHostPort(listen)
 	if err != nil {
 		return fmt.Errorf("invalid listen address")
@@ -126,6 +127,9 @@ func validateNetwork(listen, cert, key string, insecure bool, moshHost string) e
 	}
 	if !ip.IsLoopback() && moshIP.IsLoopback() {
 		return fmt.Errorf("non-loopback listener requires an explicit reachable --mosh-host")
+	}
+	if bind := net.ParseIP(moshBind); moshBind != "" && (bind == nil || bind.IsUnspecified()) {
+		return fmt.Errorf("mosh bind must be a concrete IP address")
 	}
 	return nil
 }

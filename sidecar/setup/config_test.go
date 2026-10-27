@@ -176,3 +176,46 @@ func TestQRContractAndLocalPNG(t *testing.T) {
 		t.Fatal("empty trusted pin omitted")
 	}
 }
+func TestUserspaceTailscaleConfigBindsLoopbackAndAdvertisesTailnet(t *testing.T) {
+	dir := testDir(t)
+	tailnet := func() Config {
+		c := testConfig(dir)
+		c.Network, c.IP, c.BindIP, c.Address, c.Fingerprint = "tailscale", "100.73.54.69", "127.0.0.1", "https://mac.example.ts.net:7443", ""
+		c.TailscaleCLI, c.TailscaleSocket = "/opt/tailscale", "/run/ts.sock"
+		return c
+	}
+	for _, advertisedIP := range []string{"100.73.54.69", "fd7a:115c:a1e0::1"} {
+		t.Run(advertisedIP, func(t *testing.T) {
+			c := tailnet()
+			c.IP = advertisedIP
+			if err := c.Validate(dir); err != nil {
+				t.Fatal(err)
+			}
+			args := strings.Join(DaemonArgs(c, dir), " ")
+			if !strings.Contains(args, "--listen 127.0.0.1:7443 ") || !strings.Contains(args, "--mosh-host "+advertisedIP+" --mosh-bind 127.0.0.1") {
+				t.Fatal(args)
+			}
+			c.BindIP = "::1"
+			if err := c.Validate(dir); err == nil {
+				t.Fatal("accepted IPv6 loopback instead of Tailscale's IPv4 forwarding target")
+			}
+		})
+	}
+	for i, change := range []func(*Config){
+		func(c *Config) { c.BindIP = "::1" }, func(c *Config) { c.BindIP = "192.168.1.2" },
+		func(c *Config) { c.TailscaleSocket = "relative.sock" }, func(c *Config) { c.TailscaleSocket = "/run/../ts.sock" },
+	} {
+		c := tailnet()
+		change(&c)
+		if err := c.Validate(dir); err == nil {
+			t.Fatalf("accepted tailnet case %d: %+v", i, c)
+		}
+	}
+	for i, change := range []func(*Config){func(c *Config) { c.BindIP = "127.0.0.1" }, func(c *Config) { c.TailscaleSocket = "/run/ts.sock" }} {
+		c := testConfig(dir)
+		change(&c)
+		if err := c.Validate(dir); err == nil {
+			t.Fatalf("accepted LAN case %d: %+v", i, c)
+		}
+	}
+}

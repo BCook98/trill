@@ -175,3 +175,25 @@ func TestNetworkDiagnosticsExplainFallbackWithoutLeakingCommandOutput(t *testing
 		t.Fatal("explicit LAN incorrectly described as fallback", err)
 	}
 }
+func TestUserspaceTailscaleDiscoveryUsesSocketAndBindsLoopback(t *testing.T) {
+	r := &fakeRunner{run: func(name string, args []string) ([]byte, error) {
+		if name != "/opt/tailscale" || !reflect.DeepEqual(args, []string{"--socket=/run/ts.sock", "status", "--json"}) {
+			t.Fatalf("unexpected command: %s %v", name, args)
+		}
+		return []byte(`{"BackendState":"Running","Self":{"DNSName":"mac.example.ts.net.","TailscaleIPs":["100.73.54.69","fd7a:115c:a1e0::1"]}}`), nil
+	}}
+	d := discovery(r)
+	d.TailscaleCLI, d.TailscaleSocket = "/opt/tailscale", "/run/ts.sock"
+	d.Assigned = func(net.IP) bool { return false }
+	n, err := d.Discover(context.Background(), "tailscale", "")
+	if err != nil || n.IP != "100.73.54.69" || n.BindIP != "127.0.0.1" || n.TailscaleCLI != "/opt/tailscale" || n.TailscaleSocket != "/run/ts.sock" {
+		t.Fatalf("%+v %v", n, err)
+	}
+	if n, err = d.Discover(context.Background(), "tailscale", "fd7a:115c:a1e0::1"); err != nil || n.IP != "fd7a:115c:a1e0::1" || n.BindIP != "127.0.0.1" {
+		t.Fatalf("IPv6: %+v %v", n, err)
+	}
+	d.Assigned = func(net.IP) bool { return true }
+	if n, err = d.Discover(context.Background(), "tailscale", ""); err != nil || n.BindIP != "" {
+		t.Fatalf("assigned address bound loopback: %+v %v", n, err)
+	}
+}
