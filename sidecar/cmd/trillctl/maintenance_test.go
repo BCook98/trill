@@ -71,7 +71,7 @@ func TestRunningVersionUsesPinnedTLSWithoutDeviceCredentials(t *testing.T) {
 		response.Header().Set("X-Trill-Commit", strings.Repeat("a", 40))
 		response.WriteHeader(http.StatusUnauthorized)
 	}))
-	bundle, _, err := setup.SelfSigned("127.0.0.1", "companion.local", "Test companion", time.Now())
+	bundle, _, err := setup.SelfSigned("192.168.1.2", "companion.local", "Test companion", time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
