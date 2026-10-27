@@ -7,7 +7,8 @@ Herdr is Trill’s only session provider. All terminal input, frames, resize and
 Install and run Herdr before setting up Trill. The default server is `default`. Trill does not install, start, restart, update or take over a Herdr server.
 
 ```sh
-./scripts/setup-companion.sh
+brew install --cask bcook98/tap/trill
+trill setup
 trill providers --herdr-sessions default,work
 trill providers
 ```

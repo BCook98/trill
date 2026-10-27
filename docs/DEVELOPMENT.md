@@ -63,6 +63,19 @@ sh scripts/build-ios.sh
 
 This does not install global gems. Review generated project changes before committing. `scripts/build-ios.sh` checks the selected simulator SDK version first and builds into `.build/ios`, using `.build/packages` for package checkouts. Signing/release configuration belongs to the native project and release tooling; a simulator check does not require personal device signing. See [RELEASING.md](RELEASING.md) for version preparation, release checks, and the Xcode Cloud hook.
 
+## Build the companion from source
+
+For local development, build into the checkout without changing an installed companion:
+
+```sh
+mkdir -p .build/companion
+go -C sidecar build -trimpath -o ../.build/companion/trill ./cmd/trillctl
+go -C sidecar build -trimpath -o ../.build/companion/trilld ./cmd/trilld
+.build/companion/trill version
+```
+
+Keep `trill` and `trilld` together; the CLI resolves its sibling daemon. Use the [isolated lab](#isolated-integration-lab) for integration work. User installations use [Homebrew setup](SETUP.md#install-the-companion). Existing source configurations retain their recorded executable paths; rebuilding in this checkout does not replace them or migrate their state.
+
 ## Run native tests explicitly
 
 The shared `Trill` scheme includes `TrillTests` (unit tests) and `TrillUITests` (UI tests). Use a newly created test simulator so onboarding tests cannot reset a personal simulator. First list the installed types and runtimes:

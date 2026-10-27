@@ -2,9 +2,26 @@
 
 The Mac companion is Go software. Build it with Go, then use Apple's command-line signing/notarization tools. `ios/Trill.xcodeproj` builds the iPhone app; it does not build the companion. Both platforms read the marketing version from `ios/Version.xcconfig`. A single immutable `vVERSION-build.COMMIT12` tag triggers Xcode Cloud for iOS and the companion signing workflow. Small updates retain the marketing version and get a new commit-based tag; there is no separate companion tag or version file.
 
-The release machinery is implemented, but signed downloads are **not enabled** until the public signing team and Apple credentials below are configured and an actual release passes clean-Mac validation. Continue using [source installation](SETUP.md#install-the-mac-companion) meanwhile.
+## Install and maintain with Homebrew
 
-## Commands
+```sh
+brew install --cask bcook98/tap/trill
+trill setup
+trill doctor
+```
+
+Install and run Herdr separately. No Go or Xcode is needed for the companion. See [setup and pairing](SETUP.md#install-the-companion).
+
+```sh
+brew update
+brew upgrade --cask bcook98/tap/trill
+trill stop
+trill start
+```
+
+Restart with your usual `--state-dir` on both commands to load the upgraded daemon. Phone attachments disconnect; Herdr terminals and pairings remain. Before removing binaries, run `trill uninstall` with that state directory, then `brew uninstall --cask bcook98/tap/trill`. Private state is retained.
+
+## Diagnostics and legacy standalone commands
 
 ```sh
 trill version
@@ -17,22 +34,22 @@ trill update --tag v2026.10.25-build.0123456789ab
 
 `version` prints companion version, source commit, OS and architecture as JSON. Source builds identify as `dev`. `trilld --version` reports the daemon's identity without starting it.
 
-Homebrew packaging is prepared in [packaging/homebrew](../packaging/homebrew/README.md).
-Once its tap is published, `brew install --cask bcook98/tap/trill` installs the
+Homebrew publishing details are in [packaging/homebrew](../packaging/homebrew/README.md).
+The command `brew install --cask bcook98/tap/trill` installs the
 checksummed signed assets. Install and run Herdr separately. Homebrew installations
-use stable prefix paths and delegate `trill update` to `brew upgrade`; the standalone
+use stable prefix paths and direct `trill update` users to `brew upgrade`; the standalone
 updater never rewrites Homebrew-owned binaries. Existing source/standalone
 configurations require an explicit migration before Homebrew setup can use them.
 
 `doctor` is read-only and returns exit code 1 for failed checks, 0 when there are no failures (warnings alone do not fail). It checks private configuration permissions, executable availability, signatures/notarization for configured distributions, both owned LaunchAgents, TLS identity/expiry, local HTTPS, running daemon versus CLI build, pending update recovery, and Herdr executable on the saved service PATH. `--state-dir` selects an existing configuration. It never creates a pairing credential, repairs services, executes provider commands, or changes settings. Phone HTTPS reachability and Herdr authentication still need a phone-side check.
 
-`update --check` reads official stable companion release metadata over HTTPS without changing files or services. It uses the shared release tags and ignores draft/prerelease releases. Normal updates reject older versions/builds and development/source builds. Repeated releases of the same marketing version are ordered by the full main-history commit count, embedded in signed binaries and the manifest; it is independent of Xcode Cloud’s build number. A check is advisory: payload signatures are verified during installation, not by the metadata-only check.
+For legacy standalone installations, `update --check` reads official stable companion release metadata over HTTPS without changing files or services. It uses the shared release tags and ignores draft/prerelease releases. Normal updates reject older versions/builds and development/source builds. Repeated releases of the same marketing version are ordered by the full main-history commit count, embedded in signed binaries and the manifest; it is independent of Xcode Cloud’s build number. A check is advisory: payload signatures are verified during installation, not by the metadata-only check.
 
 Updates require internet access to fetch assets and verify Apple's notarization ticket. SHA-256 verifies archive integrity; the compiled-in Apple team and fixed code identifiers authenticate the executables. Downloaded metadata cannot supply a replacement signing team. Every executable must pass both Developer ID verification and Apple's online notarization check before any payload runs. Signed embedded version/commit/architecture must match the manifest. ZIP extraction rejects links, paths, duplicates and unexpected tools.
 
-## Installation layout and update recovery
+## Legacy standalone layout and update recovery
 
-Signed releases install as the logged-in user, without sudo, Go or Xcode:
+Legacy standalone signed releases use this layout, separate from Homebrew’s Caskroom and stable prefix links:
 
 ```text
 ~/.local/share/trill/companion/
@@ -49,20 +66,11 @@ The updater stages the complete release, takes an installation lock, and seriali
 
 Failure restores the previous pointer and loaded jobs. If the process or Mac stops midway, run `trill update` with the same `--state-dir` to recover before any network download; rerun it to retry the update. `doctor` reports pending recovery. If service ownership or the journal cannot be verified, recovery stops with an explicit error and leaves the journal in place.
 
-The first installer and updater refuse to adopt a source/custom installation or overwrite its public command/configuration. Existing source users should keep using `scripts/setup-companion.sh`. Automatic source-to-signed migration, state schema migrations and downgrades are outside this first implementation; do not delete pairing state to force a conversion.
-
-After the first signed release exists, download and inspect its `install-companion.sh`, then run it with the exact tag from that release, for example (replace the example commit suffix):
-
-```sh
-bash install-companion.sh v2026.10.25-build.0123456789ab
-export PATH="$HOME/.local/bin:$PATH"
-trill setup
-trill doctor
-```
+The first installer and updater refuse to adopt a source/custom installation or overwrite its public command/configuration. Existing source users can build binaries using the [development guide](DEVELOPMENT.md#build-the-companion-from-source). Automatic source-to-signed migration, state schema migrations and downgrades are outside this first implementation; do not delete pairing state to force a conversion.
 
 The standalone installer contains the expected public team ID. It downloads only from the official repository, extracts the named CLI into a private temporary directory, verifies its Developer ID and notarization before execution, then lets the CLI verify and install the whole release. It does not run guided setup automatically.
 
-## Enable signed releases
+## Signed release configuration
 
 1. Commit the **public** ten-character Apple Developer team ID in `sidecar/distribution/signing-team.txt`. This is a trust anchor, not a secret. Changing teams later requires a deliberate trust migration for already installed clients.
 2. Create a GitHub environment named `companion-release`, restrict it to shared `v*-build.*` release tags, and configure the following values there. Keep private keys and certificate exports out of the repository.
@@ -100,6 +108,6 @@ Local tests cover untrusted archives, pinned trust configuration, version bindin
 
 The credential-free packaging check produced arm64 and x86_64 Mach-O binaries; their `LC_BUILD_VERSION` records macOS 12.0 as the minimum. This is an observed build setting, not a tested support guarantee.
 
-Before the first public tag, verify actual notarization and browser-downloaded quarantined artifacts on Apple Silicon and Intel Macs without Go/Xcode. Exercise fresh setup, an update with a paired phone, a failed update, and interrupted recovery. Establish and document the minimum supported macOS version from the built binaries and real-machine testing. Keep subsequent releases compatible with the existing state schema until a migration design is implemented.
+For release validation, verify actual notarization and browser-downloaded quarantined artifacts on Apple Silicon and Intel Macs without Go/Xcode. Exercise fresh setup, an update with a paired phone, a failed update, and interrupted recovery. Establish and document the minimum supported macOS version from the built binaries and real-machine testing. Keep subsequent releases compatible with the existing state schema until a migration design is implemented.
 
 ZIP files and standalone command-line binaries cannot carry stapled tickets; initial installation and verification require Apple's online service. If offline first installation is needed, add a signed installer package with a stapled ticket. Apple documents [custom notarization](https://developer.apple.com/documentation/security/customizing-the-notarization-workflow) and [Developer ID distribution](https://developer.apple.com/developer-id/).

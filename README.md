@@ -2,7 +2,7 @@
 
 Trill lets you control [Herdr](https://herdr.dev/) from your iPhone. Check on a coding session, send a prompt, browse its files, or preview a local web app beside the terminal. Your sessions keep running on your Mac when you disconnect.
 
-The native iPhone app connects to a small Go companion on your Mac. It uses a real terminal: Herdr’s structured terminal stream over authenticated HTTPS. **Install from source** using the steps below. [Watch the demo](https://trill.bcook.io/).
+The native iPhone app connects to a small Go companion on your Mac. It uses a real terminal: Herdr’s structured terminal stream over authenticated HTTPS. Install the Mac companion with **Homebrew** using the steps below. [Watch the demo](https://trill.bcook.io/).
 
 <p>
   <picture>
@@ -23,12 +23,12 @@ Before you start:
 
 | Where | What you need |
 | --- | --- |
-| Mac running your sessions | Go 1.26.10 or a newer patched release and a running Herdr installation. |
+| Mac running your sessions | Homebrew and a running Herdr installation. Go is not required. |
 | Mac building the app | Xcode 27.1+ with the iOS 27.1 SDK. |
 | iPhone | iOS 18.0 or later. |
 | Connection | Both devices on a reachable LAN, or Tailscale configured on both. |
 
-The Xcode version needed to build Trill is separate from the minimum iPhone OS. [Install prerequisites and choose your provider](docs/SETUP.md#prerequisites-and-supported-versions).
+The Xcode version needed to build Trill is separate from the minimum iPhone OS. [Install prerequisites](docs/SETUP.md#prerequisites-and-supported-versions).
 
 1. Clone this repository:
 
@@ -42,17 +42,17 @@ The Xcode version needed to build Trill is separate from the minimum iPhone OS. 
 3. On the Mac that runs your sessions, install the companion:
 
    ```sh
-   ./scripts/setup-companion.sh
+   brew install --cask bcook98/tap/trill
+   trill setup
    ```
 
    Herdr is the only provider. Setup prefers an already connected Tailscale client, otherwise your LAN. [Network prerequisites](docs/SETUP.md#choose-a-network) explain both options.
 
 4. Type `pair` at the Mac's approval prompt. In Trill, choose **Pair a computer → Scan pairing code**, review the computer, and tap **Pair**. A simulator can [paste a pairing link](docs/SETUP.md#pair-your-iphone) instead.
 
-5. Setup starts read-only. To open terminals and manage sessions, put `~/.local/bin` on PATH and enable control:
+5. Setup starts read-only. To open terminals and manage sessions, enable control:
 
    ```sh
-   export PATH="$HOME/.local/bin:$PATH"
    trill control --enable
    ```
 

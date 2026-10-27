@@ -54,7 +54,7 @@ func update(args []string, output, errorOutput io.Writer, home string) error {
 		return err
 	}
 	if _, err := distribution.CompareVersions(buildinfo.Version, buildinfo.Version); err != nil {
-		return errors.New("source/development builds cannot install signed releases; use the source installer or an official signed release installer")
+		return errors.New("source/development builds cannot install signed releases; rebuild using docs/DEVELOPMENT.md or use Homebrew for a new installation")
 	}
 	dir, err := filepath.Abs(*stateDirectory)
 	if err != nil {
@@ -71,7 +71,7 @@ func update(args []string, output, errorOutput io.Writer, home string) error {
 		}
 		configured = true
 		if config.CLI != filepath.Join(distribution.InstallationRoot(home), "bin", "trill") || config.Daemon != filepath.Join(distribution.InstallationRoot(home), "bin", "trilld") {
-			return errors.New("source/custom configuration detected; automatic conversion is not supported; use its existing source installer")
+			return errors.New("source/custom configuration detected; automatic conversion is not supported; rebuild its binaries using docs/DEVELOPMENT.md or explicitly migrate it")
 		}
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return err

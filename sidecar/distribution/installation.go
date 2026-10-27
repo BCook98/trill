@@ -25,7 +25,7 @@ func OpenInstallation(home string, create bool) (string, error) {
 		return "", err
 	}
 	if missing && !create {
-		return "", errors.New("this is not a managed signed installation; use the official installer or keep using scripts/setup-companion.sh")
+		return "", errors.New("this is not a managed signed installation; use Homebrew for a new installation or rebuild source binaries using docs/DEVELOPMENT.md")
 	}
 	if err := setup.PrivateDir(root); err != nil {
 		return "", err
@@ -101,7 +101,7 @@ func checkManagedLink(path, expected string) error {
 	}
 	target, err := os.Readlink(path)
 	if err != nil || target != expected {
-		return fmt.Errorf("refusing to replace foreign/source installation at %s; keep using its installer or explicitly migrate it", path)
+		return fmt.Errorf("refusing to replace foreign/source installation at %s; preserve its binaries and configuration or explicitly migrate it", path)
 	}
 	return nil
 }

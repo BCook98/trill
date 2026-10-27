@@ -61,9 +61,9 @@ func doctor(args []string, output, errorOutput io.Writer, home string) error {
 		}
 	}
 	if buildinfo.Version == "dev" {
-		findings = append(findings, doctorFinding{"distribution", "warn", "Development/source build; Developer ID and notarization are not expected", "Update this installation with scripts/setup-companion.sh."})
+		findings = append(findings, doctorFinding{"distribution", "warn", "Development/source build; Developer ID and notarization are not expected", "Rebuild using docs/DEVELOPMENT.md; source installations are not automatically migrated to Homebrew."})
 	} else if _, err := distribution.SigningTeam(); err != nil {
-		findings = append(findings, doctorFinding{"distribution", "warn", "Developer ID distribution is not configured in this build", "Use the documented source installer until signed releases are available."})
+		findings = append(findings, doctorFinding{"distribution", "warn", "Developer ID distribution is not configured in this build", "Use an official Homebrew release or rebuild using docs/DEVELOPMENT.md."})
 	} else if executable, err := os.Executable(); err != nil {
 		add("signature", err, "", "Reinstall an official companion release.")
 	} else {

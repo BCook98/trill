@@ -4,7 +4,7 @@
 set -euo pipefail
 expected_signing_team="UNCONFIGURED_SIGNING_TEAM"
 if [[ ! "$expected_signing_team" =~ ^[A-Z0-9]{10}$ ]]; then
-  echo 'Signed companion distribution is not configured. Use scripts/setup-companion.sh for source installation.' >&2
+  echo 'Signed companion distribution is not configured. Install the companion with Homebrew: brew install --cask bcook98/tap/trill.' >&2
   exit 1
 fi
 if [[ "$(uname -s)" != Darwin ]]; then

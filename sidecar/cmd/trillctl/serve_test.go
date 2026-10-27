@@ -44,7 +44,7 @@ func TestServeResolvesSiblingAndPreservesArguments(t *testing.T) {
 		}
 		return failure
 	})
-	if calls != 1 || !errors.Is(err, failure) || !strings.Contains(err.Error(), "setup-companion.sh --help") {
+	if calls != 1 || !errors.Is(err, failure) || !strings.Contains(err.Error(), "brew reinstall --cask bcook98/tap/trill") {
 		t.Fatalf("exec error not actionable: %v (calls %d)", err, calls)
 	}
 	if !reflect.DeepEqual(args, original) {

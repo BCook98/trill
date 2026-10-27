@@ -2,7 +2,7 @@
 
 ## Prerequisites and supported versions
 
-The session Mac needs Herdr installed and running, and Go 1.26.10 or a newer patched release to build the companion from source. Trill integrates with Herdr protocol 22 (validated against 0.9.5); incompatible metadata fails explicitly. The phone needs iOS 18 or later. Building the native app requires Xcode with SDK 27.1 or later.
+The session Mac needs [Homebrew](https://brew.sh/) and Herdr installed and running. The Homebrew companion does not require Go or Xcode; Go is only needed for [development builds](DEVELOPMENT.md). Trill integrates with Herdr protocol 22 (validated against 0.9.5); incompatible metadata fails explicitly. The phone needs iOS 18 or later. Building the native app requires Xcode with SDK 27.1 or later.
 
 Herdr is the only provider. Terminal frames, input, scrolling and resize use an authenticated WebSocket on the companion’s HTTPS listener. There are no additional terminal ports or transport executables to install.
 
@@ -22,16 +22,16 @@ Trill does not edit firewall rules. Network access alone does not grant control 
 
 ## Install the companion
 
-From a checkout on the session Mac:
+On the session Mac, run as the user who owns the Herdr sessions:
 
 ```sh
-./scripts/setup-companion.sh
-export PATH="$HOME/.local/bin:$PATH"
+brew install --cask bcook98/tap/trill
+trill setup
 trill status
 trill doctor
 ```
 
-Setup chooses a connected Tailscale client when available, otherwise LAN. Use `trill setup --help` for explicit network options. It installs only Trill’s owned user LaunchAgents and private binaries; it never starts or replaces Herdr. Rerunning setup preserves identity, pairings and control permission and rejects conflicting changes.
+Setup chooses a connected Tailscale client when available, otherwise LAN. Use `trill setup --help` for explicit network options. Homebrew installs the signed binaries and exposes `trill` on its PATH. Setup records stable Homebrew executable paths and installs only Trill’s owned user LaunchAgents; it never starts or replaces Herdr. Rerunning setup preserves identity, pairings and control permission and rejects conflicting changes.
 
 The default server is Herdr’s existing `default`. Select additional servers or a custom installation:
 
@@ -73,16 +73,24 @@ Management commands accept `--state-dir /absolute/private/directory`. Do not reu
 ## Updates and removal
 
 ```sh
-trill update --check
-trill update
-trill start
+brew update
+brew upgrade --cask bcook98/tap/trill
 trill stop
-trill uninstall
+trill start
 ```
 
-Use the signed distribution update flow only for installations configured for it; source installations can rerun their setup script. See [companion releases](COMPANION_RELEASES.md). Trill does not update Herdr. A restart closes phone attachments without closing Herdr terminals.
+Restart after upgrading to load the new daemon. Use your usual `--state-dir` on both restart commands when using a custom directory. Homebrew owns binary upgrades; `trill update` prints the Homebrew upgrade command. Trill does not update Herdr. A restart closes phone attachments without closing Herdr terminals.
 
-Uninstall removes only Trill’s owned LaunchAgents. It retains private configuration, certificates, device records, installed binaries, public symlink and uploaded photos. It does not recursively delete state or uninstall Herdr. Review retained files on the Mac before manually deleting them.
+Remove the owned services before removing the binaries:
+
+```sh
+trill uninstall
+brew uninstall --cask bcook98/tap/trill
+```
+
+Use the same `--state-dir` with `trill uninstall` for a custom configuration. It removes only Trill’s owned LaunchAgents; Homebrew removes its installed binaries and links. Private configuration, certificates, device records, tsnet identity and uploaded photos are retained. Review retained files on the Mac before manually deleting them. See [companion releases](COMPANION_RELEASES.md) for legacy standalone installations.
+
+Source and standalone configurations are not automatically converted by installing the cask. Use the CLI recorded in the existing configuration until you explicitly migrate; preserve the old state and pairings. A fresh setup in a separate private `--state-dir` requires pairing again.
 
 ## Troubleshooting
 

@@ -4,7 +4,7 @@ The release builder emits `trill.rb` only after both architecture archives have
 been signed, notarized and checksummed. Publish that file as `Casks/trill.rb` in
 `BCook98/homebrew-tap`. The release tag remains the same tag used for iOS.
 
-Users can then install with:
+Install the companion with:
 
 ```sh
 brew install --cask bcook98/tap/trill
@@ -17,10 +17,11 @@ Herdr separately. Setup records stable Homebrew `bin`
 paths; it does not record the versioned Caskroom directory. Homebrew controls
 binary upgrades, and `trill update` directs users to `brew upgrade`.
 
+Upgrade with `brew update` followed by `brew upgrade --cask bcook98/tap/trill`.
 After an upgrade, restart only the owned companion with `trill stop` and
 `trill start`, including the usual `--state-dir` on both commands. Before
 removing the cask, run `trill uninstall` with that same state directory to remove
-its LaunchAgents. Configuration, pairings and tsnet identity are retained.
+its LaunchAgents, then run `brew uninstall --cask bcook98/tap/trill`. Configuration, pairings and tsnet identity are retained.
 
 Source and standalone installations are not silently converted. Use their
 recorded CLI until an explicit migration has been completed. Installing a cask

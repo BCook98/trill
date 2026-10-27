@@ -503,7 +503,7 @@ func serve(args []string, executable func() (string, error), execProcess func(st
 	// argv[0] also gives the daemon's flag package the public command name.
 	argv := append([]string{"trill serve"}, args...)
 	if err := execProcess(daemon, argv, os.Environ()); err != nil {
-		return fmt.Errorf("execute companion %s (rerun scripts/setup-companion.sh --help to rebuild): %w", daemon, err)
+		return fmt.Errorf("execute companion %s (reinstall with brew reinstall --cask bcook98/tap/trill; for source builds see docs/DEVELOPMENT.md): %w", daemon, err)
 	}
 	return nil
 }

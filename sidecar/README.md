@@ -3,7 +3,8 @@
 The Go companion exposes a small authenticated HTTPS API for Herdr. The managed CLI is `trill`; its private daemon is `trilld`. All terminal traffic uses the same HTTPS origin as metadata, files and previews.
 
 ```sh
-./scripts/setup-companion.sh
+brew install --cask bcook98/tap/trill
+trill setup
 trill control --enable
 trill pair
 trill status
