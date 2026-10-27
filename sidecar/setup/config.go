@@ -200,7 +200,7 @@ func (c Config) Validate(dir string) error {
 		return errors.New("tsnet hostname requires embedded mode")
 	}
 	if c.Network == "tsnet" {
-		if !isTailscale(ip) || !validTailnetHostname(u.Hostname()) || c.BindIP != userspaceTailscaleBindIP || c.TailscaleCLI != "" || c.TailscaleSocket != "" || ValidateTSNetHostname(c.TSNetHostname) != nil || len(c.Fingerprint) != 64 || strings.Trim(c.Fingerprint, "0123456789abcdef") != "" {
+		if !isTailscale(ip) || !validTailnetHostname(u.Hostname()) || c.BindIP != userspaceTailscaleBindIP || c.TailscaleCLI != "" || c.TailscaleSocket != "" || ValidateTSNetHostname(c.TSNetHostname) != nil || c.Fingerprint != "" {
 			return errors.New("invalid embedded Tailscale configuration")
 		}
 	} else if c.Network == "lan" {

@@ -28,14 +28,7 @@ func SelfSigned(ip, host, name string, now time.Time) ([]byte, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
-	return selfSignedForHostname(ip, normalized, name, now)
-}
-
-func selfSignedForHostname(ip, host, name string, now time.Time) ([]byte, string, error) {
-	address := net.ParseIP(ip)
-	if !usableIP(address) {
-		return nil, "", errors.New("certificate requires a concrete IP SAN")
-	}
+	host = normalized
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		return nil, "", err
@@ -136,7 +129,13 @@ func (m Certificates) Provision(ctx context.Context, dir string, n Network, name
 		if !isTailscale(net.ParseIP(n.IP)) || !validTailnetHostname(n.Host) {
 			return "", errors.New("invalid embedded Tailscale identity")
 		}
-		bundle, pin, err = selfSignedForHostname(n.IP, n.Host, name, m.Now())
+		// Enrollment exports from this embedded node, never a separate daemon.
+		bundle, err = ReadPrivate(filepath.Join(dir, "tls.pem"))
+		if err != nil {
+			return "", errors.New("embedded Tailscale did not provision a trusted certificate; enable tailnet HTTPS and retry setup")
+		}
+		_, err = m.validate(bundle, n.Host, "")
+		return "", err
 	} else {
 		bundle, pin, err = SelfSigned(n.IP, n.Host, name, m.Now())
 	}
@@ -167,6 +166,15 @@ func (m Certificates) Renew(ctx context.Context, dir string, c Config) (bool, er
 		return false, err
 	}
 	expiry, err := m.Check(c)
+	if c.Network == "tsnet" {
+		if err != nil {
+			return false, err
+		}
+		if expiry.Sub(m.Now()) < 30*24*time.Hour {
+			return false, errors.New("embedded Tailscale certificate renewal is due; start the companion so its node can renew it")
+		}
+		return false, nil
+	}
 	if c.Network != "tailscale" {
 		if err != nil {
 			return false, err

@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"trill/sidecar/internal/testcert"
 	"trill/sidecar/pairing"
 	"trill/sidecar/setup"
 )
@@ -535,7 +536,7 @@ func TestTailscaleSocketFlagsConflictWithSavedConfiguration(t *testing.T) {
 	assertSnapshot(t, dir, before)
 }
 
-func TestEmbeddedSetupEnrollsOnceAndPreservesPinnedIdentity(t *testing.T) {
+func TestEmbeddedSetupEnrollsOnceAndPreservesTrustedIdentity(t *testing.T) {
 	env, services, home := fakeSetup(t)
 	bin := t.TempDir()
 	for _, name := range []string{"trill", "trilld"} {
@@ -550,11 +551,19 @@ func TestEmbeddedSetupEnrollsOnceAndPreservesPinnedIdentity(t *testing.T) {
 		}
 		return nil
 	}
+	certificateBundle, certificateRoots := testcert.Bundle(t, "trill-test.example.ts.net", time.Now(), 90*24*time.Hour)
+	env.certs.Roots = certificateRoots
 	enrollments := 0
 	env.enrollTSNet = func(_ context.Context, directory, hostname string, _ io.Writer) (setup.Network, error) {
 		enrollments++
 		if hostname != "trill-test" {
 			t.Fatalf("unexpected embedded hostname %s", hostname)
+		}
+		certificatePath := filepath.Join(directory, "tls.pem")
+		if _, err := os.Stat(certificatePath); errors.Is(err, os.ErrNotExist) {
+			if err := setup.WritePrivate(certificatePath, certificateBundle, false); err != nil {
+				t.Fatal(err)
+			}
 		}
 		return setup.Network{Kind: "tsnet", IP: "100.73.54.69", Host: "trill-test.example.ts.net", BindIP: "127.0.0.1"}, nil
 	}
@@ -567,7 +576,7 @@ func TestEmbeddedSetupEnrollsOnceAndPreservesPinnedIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if configuration.Network != "tsnet" || configuration.TSNetHostname != "trill-test" || len(configuration.Fingerprint) != 64 || configuration.TailscaleCLI != "" || configuration.TailscaleSocket != "" || configuration.AllowControl {
+	if configuration.Network != "tsnet" || configuration.TSNetHostname != "trill-test" || configuration.Fingerprint != "" || configuration.TailscaleCLI != "" || configuration.TailscaleSocket != "" || configuration.AllowControl {
 		t.Fatalf("incorrect embedded configuration: %+v", configuration)
 	}
 	before := privateSnapshot(t, directory, "config.json", "tls.pem")

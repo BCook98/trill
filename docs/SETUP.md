@@ -13,7 +13,7 @@ Trill has two parts: an iPhone app and a companion running as your user on the M
 | Terminal transport | `mosh-server` on the Mac, provided by the Mosh package. Trill includes its own iOS Mosh client. |
 | Xirp backend | Installed Xirp app and `xirp` CLI, a running provider, and `tmux` on PATH. Sessions must expose a live tmux terminal to attach. No minimum Xirp release is pinned; compatibility depends on its CLI metadata and daemon API. |
 | Herdr backend (optional) | Installed `herdr` CLI and running selected servers. Direct attach requires matching CLI/server protocols, at least protocol 22. Herdr 0.9.5 is the version exercised by this repository's live probes, not a guarantee for every later release. |
-| Network | Reachability from iPhone to Mac on HTTPS TCP 7443 and Mosh UDP 60000 to 60010. Choose LAN or an already configured Tailscale network. |
+| Network | Reachability from iPhone to Mac on HTTPS TCP 7443 and Mosh UDP 60000 to 60010. Choose LAN, an already configured Tailscale node, or embedded Tailscale enrollment. |
 
 Full Xcode is needed to build the iOS app, not to run the installed Go companion. The [development guide](DEVELOPMENT.md) covers builds and tests; the [release guide](RELEASING.md) covers distribution.
 
@@ -93,8 +93,9 @@ This selects tools only for that command; it does not change global `xcode-selec
 | --- | --- | --- |
 | LAN | Put both devices on the same reachable network, allow Trill Local Network access, and ensure Bonjour/mDNS works. | `https://my-mac.local:7443`, with the certificate pin included in pairing. |
 | Tailscale | Install and connect Tailscale on both devices, enable tailnet HTTPS certificates, and allow the phone to reach the Mac. | `https://machine.tailnet.ts.net:7443`, using a system-trusted certificate. |
+| Embedded Tailscale (`tsnet`) | Join the iPhone to Tailscale, enable MagicDNS/HTTPS certificates, and approve the companion's own node during setup. | `https://trill-mac.tailnet.ts.net:7443`, using a system-trusted certificate issued through the embedded node. |
 
-Setup defaults to `--network auto`: it prefers an **already connected** Tailscale node and otherwise detects an active LAN interface. Setup does not sign into Tailscale, reconnect it, change accounts or policy, or enable Serve/Funnel. There is no Trill public tunnel.
+Setup defaults to `--network auto`: it prefers an **already connected** Tailscale node and otherwise detects an active LAN interface. Auto/LAN/external-Tailscale setup does not sign into Tailscale, reconnect it, change accounts or policy, or enable Serve/Funnel. Embedded mode explicitly enrolls its own node. There is no Trill public tunnel.
 
 For Tailscale, follow the official [HTTPS certificate prerequisites](https://tailscale.com/docs/how-to/set-up-https-certificates). The local CLI must be allowed to export a certificate. Publicly issued machine hostnames appear in certificate transparency logs. Setup verifies the certificate chain, hostname, and validity before omitting a pin. Export or trust failure stops setup rather than substituting a self-signed certificate.
 
@@ -108,7 +109,7 @@ To let the companion register as its own tailnet device without installing the M
 
 Open the Tailscale login URL printed during setup and approve the node in the tailnet used by your iPhone. The iPhone continues to use the Tailscale app. The companion has its own tailnet IP, DNS name and private persistent identity under `<state-dir>/tsnet`; the Mac's system Tailscale connection can use another tailnet. This mode requires no administrator privileges or system VPN configuration. The node name is a lowercase DNS label; the default is `trill`.
 
-Embedded mode uses a self-signed HTTPS certificate pinned by Trill's normal pairing flow. Public HTTPS certificate export and the Tailscale CLI are not needed. Keep the state directory private and preserve it across restarts; deleting it can register a new device. Pinned certificates retain the existing one-year lifetime; `trill status` shows expiry, and replacement requires fresh setup and re-pairing. Setup does not silently rotate a phone's trusted identity.
+Embedded mode requests a publicly trusted certificate through its own Tailscale node. Enable MagicDNS and HTTPS certificates in the tailnet first; as with external Tailscale mode, the hostname appears in public certificate transparency logs. Issuance or chain-validation failure stops setup without a self-signed fallback. The running companion checks for renewal at startup and every six hours, then atomically reloads validated certificates for new connections. No separate Tailscale CLI or certificate-export daemon is needed. Keep the state directory private and preserve it across restarts; deleting it can register a new device. Pairing uses normal device approval with an empty certificate fingerprint, relying on the trusted certificate chain.
 
 HTTPS is served inside the embedded node and on `127.0.0.1:7443` for local management checks. Mosh runs on loopback, with the configured UDP ports forwarded through the embedded node. Normal read-only defaults, explicit control permission, pairing and device revocation still apply. `--ip`, `--hostname`, `--tailscale-cli` and `--tailscale-socket` belong to other modes and cannot be combined with `--network tsnet`. Rerunning setup preserves the saved node and paired phones.
 

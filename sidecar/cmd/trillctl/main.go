@@ -302,7 +302,7 @@ func runWithSetupEnvironment(args []string, in io.Reader, out, errOut io.Writer,
 				return err
 			}
 		}
-		if n.Kind == "lan" || n.Kind == "tsnet" {
+		if n.Kind == "lan" {
 			c.Fingerprint = strings.Repeat("0", 64)
 		}
 		if err = c.Validate(dir); err != nil {
@@ -437,7 +437,7 @@ func runWithSetupEnvironment(args []string, in io.Reader, out, errOut io.Writer,
 	case "install":
 		return agents.Install(c, dir)
 	case "start":
-		if _, err = certs.Check(c); err != nil {
+		if _, err = certs.Check(c); err != nil && c.Network != "tsnet" {
 			return err
 		}
 		return agents.Start(ctx, c, dir)

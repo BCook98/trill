@@ -220,15 +220,16 @@ func TestUserspaceTailscaleConfigBindsLoopbackAndAdvertisesTailnet(t *testing.T)
 	}
 }
 
-func TestEmbeddedConfigRequiresPinnedTailnetIdentity(t *testing.T) {
+func TestEmbeddedConfigRequiresTrustedTailnetIdentity(t *testing.T) {
 	directory := testDir(t)
 	valid := testConfig(directory)
+	valid.Fingerprint = ""
 	valid.Network, valid.IP, valid.Address, valid.BindIP, valid.TSNetHostname = "tsnet", "100.73.54.69", "https://trill.example.ts.net:7443", "127.0.0.1", "trill"
 	if err := valid.Validate(directory); err != nil {
 		t.Fatal(err)
 	}
 	for _, change := range []func(*Config){
-		func(c *Config) { c.Fingerprint = "" }, func(c *Config) { c.TailscaleCLI = "/opt/tailscale" }, func(c *Config) { c.TailscaleSocket = "/tmp/tailscale.sock" },
+		func(c *Config) { c.Fingerprint = strings.Repeat("a", 64) }, func(c *Config) { c.TailscaleCLI = "/opt/tailscale" }, func(c *Config) { c.TailscaleSocket = "/tmp/tailscale.sock" },
 		func(c *Config) { c.BindIP = "::1" }, func(c *Config) { c.TSNetHostname = "invalid.host" }, func(c *Config) { c.Address = "https://trill.local:7443" }, func(c *Config) { c.IP = "192.168.1.1" },
 	} {
 		c := valid

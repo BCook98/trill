@@ -22,6 +22,7 @@ import (
 	"tailscale.com/types/key"
 	"tailscale.com/types/logger"
 	"tailscale.com/types/nettype"
+	"trill/sidecar/internal/testcert"
 	"trill/sidecar/setup"
 )
 
@@ -53,12 +54,17 @@ func TestEmbeddedTailnetHTTPSUDPAndPersistentIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	t.Run("pinned HTTPS", func(t *testing.T) {
+	t.Run("trusted HTTPS", func(t *testing.T) {
 		certificateDirectory := filepath.Join(t.TempDir(), "certificate")
 		if err := setup.PrivateDir(certificateDirectory); err != nil {
 			t.Fatal(err)
 		}
+		certificateBundle, certificateRoots := testcert.Bundle(t, identity.Hostname, time.Now(), 90*24*time.Hour)
+		if err := setup.WritePrivate(filepath.Join(certificateDirectory, "tls.pem"), certificateBundle, false); err != nil {
+			t.Fatal(err)
+		}
 		certificates := setup.NewCertificates()
+		certificates.Roots = certificateRoots
 		pin, err := certificates.Provision(ctx, certificateDirectory, setup.Network{Kind: "tsnet", IP: identity.IP.String(), Host: identity.Hostname}, "Test companion")
 		if err != nil {
 			t.Fatal(err)
@@ -67,7 +73,7 @@ func TestEmbeddedTailnetHTTPSUDPAndPersistentIdentity(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := setup.ValidateBundle(bundle, identity.Hostname, pin, time.Now(), nil); err != nil {
+		if _, err := setup.ValidateBundle(bundle, identity.Hostname, pin, time.Now(), certificateRoots); err != nil {
 			t.Fatal(err)
 		}
 		certificate, err := tls.X509KeyPair(bundle, bundle)

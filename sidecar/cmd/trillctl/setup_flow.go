@@ -132,7 +132,7 @@ func compatibleSetupFlags(flags *flag.FlagSet, c setup.Config, dir string) error
 }
 
 func finishSetup(ctx context.Context, c setup.Config, dir string, noStart, noPair bool, env setupEnvironment, in io.Reader, out, errOut io.Writer) error {
-	if _, err := env.certs.Check(c); err != nil {
+	if _, err := env.certs.Check(c); err != nil && c.Network != "tsnet" {
 		return certificateHelp(c, dir, err)
 	}
 	if c.AllowControl {
@@ -166,7 +166,7 @@ func finishSetup(ctx context.Context, c setup.Config, dir string, noStart, noPai
 }
 
 func certificateHelp(c setup.Config, dir string, err error) error {
-	if c.Network == "tailscale" {
+	if c.Network == "tailscale" || c.Network == "tsnet" {
 		return fmt.Errorf("saved HTTPS certificate is unusable: %w. Check the Mac clock and Tailscale connection/HTTPS permissions, then run %s and retry setup; setup did not replace the certificate", err, companionCommand(c, dir, "renew"))
 	}
 	return fmt.Errorf("saved pinned certificate is unusable: %w. Check the Mac clock and restore the original private tls.pem if available. Setup will not rotate its pinned identity. To replace it, stop/uninstall the old owned configuration, use a fresh --state-dir and pair again; inspect %s", err, companionCommand(c, dir, "status"))

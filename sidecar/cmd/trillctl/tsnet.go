@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -30,6 +32,14 @@ func enrollTSNet(ctx context.Context, stateDirectory, hostname string, output io
 	identity, err := tailnet.Up(ctx, server)
 	if err != nil {
 		return setup.Network{}, fmt.Errorf("embedded Tailscale enrollment failed; retry setup with the same state directory: %w", err)
+	}
+	certificatePath := filepath.Join(stateDirectory, "tls.pem")
+	if _, err := os.Lstat(certificatePath); errors.Is(err, os.ErrNotExist) {
+		if err := tailnet.RefreshCertificate(ctx, server, identity.Hostname, certificatePath); err != nil {
+			return setup.Network{}, err
+		}
+	} else if err != nil {
+		return setup.Network{}, err
 	}
 	return setup.Network{Kind: "tsnet", IP: identity.IP.String(), Host: identity.Hostname, BindIP: "127.0.0.1"}, nil
 }

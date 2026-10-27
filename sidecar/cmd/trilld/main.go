@@ -111,13 +111,6 @@ func run() error {
 		}
 		expectedDNSName = leaf.DNSNames[0]
 	}
-	if cert != "" {
-		reloader, err := newCertificateReloader(cert, key)
-		if err != nil {
-			return fmt.Errorf("invalid TLS certificate or key")
-		}
-		server.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12, GetCertificate: reloader.GetCertificate}
-	}
 
 	localListener, err := net.Listen("tcp", listen)
 	if err != nil {
@@ -132,6 +125,27 @@ func run() error {
 			return err
 		}
 		defer embeddedNode.Close()
+		if err := tailnet.RefreshCertificate(ctx, embeddedNode, expectedDNSName, cert); err != nil {
+			return err
+		}
+		renewalContext, cancelRenewal := context.WithCancel(ctx)
+		renewalDone := make(chan struct{})
+		go func() {
+			defer close(renewalDone)
+			timer := time.NewTicker(6 * time.Hour)
+			defer timer.Stop()
+			for {
+				select {
+				case <-renewalContext.Done():
+					return
+				case <-timer.C:
+					if err := tailnet.RefreshCertificate(renewalContext, embeddedNode, expectedDNSName, cert); err != nil {
+						log.Printf("embedded Tailscale certificate renewal failed: %v", err)
+					}
+				}
+			}
+		}()
+		defer func() { cancelRenewal(); <-renewalDone }()
 		tailnetListener, err := embeddedNode.Listen("tcp", ":7443")
 		if err != nil {
 			return err
@@ -150,6 +164,14 @@ func run() error {
 			}()
 		}
 	}
+	if cert != "" {
+		reloader, err := newCertificateReloader(cert, key)
+		if err != nil {
+			return fmt.Errorf("invalid TLS certificate or key")
+		}
+		server.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12, GetCertificate: reloader.GetCertificate}
+	}
+
 	serveErrors := make(chan error, len(listeners)+len(forwarders))
 	for _, listener := range listeners {
 		go func() {
