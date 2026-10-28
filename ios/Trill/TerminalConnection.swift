@@ -82,6 +82,8 @@ final class TerminalConnection: NSObject, TerminalViewDelegate {
         var resumePollLimit = 3
         var resumeStartupTimeout: Duration = .seconds(3)
         var returnsControlWhenHidden = false
+        var hiddenHandoffDelay: Duration = .seconds(30)
+        var hiddenHandoffSleep: (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
     }
     private struct Target {
         let sessionID: String
@@ -107,6 +109,7 @@ final class TerminalConnection: NSObject, TerminalViewDelegate {
     private var wantsForeground = true
     private var applicationIsForeground = true
     private var visibleTerminalSurfaceID: UUID?
+    private var hiddenHandoff: Task<Void, Never>?
     var returnsControlWhenHidden: Bool { target?.environment.returnsControlWhenHidden == true }
     var terminalIsVisible: Bool { visibleTerminalSurfaceID != nil }
     private var receivedHostOp = false
@@ -397,6 +400,7 @@ final class TerminalConnection: NSObject, TerminalViewDelegate {
     }
 
     func disconnect() async {
+        hiddenHandoff?.cancel(); hiddenHandoff = nil
         target = nil
         cancelRetry()
         retryCount = 0
@@ -409,6 +413,7 @@ final class TerminalConnection: NSObject, TerminalViewDelegate {
     }
 
     func terminalDidAppear(surfaceID: UUID) {
+        hiddenHandoff?.cancel(); hiddenHandoff = nil
         visibleTerminalSurfaceID = surfaceID
         guard returnsControlWhenHidden, applicationIsForeground else { return }
         resumeTransport()
@@ -419,10 +424,24 @@ final class TerminalConnection: NSObject, TerminalViewDelegate {
         // hand off a newer presentation of this same retained connection.
         guard visibleTerminalSurfaceID == surfaceID else { return }
         visibleTerminalSurfaceID = nil
-        if returnsControlWhenHidden { suspendTransport() }
+        _ = terminal.resignFirstResponder()
+        guard returnsControlWhenHidden, let target else { return }
+        hiddenHandoff?.cancel()
+        guard applicationIsForeground, target.environment.hiddenHandoffDelay > .zero else {
+            suspendTransport()
+            return
+        }
+        hiddenHandoff = Task { [weak self] in
+            do { try await target.environment.hiddenHandoffSleep(target.environment.hiddenHandoffDelay) }
+            catch { return }
+            guard !Task.isCancelled, let self, !self.terminalIsVisible else { return }
+            self.hiddenHandoff = nil
+            self.suspendTransport()
+        }
     }
 
     func background() async {
+        hiddenHandoff?.cancel(); hiddenHandoff = nil
         applicationIsForeground = false
         let handoff = suspendTransport()
         await handoff?.value

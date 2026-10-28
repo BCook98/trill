@@ -600,6 +600,37 @@ extension SessionBrowserTests {
         XCTAssertEqual(store.sessionColumnVisibility, .detailOnly)
     }
 
+    @MainActor func testHiddenSidebarSurvivesRepeatedAdaptationInRetainedRoot() async throws {
+        let fixture = Fixture()
+        fixture.rows = [session("one", attachable: false)]
+        let store = try await fixture.makeStore()
+        XCTAssertTrue(store.selectSession(id: "one"))
+        store.sessionColumnVisibility = .detailOnly
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+        let originalWindow = scene.windows.first { $0.isKeyWindow }
+        let window = UIWindow(windowScene: scene)
+        defer { window.isHidden = true; originalWindow?.makeKey() }
+        func root(sizeClass: UserInterfaceSizeClass, phase: ScenePhase) -> some View {
+            RootView().environment(store)
+                .environment(\.horizontalSizeClass, sizeClass)
+                .environment(\.scenePhase, phase)
+        }
+        let hostingController = UIHostingController(rootView: root(sizeClass: .regular, phase: .active))
+        window.rootViewController = hostingController
+        window.makeKeyAndVisible()
+        // Keep the same SwiftUI tree alive: fold/unfold callbacks can arrive
+        // after the environment has already returned to regular and active.
+        for workspacePresented in [false, true, false] {
+            store.workspacePresented = workspacePresented
+            for (sizeClass, phase) in [(UserInterfaceSizeClass.compact, ScenePhase.active), (.compact, .inactive), (.regular, .inactive), (.regular, .active)] {
+                hostingController.rootView = root(sizeClass: sizeClass, phase: phase)
+                try await Task.sleep(for: .milliseconds(200))
+                window.layoutIfNeeded()
+                XCTAssertEqual(store.sessionColumnVisibility, .detailOnly, "Adaptation must not reopen Sessions, regardless of inspector visibility")
+            }
+        }
+    }
+
     func testOlderCompanionCapabilitiesDoNotInventCloseSupport() throws {
         let capabilities = try JSONDecoder().decode(SessionCapabilities.self, from: Data(#"{"rename":true,"createTerminal":true,"worktree":false,"files":true}"#.utf8))
         XCTAssertNil(capabilities.closeTerminal)

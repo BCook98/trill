@@ -12,20 +12,34 @@ struct RootView: View {
             if store.computer == nil {
                 NavigationStack { SessionListView(openProjects: openProjects) }
             } else {
-                NavigationSplitView(columnVisibility: Binding(get: { store.selectedID == nil ? .all : store.sessionColumnVisibility }, set: { visibility in
-                    // Collapsing columns and background snapshots are layout changes,
-                    // not a request to overwrite the expanded sidebar preference.
-                    if store.selectedID != nil, scenePhase == .active, horizontalSizeClass == .regular, visibility != .automatic { store.sessionColumnVisibility = visibility }
-                }), preferredCompactColumn: $preferredSessionColumn) {
+                // SwiftUI also writes visibility during fold/unfold transitions,
+                // including while the size class is regular. Only our sidebar
+                // button changes the saved preference; layout feedback must not.
+                NavigationSplitView(columnVisibility: .constant(store.selectedID == nil ? .all : store.sessionColumnVisibility), preferredCompactColumn: $preferredSessionColumn) {
                     SessionListView(openProjects: openProjects)
                         .id(store.activeComputerID)
                         .navigationSplitViewColumnWidth(ideal: 320)
+                        .toolbar(removing: .sidebarToggle)
                 } detail: {
-                    if let id = store.selectedID, let session = store.currentSessions.first(where: { $0.id == id }) {
-                        SessionDetailView(session: session, connection: store.connection(for: id), showWorkspace: $store.workspacePresented, workspaceTab: $store.workspaceTab, previewAddress: $store.workspacePreviewAddress)
-                            .id("\(store.activeComputerID?.uuidString ?? "unpaired"):\(id)")
-                    } else {
-                        ContentUnavailableView("Choose a session", systemImage: "terminal", description: Text("Select a session to open its terminal."))
+                    Group {
+                        if let id = store.selectedID, let session = store.currentSessions.first(where: { $0.id == id }) {
+                            SessionDetailView(session: session, connection: store.connection(for: id), showWorkspace: $store.workspacePresented, workspaceTab: $store.workspaceTab, previewAddress: $store.workspacePreviewAddress)
+                                .id("\(store.activeComputerID?.uuidString ?? "unpaired"):\(id)")
+                        } else {
+                            ContentUnavailableView("Choose a session", systemImage: "terminal", description: Text("Select a session to open its terminal."))
+                        }
+                    }
+                    .toolbar {
+                        if horizontalSizeClass == .regular, store.selectedID != nil {
+                            ToolbarItem(placement: .topBarLeading) {
+                                Button(store.sessionColumnVisibility == .detailOnly ? "Show sessions" : "Hide sessions", systemImage: "sidebar.left") {
+                                    withAnimation {
+                                        store.sessionColumnVisibility = store.sessionColumnVisibility == .detailOnly ? .all : .detailOnly
+                                    }
+                                }
+                                .accessibilityIdentifier("toggle-session-sidebar")
+                            }
+                        }
                     }
                 }
                 .navigationSplitViewStyle(.balanced)

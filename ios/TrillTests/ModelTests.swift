@@ -1066,7 +1066,7 @@ final class ModelTests: XCTestCase {
             },
             retrySleep: { try await sleeper.sleep($0) },
             monitorInterval: .milliseconds(10), responsePollLimit: responsePollLimit, resumePollLimit: 10,
-            returnsControlWhenHidden: returnsControlWhenHidden)
+            returnsControlWhenHidden: returnsControlWhenHidden, hiddenHandoffDelay: .zero)
     }
 
     @MainActor func testForegroundReplacesUnresponsivePeerEvenWhenOldTransportReportsRunning() async throws {
@@ -2395,6 +2395,71 @@ private final class VideoDownloadTestServer: @unchecked Sendable {
 
 
 extension ModelTests {
+    @MainActor func testHerdrQuickSessionReturnKeepsLeaseAndIgnoresCanceledHandoff() async throws {
+        let fixture = TerminalLifecycleFixture()
+        let sleeper = TerminalRetrySleeper()
+        let handoffSleeper = TerminalRetrySleeper()
+        let transport = TerminalLifecycleTransport()
+        let connection = TerminalConnection()
+        var environment = lifecycleEnvironment(fixture, transports: [transport], sleeper: sleeper, returnsControlWhenHidden: true)
+        environment.hiddenHandoffDelay = .seconds(30)
+        environment.hiddenHandoffSleep = { try await handoffSleeper.sleep($0) }
+        addTeardownBlock { await connection.disconnect(); await sleeper.resumeAll(); await handoffSleeper.resumeAll() }
+        let originalSurface = UUID(), returningSurface = UUID()
+        connection.terminalDidAppear(surfaceID: originalSurface)
+        await connection.connect(sessionID: "quick-switch", environment: environment)
+        try await eventually("Initial connection") { connection.connected }
+        connection.terminalDidDisappear(surfaceID: originalSurface)
+        try await eventually("Grace period scheduled") { await handoffSleeper.delays == [.seconds(30)] }
+        XCTAssertTrue(connection.connected)
+        connection.terminalDidAppear(surfaceID: returningSurface)
+        connection.terminalDidDisappear(surfaceID: originalSurface)
+        connection.terminalDidDisappear(surfaceID: returningSurface)
+        try await eventually("New grace period scheduled") { await handoffSleeper.delays.count == 2 }
+        await handoffSleeper.resume(0)
+        try await eventually("Canceled handoff completed") { await handoffSleeper.canceled == [0] }
+        XCTAssertTrue(connection.connected, "An old timer must not detach a later presentation")
+        let requests = await fixture.requests.count
+        let releases = await fixture.released
+        let stops = await transport.stopCount
+        XCTAssertEqual(requests, 1, "Quick session switches reuse the same attachment")
+        XCTAssertEqual(releases, [])
+        XCTAssertEqual(stops, 0)
+        await handoffSleeper.resume(1)
+        try await eventually("Hidden session released after grace period") { await fixture.released == ["lease-1"] }
+        XCTAssertEqual(connection.phase, .suspended)
+    }
+
+    @MainActor func testHerdrBackgroundAndDisconnectBypassHiddenSessionGracePeriod() async throws {
+        for disconnect in [false, true] {
+            let fixture = TerminalLifecycleFixture()
+            let sleeper = TerminalRetrySleeper()
+            let handoffSleeper = TerminalRetrySleeper()
+            let connection = TerminalConnection()
+            var environment = lifecycleEnvironment(fixture, transports: [TerminalLifecycleTransport()], sleeper: sleeper, returnsControlWhenHidden: true)
+            environment.hiddenHandoffDelay = .seconds(30)
+            environment.hiddenHandoffSleep = { try await handoffSleeper.sleep($0) }
+            addTeardownBlock { await connection.disconnect(); await sleeper.resumeAll(); await handoffSleeper.resumeAll() }
+            let surface = UUID()
+            connection.terminalDidAppear(surfaceID: surface)
+            await connection.connect(sessionID: "immediate-handoff", environment: environment)
+            try await eventually("Initial connection") { connection.connected }
+            connection.terminalDidDisappear(surfaceID: surface)
+            try await eventually("Grace period scheduled") { await handoffSleeper.delays.count == 1 }
+            if disconnect { await connection.disconnect() }
+            else { await connection.background() }
+            let releases = await fixture.released
+            XCTAssertEqual(releases, ["lease-1"], "Explicit disconnect and background must release without waiting")
+            await handoffSleeper.resumeAll()
+            try await eventually("Canceled timer completed") { await handoffSleeper.canceled == [0] }
+            XCTAssertEqual(connection.phase, disconnect ? .disconnected : .suspended)
+            let requests = await fixture.requests.count
+            let finalReleases = await fixture.released
+            XCTAssertEqual(requests, 1)
+            XCTAssertEqual(finalReleases, ["lease-1"])
+        }
+    }
+
     @MainActor func testHerdrHandoffReleasesHiddenControllerAndReconnectsOnlyOnReturn() async throws {
         let fixture = TerminalLifecycleFixture()
         let sleeper = TerminalRetrySleeper()
