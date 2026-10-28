@@ -63,6 +63,7 @@ The Xcode version needed to build Trill is separate from the minimum iPhone OS. 
 - Switch between saved computers and browse sessions by project, activity, or attention.
 - Create Herdr spaces, Git worktrees, and terminal tabs; start coding agents inside those terminals.
 - Type directly, write and dictate a draft, or upload a photo and insert its file path.
+- Capture follow-ups in a Space’s Ideas queue, reorder them, and bring one into a terminal draft when ready.
 - Read project files, view images and videos, preview static HTML, and open a Mac-local development server beside the terminal.
 
 [Usage guide](docs/USAGE.md) · [Setup, updates, removal, and troubleshooting](docs/SETUP.md) · [Provider capabilities](docs/PROVIDERS.md)

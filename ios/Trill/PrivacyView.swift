@@ -45,7 +45,7 @@ enum SharingDisclosure {
 
     static let agent = "Starting a session sends your goal and project context to the connected computer. A coding agent may send prompts, code, files, and photos to its AI provider. Check the agent's provider and privacy settings on that computer first." + hostedDemo + "\n\nDisconnecting or forgetting the computer does not delete shared data."
     static let terminal = "Your input goes to the program on the connected computer. A coding agent may send prompts, code, files, and photos to its AI provider. Check the provider and privacy settings on that computer first." + hostedDemo + "\n\nDisconnect stops further input but leaves the session running. Disconnecting or forgetting the computer does not delete shared data."
-    static let photo = "Choosing an image immediately uploads a JPEG copy to the connected computer, without location or EXIF metadata. If a coding agent reads it, the agent may send it to its AI provider. Check the provider and privacy settings first." + hostedDemo + "\n\nClosing the draft or forgetting the computer does not delete the uploaded copy."
+    static let photo = "Insert uploads your selected photos as JPEG copies to the connected computer, without location or EXIF metadata. Queued photos stay on this device until you insert them. If a coding agent reads it, the agent may send it to its AI provider. Check the provider and privacy settings first." + hostedDemo + "\n\nClosing the draft or forgetting the computer does not delete the uploaded copy."
 }
 
 struct PrivacyPolicyView: View {

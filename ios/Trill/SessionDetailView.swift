@@ -127,7 +127,7 @@ struct SessionDetailView: View {
             }
         }
         .sheet(isPresented: $showWriter) {
-            TerminalWriter(connection: connection, sessionID: session.id, sessionName: session.name)
+            TerminalWriter(connection: connection, sessionID: session.id, sessionName: session.name, projectID: session.projectId, spaceName: session.projectName)
         }
         .sheet(isPresented: $showInputNotice) {
             NavigationStack {
@@ -168,7 +168,7 @@ struct SessionDetailView: View {
                     .accessibilityShowsLargeContentViewer()
             }
             if lowerScreen {
-                Button("Write", systemImage: "square.and.pencil", action: openWriter)
+                Button("Write & queue", systemImage: "square.and.pencil", action: openWriter)
                     .labelStyle(.iconOnly).frame(minWidth: 44, minHeight: 44)
                     .accessibilityIdentifier("terminal-write")
                     .accessibilityShowsLargeContentViewer()
@@ -192,13 +192,11 @@ struct SessionDetailView: View {
     @ToolbarContentBuilder private var terminalToolbar: some ToolbarContent {
         if !tabletop || !(connection.isOpen || isFailed) {
             if #available(iOS 27.0, *) {
-                if connection.isOpen || isFailed {
-                    ToolbarItem(placement: .primaryAction) {
-                        Button("Write", systemImage: "square.and.pencil", action: openWriter)
-                            .accessibilityHint("Type or dictate a draft before inserting it into the terminal")
-                            .accessibilityIdentifier("terminal-write")
-                    }.visibilityPriority(.high)
-                }
+                ToolbarItem(placement: .primaryAction) {
+                    Button("Write & queue", systemImage: "square.and.pencil", action: openWriter)
+                        .accessibilityHint("Write a message to insert now or queue for later")
+                        .accessibilityIdentifier("terminal-write")
+                }.visibilityPriority(.high)
                 ToolbarItem(placement: .primaryAction) {
                     Button(showWorkspace ? "Hide files and browser" : "Files and browser", systemImage: "sidebar.right") {
                         toggleWorkspace()
@@ -208,10 +206,8 @@ struct SessionDetailView: View {
                 ToolbarOverflowMenu { sessionActions }
             } else {
                 ToolbarItemGroup(placement: .primaryAction) {
-                    if connection.isOpen || isFailed {
-                        Button("Write", systemImage: "square.and.pencil", action: openWriter)
-                            .accessibilityIdentifier("terminal-write")
-                    }
+                    Button("Write & queue", systemImage: "square.and.pencil", action: openWriter)
+                        .accessibilityIdentifier("terminal-write")
                     Menu { sessionActions } label: { Label("Session actions", systemImage: "ellipsis.circle") }
                 }
             }
@@ -341,218 +337,199 @@ private struct TerminalBarBehavior: ViewModifier {
 
 /// A standard text editor keeps native keyboard dictation and editing in a local
 /// draft. SwiftTerm still owns direct terminal input; only Insert sends the draft.
-private struct TerminalWriter: View {
+struct TerminalWriter: View {
     @Environment(AppStore.self) private var store
     @Environment(\.dismiss) private var dismiss
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @Environment(\.verticalSizeClass) private var verticalSizeClass
     @Bindable var connection: TerminalConnection
     let sessionID: String
     let sessionName: String
+    let projectID: String
+    let spaceName: String
+    @State private var showingQueue = false
     @State private var deliveryError: String?
     @State private var composingText = false
-    @State private var pickedPhoto: PhotosPickerItem?
+    @State private var loadingPhoto = false
+    @State private var uploadingPhotos = false
+    @State private var insertTask: Task<Void, Never>?
     @State private var photoConsentRequest: SavedComputer?
-    @State private var showPhotoPicker = false
     @State private var photoConsentGranted = false
-    @State private var photoComputer: Computer?
     @AppStorage(PhotoConsentPreference.storageKey) private var photoConsent = ""
-    @State private var photoTask: Task<Void, Never>?
-    @State private var photoRequestID: UUID?
-    @State private var uploadingPhoto = false
-    @State private var photoPreview: UIImage?
-    @State private var photoMessage: String?
+
+    private var queuedCount: Int {
+        store.activeComputerID.map { store.ideasQueue.ideas(computerID: $0, projectID: projectID).filter { !$0.completed }.count } ?? 0
+    }
+    private var hasContent: Bool {
+        !connection.draftText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !connection.draftPhotos.isEmpty
+    }
 
     var body: some View {
-        NavigationStack {
-            VStack(alignment: .leading, spacing: 12) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(sessionName.isEmpty ? "Your session" : sessionName).font(.headline)
-                    if !compactTools {
-                        Text("Insert adds your draft to the terminal. Return sends it.")
-                            .font(.subheadline).foregroundStyle(.secondary)
-                    }
-                }
-                TerminalDraftEditor(text: $connection.draftText, compositionChanged: { composingText = $0 },
-                                    onDismantle: { photoTask?.cancel() })
-                    .frame(maxWidth: .infinity, minHeight: 80, maxHeight: .infinity)
-                    .layoutPriority(1)
-                    .padding(8)
-                    .scrollContentBackground(.hidden)
-                    .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12))
-                    .overlay(alignment: .topLeading) {
-                        if connection.draftText.isEmpty {
-                            Text("Type or dictate…").foregroundStyle(.tertiary).padding(.horizontal, 13).padding(.vertical, 16)
-                                .allowsHitTesting(false).accessibilityHidden(true)
-                        }
-                    }
-                    .accessibilityLabel("Terminal draft").accessibilityIdentifier("terminal-draft")
-                if let message = deliveryError ?? validationMessage {
-                    Text(message).font(.footnote).foregroundStyle(.secondary)
-                        .textSelection(.enabled)
-                        .accessibilityIdentifier("terminal-draft-status")
-                    if connection.controlHeld || connection.shiftHeld {
-                        Button("Turn off Ctrl and Shift") {
-                            connection.controlHeld = false
-                            connection.shiftHeld = false
-                            deliveryError = nil
-                        }.font(.footnote).accessibilityIdentifier("terminal-draft-reset-modifiers")
-                    }
-                }
-                if compactTools {
-                    VStack(alignment: .leading, spacing: 8) { photoActions; photoProgress }
-                } else {
-                    ViewThatFits(in: .horizontal) {
-                        HStack(spacing: 12) {
-                            photoActions.fixedSize(horizontal: true, vertical: false)
-                            photoProgress.fixedSize(horizontal: true, vertical: false)
-                        }
-                        VStack(alignment: .leading, spacing: 8) { photoActions; photoProgress }
-                    }
-                }
-                if let photoMessage {
-                    Text(photoMessage).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
-                        .accessibilityIdentifier("terminal-photo-status")
-                }
+        VStack(spacing: 0) {
+            composerHeader
+            Picker("Write and queue", selection: $showingQueue) {
+                Text("Write").tag(false)
+                Text("Ideas · \(queuedCount)").tag(true)
             }
-            .padding(20).background(Color(uiColor: .systemGroupedBackground))
-            .navigationTitle("Write to terminal").navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") { photoTask?.cancel(); dismiss() }
-                        .accessibilityHint(uploadingPhoto ? "Keeps your draft and cancels the unfinished photo upload" : "Keeps your draft")
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Insert", systemImage: "arrow.up.to.line") {
-                        guard !composingText, !uploadingPhoto else { return }
-                        if connection.insertDraft() { dismiss() }
-                        else { deliveryError = "Trill could not insert the text. Your draft is still here. Reconnect and try again." }
+            .pickerStyle(.segmented).disabled(uploadingPhotos || loadingPhoto)
+            .padding(.horizontal, 20).padding(.bottom, 12)
+            Divider()
+            if showingQueue, let computerID = store.activeComputerID {
+                IdeasQueueView(computerID: computerID, projectID: projectID, spaceName: spaceName,
+                               useInDraft: { idea in
+                    connection.draftText += (connection.draftText.isEmpty ? "" : "\n\n") + idea.text
+                    connection.draftPhotos += (idea.photos ?? []).map { IdeaPhoto(jpegData: $0.jpegData) }
+                    showingQueue = false
+                }, embedded: true)
+            } else {
+                GeometryReader { geometry in
+                    ScrollView {
+                        composer(editorHeight: max(120, min(320, geometry.size.height * 0.45)))
                     }
-                    .disabled(composingText || uploadingPhoto || !connection.connected || connection.draftValidationMessage != nil)
-                    .accessibilityIdentifier("terminal-insert")
+                    .scrollDismissesKeyboard(.interactively)
+                    .frame(width: geometry.size.width, height: geometry.size.height)
+                    .clipped()
                 }
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(uiColor: .systemGroupedBackground))
+        .alert("Couldn't complete action", isPresented: Binding(get: { deliveryError != nil }, set: { if !$0 { deliveryError = nil } })) {
+            Button("OK", role: .cancel) { deliveryError = nil }
+        } message: { Text(deliveryError ?? "") }
         .presentationDetents([.large])
-        .onChange(of: connection.draftText) { _, _ in deliveryError = nil }
+        .interactiveDismissDisabled(uploadingPhotos)
+        .onDisappear { insertTask?.cancel() }
         .sheet(item: $photoConsentRequest, onDismiss: {
-            let granted = photoConsentGranted
-            photoConsentGranted = false
-            if granted, photoComputer == store.computer, !store.changingComputer, !store.readOnly { showPhotoPicker = true }
+            if photoConsentGranted { photoConsentGranted = false; uploadAndInsert() }
         }) { request in
-            let computer = request.computer
-            SharingConsentView(title: "Add a photo", destination: computer.name,
-                message: SharingDisclosure.photo + "\n\nThis permission is remembered for this computer. You still choose every photo. Reset it in Connection details.",
-                actionTitle: "Allow photos for this computer", allow: {
-                    guard store.computer == computer, !store.changingComputer, !store.readOnly else { return }
-                    photoConsent = PhotoConsentPreference.remembering(computer, in: photoConsent)
-                    photoConsentGranted = true
-                })
+            SharingConsentView(title: "Upload photos", destination: request.computer.name,
+                               message: SharingDisclosure.photo, actionTitle: "Allow photos for this computer", allow: {
+                guard store.computer == request.computer, !store.changingComputer, !store.readOnly else { return }
+                photoConsent = PhotoConsentPreference.remembering(request.computer, in: photoConsent)
+                photoConsentGranted = true
+            })
         }
-        .photosPicker(isPresented: $showPhotoPicker, selection: $pickedPhoto, matching: .images)
-        .onChange(of: pickedPhoto) { _, photo in
-            guard let photo, let api = store.api, let computer = photoComputer,
-                  computer == store.computer, PhotoConsentPreference.contains(computer, in: photoConsent),
-                  !store.changingComputer, !store.readOnly else { pickedPhoto = nil; return }
-            photoTask?.cancel()
-            let requestID = UUID()
-            photoRequestID = requestID
-            uploadingPhoto = true
-            photoMessage = nil
-            photoPreview = nil
-            photoTask = Task { @MainActor in
-                defer {
-                    // An older cancelled request must not clear a newer picker selection.
-                    if photoRequestID == requestID {
-                        uploadingPhoto = false
-                        pickedPhoto = nil
-                        photoTask = nil
-                        photoRequestID = nil
+    }
+
+    private var composerHeader: some View {
+        VStack(spacing: 8) {
+            if dynamicTypeSize.isAccessibilitySize {
+                Text("Write & queue").font(.headline).frame(maxWidth: .infinity, alignment: .leading)
+            }
+            HStack(spacing: 12) {
+                Button("Done") { insertTask?.cancel(); dismiss() }
+                    .disabled(uploadingPhotos)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .frame(minHeight: 44)
+                    .accessibilityIdentifier("composer-done")
+                if dynamicTypeSize.isAccessibilitySize {
+                    Spacer(minLength: 0)
+                } else {
+                    Text("Write & queue").font(.headline)
+                        .frame(maxWidth: .infinity).lineLimit(2)
+                }
+                if !showingQueue {
+                    Button("Insert", action: requestInsertion)
+                        .disabled(!hasContent || composingText || loadingPhoto || uploadingPhotos || !connection.connected || store.readOnly || connection.draftInsertionPending)
+                        .fixedSize(horizontal: true, vertical: false)
+                        .frame(minHeight: 44)
+                        .accessibilityIdentifier("terminal-insert")
+                }
+            }
+            .buttonStyle(.bordered)
+        }
+        .padding(.horizontal, 16).padding(.vertical, 8)
+    }
+
+    private func composer(editorHeight: CGFloat) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(sessionName.isEmpty ? spaceName : sessionName).font(.headline)
+            Text("Insert into the terminal now, or queue an idea for later.")
+                .font(.subheadline).foregroundStyle(.secondary)
+            TerminalDraftEditor(text: $connection.draftText, compositionChanged: { composingText = $0 })
+                .frame(height: editorHeight)
+                .frame(maxWidth: .infinity)
+                .padding(8)
+                .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12))
+                .overlay(alignment: .topLeading) {
+                    if connection.draftText.isEmpty {
+                        Text("Type or dictate…").foregroundStyle(.tertiary).padding(16).allowsHitTesting(false)
                     }
                 }
-                do {
-                    guard let data = try await photo.loadTransferable(type: Data.self) else {
-                        throw TrillError.message("This photo couldn't be loaded. Choose another image.")
-                    }
+                .disabled(uploadingPhotos || connection.draftInsertionPending)
+            IdeaPhotoAttachments(photos: $connection.draftPhotos, loading: $loadingPhoto)
+                .disabled(uploadingPhotos || connection.draftInsertionPending)
+            if uploadingPhotos { ProgressView("Uploading photos…") }
+            Button("Queue idea", systemImage: "text.badge.plus", action: queueIdea)
+                .buttonStyle(.borderedProminent)
+                .disabled(!hasContent || composingText || loadingPhoto || uploadingPhotos || connection.draftInsertionPending)
+                .accessibilityIdentifier("queue-draft")
+            Text("Queued ideas and photos are saved on this device. Insert uploads photos to your Mac; Return sends the message.")
+                .font(.footnote).foregroundStyle(.secondary)
+            if let message = connection.draftValidationMessage, !connection.draftText.isEmpty {
+                Text(message).font(.footnote).foregroundStyle(.secondary)
+                if connection.controlHeld || connection.shiftHeld {
+                    Button("Turn off Ctrl and Shift") { connection.controlHeld = false; connection.shiftHeld = false }
+                        .accessibilityIdentifier("terminal-draft-reset-modifiers")
+                }
+            }
+        }.padding(20)
+    }
+
+    private func queueIdea() {
+        guard let computerID = store.activeComputerID else { return }
+        do {
+            let idea = SpaceIdea(text: connection.draftText.trimmingCharacters(in: .whitespacesAndNewlines), photos: connection.draftPhotos)
+            try store.ideasQueue.save(store.ideasQueue.ideas(computerID: computerID, projectID: projectID) + [idea], computerID: computerID, projectID: projectID)
+            connection.draftText = ""
+            connection.draftPhotos = []
+            showingQueue = true
+        } catch { deliveryError = error.localizedDescription }
+    }
+
+    private func requestInsertion() {
+        guard !composingText, !loadingPhoto, !uploadingPhotos, !store.readOnly, !store.changingComputer else { return }
+        if connection.draftPhotos.contains(where: { $0.uploadedPath == nil }), let computer = store.computer,
+           !PhotoConsentPreference.contains(computer, in: photoConsent) {
+            photoConsentRequest = SavedComputer(id: store.activeComputerID ?? UUID(), computer: computer)
+        } else { uploadAndInsert() }
+    }
+
+    private func uploadAndInsert() {
+        guard !uploadingPhotos, let computer = store.computer, let api = store.api,
+              !store.readOnly, !store.changingComputer, connection.connected else { return }
+        uploadingPhotos = true
+        insertTask = Task { @MainActor in
+            defer { uploadingPhotos = false; insertTask = nil }
+            do {
+                for photo in connection.draftPhotos where photo.uploadedPath == nil {
                     try Task.checkCancellation()
-                    let jpeg = try TerminalPhoto.jpeg(from: data)
-                    photoPreview = UIImage(data: jpeg)
-                    guard store.api === api, store.computer == computer, !store.changingComputer, !store.readOnly,
+                    guard store.computer == computer, store.api === api, !store.readOnly, !store.changingComputer,
                           PhotoConsentPreference.contains(computer, in: photoConsent) else {
-                        throw TrillError.message("Photo permission or the connection changed. Add the photo again when you’re ready.")
+                        throw TrillError.message("The connection or photo permission changed. Your draft is still here.")
                     }
-                    let attachment = try await api.uploadPhoto(id: sessionID, jpeg: jpeg)
+                    let attachment = try await api.uploadPhoto(id: sessionID, jpeg: photo.jpegData)
                     try Task.checkCancellation()
-                    guard photoRequestID == requestID, store.api === api, store.computer == computer,
-                          !store.changingComputer, !store.readOnly,
-                          PhotoConsentPreference.contains(computer, in: photoConsent),
-                          let path = attachment.terminalPath else {
-                        throw TrillError.message("The connection changed. Reopen Write before adding this photo again.")
-                    }
-                    connection.draftText += (connection.draftText.isEmpty ? "" : " ") + path
-                    photoMessage = "Photo uploaded. Insert adds its path to the terminal; Return sends it."
-                } catch is CancellationError { }
-                catch {
-                    if !Task.isCancelled, photoRequestID == requestID {
-                        photoPreview = nil
-                        photoMessage = error.localizedDescription
+                    guard let path = attachment.terminalPath else { throw TrillError.message("The uploaded photo has no terminal path.") }
+                    if let index = connection.draftPhotos.firstIndex(where: { $0.id == photo.id }) {
+                        connection.draftPhotos[index].uploadedPath = path
                     }
                 }
-            }
-        }
-        // A covering consent sheet or picker can disappear this view without
-        // removing its editor. Cancel on Done or editor teardown instead.
-    }
-
-    private var compactTools: Bool { dynamicTypeSize.isAccessibilitySize || verticalSizeClass == .compact }
-
-    private var photoActions: some View {
-        HStack(spacing: 12) {
-            Button(action: choosePhoto) { Label("Add photo", systemImage: "photo.badge.plus") }
-                .fixedSize(horizontal: false, vertical: true)
-                .buttonStyle(.bordered)
-                .disabled(uploadingPhoto || store.changingComputer || store.readOnly || store.api == nil)
-                .accessibilityIdentifier("terminal-add-photo")
-            Spacer(minLength: 8)
-            Menu {
-                Text("Insert adds your draft to the terminal. Return sends it.")
-                Text("Use the keyboard microphone to dictate.")
-                Text("Photos upload to your Mac. Their paths are added to this draft.")
-                Text("Done keeps your draft while Trill is open and cancels unfinished photo uploads.")
-            } label: {
-                Label("Writing help", systemImage: "info.circle").labelStyle(.iconOnly)
-                    .frame(minWidth: 44, minHeight: 44)
-            }
-        }
-    }
-
-    @ViewBuilder private var photoProgress: some View {
-        if uploadingPhoto || photoPreview != nil {
-            HStack(spacing: 8) {
-                if uploadingPhoto { ProgressView("Adding photo…").font(.subheadline).fixedSize(horizontal: false, vertical: true) }
-                if let photoPreview {
-                    Image(uiImage: photoPreview).resizable().scaledToFit().frame(width: 44, height: 44)
-                        .clipShape(RoundedRectangle(cornerRadius: 6)).accessibilityLabel("Selected photo")
+                guard store.computer == computer, store.api === api, !store.readOnly, !store.changingComputer else {
+                    throw TrillError.message("The connection changed. Your draft is still here.")
                 }
-            }
+                for photo in connection.draftPhotos {
+                    if let path = photo.uploadedPath, !connection.draftText.contains(path) {
+                        connection.draftText += (connection.draftText.isEmpty ? "" : " ") + path
+                    }
+                }
+                if connection.insertDraft() { dismiss() }
+                else { deliveryError = connection.draftValidationMessage ?? "Trill couldn't insert the draft. Your text and photos are still here." }
+            } catch is CancellationError { }
+            catch { deliveryError = error.localizedDescription }
         }
-    }
-
-    private func choosePhoto() {
-        guard let computer = store.computer, !store.changingComputer, !store.readOnly, !uploadingPhoto else { return }
-        photoComputer = computer
-        photoConsentGranted = false
-        if PhotoConsentPreference.contains(computer, in: photoConsent) { showPhotoPicker = true }
-        else { photoConsentRequest = SavedComputer(id: store.activeComputerID ?? UUID(), computer: computer) }
-    }
-    private var validationMessage: String? {
-        if !connection.connected { return "Reconnect before inserting. You can keep editing this draft." }
-        if composingText { return "Finish the current keyboard entry before inserting." }
-        if connection.draftText.isEmpty { return nil }
-        return connection.draftValidationMessage
     }
 }
-
 
 struct TerminalDraftEditor: UIViewRepresentable {
     @Binding var text: String
@@ -566,9 +543,10 @@ struct TerminalDraftEditor: UIViewRepresentable {
         view.backgroundColor = .clear
         view.font = UIFontMetrics(forTextStyle: .body).scaledFont(for: .monospacedSystemFont(ofSize: 17, weight: .regular))
         view.adjustsFontForContentSizeCategory = true
-        view.autocorrectionType = .no
+        view.autocorrectionType = .yes
         view.autocapitalizationType = .none
-        view.spellCheckingType = .no
+        view.spellCheckingType = .yes
+        view.inlinePredictionType = .yes
         view.smartQuotesType = .no
         view.smartDashesType = .no
         view.smartInsertDeleteType = .no

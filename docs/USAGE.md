@@ -22,6 +22,14 @@ Touch and hold a session to open, rename, or close it. **Close terminal…** ask
 
 The **+** menu offers **New session**, **New space**, and **New worktree** when supported. A session is a terminal tab in an existing space. Tap **Folder** to browse folders on the Mac and choose its starting directory, or keep **Space default**. New space uses the same picker. Start a coding agent in that terminal. A space uses an existing absolute directory on the Mac; a worktree uses a primary repository space and a branch name. If creation is unconfirmed, inspect Spaces before trying again.
 
+## Ideas queue
+
+Open **Write & queue → Ideas** in a terminal, or **Spaces → your Space → Ideas queue**, to capture a follow-up without sending input to the agent. Write or dictate a message, optionally add photos, then choose **Queue idea** in the composer (or **Add to queue** from the Space). Photo-only ideas are supported. Ideas are saved on this device per saved computer and Space, including separate queues for worktrees, and survive closing Trill. They are not synced to the Mac or other devices. Forgetting a computer makes its queues inaccessible to a new pairing.
+
+Use **Edit** to drag ideas into order. Tap an idea to edit its text, tap its circle to mark it done, or tap a completed checkmark to return it to the queue. Each idea’s menu also offers **Delete**.
+
+From a terminal’s queue, choose an idea’s **Use in draft** action to append its text and photos to that terminal’s existing draft and return to the Write tab. Review and insert it as usual. The idea remains queued until you mark it done; nothing runs automatically.
+
 ## Terminals, writing, and dictation
 
 On the first terminal connection, review the phone's access prompt. You can remember permission for that pairing, or reset it under **Connection details → Permissions → Ask before opening terminals**. The Mac's control setting is a separate requirement.
@@ -30,13 +38,13 @@ For Herdr, leaving a session's detail view keeps its connection open for 30 seco
 
 Use **Keyboard** for direct input, including a hardware keyboard. The key strip provides Return, Escape, Tab, arrows, Ctrl, and one-shot Shift. Hold Backspace, Tab, or an arrow in the key strip to repeat it using the native button behavior. Tap Shift, then a character or special key. Modifiers reset when the connection pauses or disconnects.
 
-**Write** opens a local draft with the native iPhone keyboard. Use its microphone to dictate, then review the text. If the microphone is missing, enable **Settings → General → Keyboard → Enable Dictation** on the phone.
+**Write & queue** opens a local draft with the native iPhone keyboard, word suggestions, and dictation. Choose **Insert** to use it now or **Queue idea** to save it for later; the **Ideas** tab holds this Space’s queue. Use its microphone to dictate, then review the text. If the microphone is missing, enable **Settings → General → Keyboard → Enable Dictation** on the phone.
 
 **Insert** puts the reviewed text into the terminal without adding Return. Use **Return** when ready to submit. Quotes and dashes remain literal. Multiline insertion needs bracketed-paste support from the remote terminal.
 
 Shift+Return sends a bracketed newline when supported, or the negotiated extended key. If neither is available, Trill explains that it did not send Return.
 
-**Done** keeps your draft while Trill is open and cancels unfinished photo uploads. Drafts are held in memory per computer and session. After an interruption, Trill never automatically retries insertion; check the remote terminal before inserting again.
+**Done** keeps your draft text and selected photos while Trill is open. Queuing an idea saves them persistently on this device. Wait for an active upload to finish before closing the composer. Drafts are held in memory per computer and session. After an interruption, Trill never automatically retries insertion; check the remote terminal before inserting again.
 
 Swipe the terminal to scroll through Herdr’s history. Gestures send explicit scroll commands with their touched cell, preserving mouse-aware applications’ behavior.
 
@@ -83,14 +91,9 @@ Hiding and reopening the panel can retain its page and temporary preview access.
 
 ## Add photos to a terminal draft
 
-In **Write**, choose **Add photo**. After approval for the paired computer, the system picker lets you choose an image. Trill:
+In **Write & queue**, choose **Add photo**. The system picker lets you choose up to six images. Trill downsamples each image to at most 2048 pixels on its longest edge and re-encodes it as JPEG without location/EXIF metadata. Photos stay on this device until you choose **Insert**. **Queue idea** saves the text and photos locally without uploading them.
 
-1. Downsamples it to at most 2048 pixels on its longest edge.
-2. Re-encodes it as JPEG without location/EXIF metadata.
-3. Uploads it to private companion storage on the Mac.
-4. Appends its quoted file path to your draft.
-
-Review the path and message, tap **Insert**, then **Return** when ready. This sends terminal text containing a local file path. The program running in that terminal decides whether and how to use the image.
+When you choose **Insert**, Trill requests photo-upload approval for the paired computer if needed, uploads photos to private companion storage, and inserts the draft with their quoted file paths. Use **Return** when ready to submit. The program running in that terminal decides whether and how to use each image.
 
 Photo permission is remembered for that pairing. Reset it under **Connection details → Permissions → Ask before uploading photos**. Resetting permission does not delete existing uploads.
 

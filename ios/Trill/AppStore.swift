@@ -6,6 +6,7 @@ enum SessionBrowserMode: Hashable { case sessions, agents }
 
 @MainActor @Observable
 final class AppStore {
+    let ideasQueue: IdeasQueueStore
     var computer: Computer?
     private var library = ComputerLibrary()
     private var libraryAvailable = true
@@ -15,7 +16,11 @@ final class AppStore {
     var activeComputerID: UUID? { library.activeID }
     private(set) var changingComputer = false
     var computersPresented = false
-    private var drafts: [UUID: [String: String]] = [:]
+    private struct SessionDraft {
+        let text: String
+        let photos: [IdeaPhoto]
+    }
+    private var drafts: [UUID: [String: SessionDraft]] = [:]
     private var selections: [UUID: String] = [:]
     var sessionBrowserMode: SessionBrowserMode = .sessions
     // Presentation intent lives with the app, beyond adaptive SwiftUI rebuilds.
@@ -74,6 +79,7 @@ final class AppStore {
     private let performRename: (APIClient, String, String) async throws -> Void
 
     init(loadSavedPairing: Bool = true,
+         ideasQueue: IdeasQueueStore? = nil,
          savePairing: @escaping (Computer, String) throws -> Void = { try PairingStore.save($0, account: $1) },
          deletePairing: @escaping (String) throws -> Void = { try PairingStore.delete(account: $0) },
          loadLibrary: () throws -> ComputerLibrary? = { try ComputerLibraryStore.load() },
@@ -83,6 +89,7 @@ final class AppStore {
          fetchSessions: @escaping (APIClient) async throws -> [RemoteSession] = { try await $0.sessions() },
          fetchProjects: @escaping (APIClient) async throws -> [Project] = { try await $0.projects() },
          performRename: @escaping (APIClient, String, String) async throws -> Void = { try await $0.rename(id: $1, name: $2) }) {
+        self.ideasQueue = ideasQueue ?? IdeasQueueStore()
         self.saveLibrary = saveLibrary
         self.savePairing = savePairing
         self.deletePairing = deletePairing
@@ -211,7 +218,10 @@ final class AppStore {
     func connection(for id: String) -> TerminalConnection {
         if let existing = connections[id] { return existing }
         let new = TerminalConnection()
-        if let activeComputerID { new.draftText = drafts[activeComputerID]?[id] ?? "" }
+        if let activeComputerID, let draft = drafts[activeComputerID]?[id] {
+            new.draftText = draft.text
+            new.draftPhotos = draft.photos
+        }
         connections[id] = new
         return new
     }
@@ -275,7 +285,7 @@ final class AppStore {
         refreshTask?.cancel()
         if let oldID = library.activeID {
             selections[oldID] = selectedID
-            for (id, connection) in connections { drafts[oldID, default: [:]][id] = connection.draftText }
+            for (id, connection) in connections { drafts[oldID, default: [:]][id] = SessionDraft(text: connection.draftText, photos: connection.draftPhotos) }
         }
         await closeConnections()
         if let refreshTask { _ = await refreshTask.value }

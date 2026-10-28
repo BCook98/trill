@@ -47,6 +47,9 @@ final class TerminalConnection: NSObject, TerminalViewDelegate {
     var title = ""
     var controlHeld = false
     var shiftHeld = false
+    var draftPhotos: [IdeaPhoto] = [] {
+        didSet { if draftPhotos != oldValue { draftRevision = UUID() } }
+    }
     var draftText = "" {
         didSet { if draftText != oldValue { draftRevision = UUID() } }
     }
@@ -209,7 +212,7 @@ final class TerminalConnection: NSObject, TerminalViewDelegate {
         guard !Task.isCancelled, envelope.streamID == inputID,
               let pending = pendingDraft, pending.id == envelope.draftID else { return }
         pendingDraft = nil
-        if draftRevision == pending.revision { draftText = "" }
+        if draftRevision == pending.revision { draftText = ""; draftPhotos = [] }
     }
 
     private func queueInput(_ operation: TerminalInputOperation) {

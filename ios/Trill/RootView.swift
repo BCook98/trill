@@ -444,6 +444,7 @@ struct ProjectSessionsView: View {
     @Environment(AppStore.self) private var store
     let projectID: String
     @State private var search = ""
+    @State private var showIdeas = false
 
     private var project: Project? { store.browserProjects.first { $0.id == projectID } }
     private var current: [RemoteSession] { store.sessions(in: projectID, archived: false).filter { $0.matchesSearch(search) } }
@@ -455,6 +456,15 @@ struct ProjectSessionsView: View {
                 Section {
                     LabeledContent("Project", value: project.displayName)
                     if !project.path.isEmpty { Text(project.path).font(.footnote).foregroundStyle(.secondary).textSelection(.enabled) }
+                }
+            }
+            if let computerID = store.activeComputerID {
+                Section {
+                    Button { showIdeas = true } label: {
+                        LabeledContent {
+                            Text("\(store.ideasQueue.ideas(computerID: computerID, projectID: projectID).filter { !$0.completed }.count)")
+                        } label: { Label("Ideas queue", systemImage: "lightbulb") }
+                    }.accessibilityIdentifier("space-ideas-queue")
                 }
             }
             Section("Current") {
@@ -475,6 +485,11 @@ struct ProjectSessionsView: View {
 
         }
         .listStyle(.insetGrouped)
+        .sheet(isPresented: $showIdeas) {
+            if let computerID = store.activeComputerID {
+                IdeasQueueView(computerID: computerID, projectID: projectID, spaceName: project?.displayName ?? "Space")
+            }
+        }
         .navigationTitle(project?.displayName ?? "Space")
         .searchable(text: $search, prompt: "Sessions, agents, or branches")
         .refreshable { await store.refresh() }

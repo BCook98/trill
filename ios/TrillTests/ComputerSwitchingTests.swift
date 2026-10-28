@@ -53,19 +53,26 @@ final class ComputerSwitchingTests: XCTestCase {
         let h = Harness(); let store = h.store()
         try await store.pair(computer("A")); let a = try XCTUnwrap(store.activeComputerID)
         let old = store.connection(for: "same-session-id"); old.draftText = "A draft"
+        let firstPhoto = IdeaPhoto(jpegData: Data([1, 2, 3]))
+        old.draftPhotos = [firstPhoto]
         XCTAssertTrue(store.selectSession(id: "same-session-id"))
         try await store.pair(computer("B")); let b = try XCTUnwrap(store.activeComputerID)
         XCTAssertEqual(store.computers.count, 2)
         let current = store.connection(for: "same-session-id")
         XCTAssertFalse(current === old)
         XCTAssertEqual(current.draftText, "")
+        XCTAssertTrue(current.draftPhotos.isEmpty)
         current.draftText = "B draft"
+        let secondPhoto = IdeaPhoto(jpegData: Data([4, 5, 6]))
+        current.draftPhotos = [secondPhoto]
         try await store.selectComputer(id: a)
         XCTAssertEqual(store.connection(for: "same-session-id").draftText, "A draft")
+        XCTAssertEqual(store.connection(for: "same-session-id").draftPhotos, [firstPhoto])
         XCTAssertEqual(store.selectedID, "same-session-id")
         XCTAssertEqual(store.sessions.first?.name, "A")
         try await store.selectComputer(id: b)
         XCTAssertEqual(store.connection(for: "same-session-id").draftText, "B draft")
+        XCTAssertEqual(store.connection(for: "same-session-id").draftPhotos, [secondPhoto])
         XCTAssertEqual(h.saved?.activeID, b)
     }
 
