@@ -233,7 +233,10 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
     /// A remote rendered surface can own history as well as application input.
     /// Positive line counts move toward older output. Nil keeps local routing.
     public var remoteScrollHandler: ((_ lines: Int, _ column: Int, _ row: Int) -> Void)? {
-        didSet { refreshProgramScrollGesture() }
+        didSet {
+            stopRemoteScrollMomentum()
+            refreshProgramScrollGesture()
+        }
     }
 
     /// Controls link highlighting and link activation behavior.
@@ -514,6 +517,7 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
 
     open override func didMoveToWindow() {
         super.didMoveToWindow()
+        if window == nil { stopRemoteScrollMomentum() }
         guard uiShutdownState == .active else { return }
         frameDriver.setWindowAttachedOnMain(window != nil)
         refreshCachedViewState()
@@ -1244,6 +1248,40 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
     }
     
     private var wheelDragAccumulator = WheelDistanceAccumulator<ProgramScrollRoute>()
+    private var remoteScrollMomentum: Task<Void, Never>?
+
+    func stopRemoteScrollMomentum() {
+        remoteScrollMomentum?.cancel()
+        remoteScrollMomentum = nil
+        wheelDragAccumulator.reset()
+    }
+
+    // Remote history has no UIScrollView content to decelerate. Keep a short,
+    // bounded glide in the same scroll region as the finger that started it.
+    func startRemoteScrollMomentum(velocity: CGFloat, point: CGPoint, modifiers: UIKeyModifierFlags) {
+        stopRemoteScrollMomentum()
+        guard remoteScrollHandler != nil, abs(velocity) >= 200 else { return }
+        remoteScrollMomentum = Task { [weak self] in
+            var remainingVelocity = max(-4_000, min(4_000, velocity))
+            for _ in 0..<60 {
+                do { try await Task.sleep(nanoseconds: 16_666_667) } catch { return }
+                guard !Task.isCancelled, let self, self.remoteScrollHandler != nil else { return }
+                self.forwardWheel(distance: remainingVelocity / 60 * 3,
+                                  point: point, modifiers: modifiers,
+                                  accumulator: &self.wheelDragAccumulator)
+                remainingVelocity *= 0.90
+                if abs(remainingVelocity) < 30 { break }
+            }
+            guard !Task.isCancelled, let self else { return }
+            self.remoteScrollMomentum = nil
+            self.wheelDragAccumulator.reset()
+        }
+    }
+
+    open override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        stopRemoteScrollMomentum()
+        super.touchesBegan(touches, with: event)
+    }
     private var wheelReportBudget = WheelReportBudget()
 
     /// A one-finger drag is this device's wheel for a mouse-tracking application. In an
@@ -1253,13 +1291,17 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
         guard gestureRecognizer.view != nil, allowMouseReporting else { return }
         switch gestureRecognizer.state {
         case .began:
-            wheelDragAccumulator.reset()
+            stopRemoteScrollMomentum()
         case .changed:
             let travelled = gestureRecognizer.translation(in: self).y
             gestureRecognizer.setTranslation(.zero, in: self)
             forwardWheelDrag(distance: travelled, gestureRecognizer: gestureRecognizer)
-        case .ended, .cancelled, .failed:
-            wheelDragAccumulator.reset()
+        case .ended:
+            startRemoteScrollMomentum(velocity: gestureRecognizer.velocity(in: self).y,
+                                      point: gestureRecognizer.location(in: self),
+                                      modifiers: gestureRecognizer.modifierFlags)
+        case .cancelled, .failed:
+            stopRemoteScrollMomentum()
         default:
             break
         }
@@ -1271,7 +1313,7 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
         distance: CGFloat,
         gestureRecognizer: UIGestureRecognizer
     ) {
-        forwardWheel(distance: distance,
+        forwardWheel(distance: remoteScrollHandler == nil ? distance : distance * 3,
                      point: gestureRecognizer.location(in: self),
                      modifiers: gestureRecognizer.modifierFlags,
                      accumulator: &wheelDragAccumulator)
@@ -1383,6 +1425,7 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
     @objc func handlePointerScroll(_ gestureRecognizer: UIPanGestureRecognizer) {
         switch gestureRecognizer.state {
         case .began:
+            stopRemoteScrollMomentum()
             pointerScrollAccumulator.reset()
             fallthrough
         case .changed:

@@ -255,10 +255,47 @@ extension TerminalInputTests {
         gesture.point = CGPoint(x: cellWidth * 7.5, y: cellHeight * 5.5)
         view.forwardWheelDrag(distance: cellHeight * 3, gestureRecognizer: gesture)
         view.forwardWheelDrag(distance: -cellHeight * 2, gestureRecognizer: gesture)
-        XCTAssertEqual(lines, [3, -2])
+        XCTAssertEqual(lines, [9, -6], "Touch scrolling should cover more history per swipe")
         XCTAssertEqual(positions, [[7, 5], [7, 5]], "A scroll over the conversation must not be sent to the application's header at 0,0")
+        lines = []
+        view.forwardPointerScroll(distance: cellHeight * 3, gestureRecognizer: gesture)
+        XCTAssertEqual(lines, [3], "Trackpad movement must keep its existing sensitivity")
         view.remoteScrollHandler = nil
         XCTAssertFalse(view.shouldCapturePointerScroll(gesture))
+    }
+
+    @MainActor func testRemoteScrollFlickGlidesInOriginalRegionAndStopsForNewTouch() async throws {
+        let view = TerminalConnection().terminal
+        var reports: [(Int, Int, Int)] = []
+        view.remoteScrollHandler = { reports.append(($0, $1, $2)) }
+        let cellHeight = view.getOptimalFrameSize().height / CGFloat(view.terminalDimensions.rows)
+        let cellWidth = view.getOptimalFrameSize().width / CGFloat(view.terminalDimensions.cols)
+        view.startRemoteScrollMomentum(velocity: 1_500, point: CGPoint(x: cellWidth * 7.5, y: cellHeight * 5.5), modifiers: [])
+        try await Task.sleep(for: .milliseconds(120))
+        XCTAssertFalse(reports.isEmpty, "A flick must continue moving after the finger lifts")
+        XCTAssertTrue(reports.allSatisfy { $0.0 > 0 && $0.0 <= 200 && $0.1 == 7 && $0.2 == 5 })
+        view.touchesBegan([], with: nil)
+        let countAfterTouch = reports.count
+        try await Task.sleep(for: .milliseconds(60))
+        XCTAssertEqual(reports.count, countAfterTouch, "Touching the terminal must stop the glide immediately")
+    }
+
+    @MainActor func testRemoteScrollMomentumCannotReachReplacementSessionOrDetachedView() async throws {
+        let view = TerminalConnection().terminal
+        let point = CGPoint(x: 40, y: 40)
+        var previousReports = 0
+        var replacementReports = 0
+        view.remoteScrollHandler = { _, _, _ in previousReports += 1 }
+        view.startRemoteScrollMomentum(velocity: -2_000, point: point, modifiers: [])
+        view.remoteScrollHandler = { _, _, _ in replacementReports += 1 }
+        try await Task.sleep(for: .milliseconds(60))
+        XCTAssertEqual(previousReports, 0)
+        XCTAssertEqual(replacementReports, 0, "A previous session's flick must never scroll its replacement")
+        view.startRemoteScrollMomentum(velocity: -2_000, point: point, modifiers: [])
+        view.didMoveToWindow()
+        try await Task.sleep(for: .milliseconds(60))
+        XCTAssertEqual(replacementReports, 0, "Leaving the screen must stop momentum")
+        view.remoteScrollHandler = nil
     }
 }
 
